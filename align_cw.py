@@ -5,9 +5,10 @@
 # Copyright 2017, Pieter Robyns
 # ----------------------------------------------------
 
-from scipy import signal
 from os import listdir
 from os.path import isfile, join
+from dsp import *
+from debug import DEBUG
 import collections
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,43 +17,6 @@ import argparse
 import configparser
 
 Bounds = collections.namedtuple('Bounds', ['begin', 'end'])
-
-# Preprocessing------
-def normalize(trace):
-    mean = np.mean(trace)
-    std = np.std(trace)
-    if std == 0:
-        raise ValueError
-    return (trace - mean) / std
-
-def lowpass(trace):
-    b, a = signal.butter(4, 0.004, 'low')
-    trace_filtered = signal.filtfilt(b, a, trace)
-    return trace_filtered
-
-def align(trace, reference):
-    # Preprocess
-    try:
-        processed_trace = normalize(lowpass(trace))
-        processed_reference = normalize(lowpass(reference))
-    except ValueError: # Something is wrong with the signal
-        return None
-
-    # Correlated processed traces to determine lag
-    result = signal.correlate(processed_trace, processed_reference, mode='valid') / len(processed_reference)
-    lag = np.argmax(result)
-
-    # Align the original trace based on this calculation
-    aligned_trace = trace[lag:lag+len(processed_reference)]
-
-    if args.debug:
-        plt.plot(range(0, len(processed_reference)), processed_reference)
-        plt.plot(range(0, len(aligned_trace)), normalize(lowpass(aligned_trace)))
-        plt.gca().set_ylim([-2.0,2.0])
-        plt.show()
-
-    return aligned_trace
-# ----
 
 def align_traces(traces, reference):
     aligned_traces = []
@@ -68,7 +32,7 @@ def filter_traces(traces):
     filtered_traces = []
 
     for trace in traces:
-        filtered_trace = lowpass(trace)
+        filtered_trace = butter_filter(trace)
         filtered_traces.append(filtered_trace)
 
     return np.array(filtered_traces)
@@ -92,7 +56,6 @@ if __name__ == "__main__":
     global args
     parser = argparse.ArgumentParser(description='Tool to align ChipWhisperer and GNU Radio signals for EM analysis')
     parser.add_argument('format', type=str, choices=['cw','gnuradio','plot'], help='Output format')
-    parser.add_argument('--debug', dest='debug', action='store_true', default=False, help='Debug mode')
     args, unknown = parser.parse_known_args()
 
     input_path = "/home/pieter/chipwhisperer/projects/tmp/default_data/traces_unaligned/"
@@ -119,7 +82,7 @@ if __name__ == "__main__":
 
         if args.format == 'plot':
             for a in traces:
-                plt.plot(range(0, len(a)), lowpass(a))
+                plt.plot(range(0, len(a)), butter_filter(a))
             plt.show()
         elif args.format == 'cw':
             # Save back to output file
