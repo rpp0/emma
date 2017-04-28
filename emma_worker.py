@@ -19,7 +19,7 @@ app.conf.update(
     result_expires=60,
     task_serializer='pickle',
     accept_content={'pickle'},
-    result_serializer='pickle',
+    result_serializer='pickle'
 )
 
 if __name__ == '__main__':
