@@ -51,6 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','plot'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
+    parser.add_argument('--num-cores', dest='num_cores', type=int, default=4, help='Number of CPU cores')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -69,8 +70,11 @@ if __name__ == "__main__":
             **args.__dict__
         )
 
-        # Distribute files among workers TODO
-        result = group([work.s(trace_set_paths, conf)])()
+        jobs = []
+        for part in emutils.partition(trace_set_paths, int(len(trace_set_paths) / args.num_cores)):
+            jobs.append(work.s(part, conf))
+
+        result = group(jobs)()
         print(result.get())
     except KeyboardInterrupt:
         pass
