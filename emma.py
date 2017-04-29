@@ -4,7 +4,6 @@
 # Copyright 2017, Pieter Robyns
 # ----------------------------------------------------
 
-from os import listdir
 from os.path import isfile, join
 from dsp import *
 from ops import *
@@ -18,6 +17,8 @@ import matplotlib.pyplot as plt
 import sys
 import argparse
 import configparser
+import emutils
+import emio
 
 def filter_trace_set(trace_set):
     filtered_trace_set = []
@@ -44,31 +45,32 @@ def update_cw_config(path, trace_set, update_dict):
         cp.write(config_file_path_fp)
 
 if __name__ == "__main__":
-    global args
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')  # ['align','attack','filter','save']
     parser.add_argument('actions', type=str, choices=ops.keys(), help='Action to perform', nargs='+')
-    parser.add_argument('trace_set_path', type=str, help='Input directory where the trace sets are located')
+    parser.add_argument('inpath', type=str, help='Input path where the trace sets are located')
+    parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','plot'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
     args, unknown = parser.parse_known_args()
+    print(emutils.BANNER)
 
     try:
-        # Get a list of filenames depending on the format TODO
-        input_path = "/home/pieter/chipwhisperer/projects/tmp/default_data/traces_unaligned/"
         output_path = "/home/pieter/chipwhisperer/projects/tmp/default_data/traces/"
         output_path_gnuradio = "./export/"
 
-        # List files TODO join here with input_path so it doesn't need to be provided to workers
-        trace_set_paths = sorted([join(input_path,f) for f in listdir(input_path) if isfile(join(input_path, f)) and '_traces.npy' in f])
+        # Get a list of filenames depending on the format
+        trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
 
         # Worker-specific configuration
+        window = Window(begin=1600, end=14000)
         conf = argparse.Namespace(
-            reference_trace=None,  # TODO: Get one from the trace_set_paths (default to trace 0)
-            window=Window(begin=1600, end=14000),
+            reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform)[0][window.begin:window.end],
+            window=window,
+            **args.__dict__
         )
 
         # Distribute files among workers TODO
-        result = group([work.s(trace_set_paths, args, conf)])()
+        result = group([work.s(trace_set_paths, conf)])()
         print(result.get())
     except KeyboardInterrupt:
         pass
