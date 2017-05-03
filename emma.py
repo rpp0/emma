@@ -35,7 +35,7 @@ if __name__ == "__main__":
         # Worker-specific configuration
         window = Window(begin=1600, end=14000)
         conf = argparse.Namespace(
-            reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform)[0][window.begin:window.end],
+            reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform).traces[0][window.begin:window.end],
             window=window,
             **args.__dict__
         )

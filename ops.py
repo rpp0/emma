@@ -38,12 +38,12 @@ def align_trace_set(trace_set, conf):
     aligned_trace_set = []
     reference = conf.reference_trace
 
-    for trace in trace_set:
+    for trace in trace_set.traces:
         aligned_trace = align(trace, reference)
         if not aligned_trace is None:
             aligned_trace_set.append(aligned_trace)
 
-    return np.array(aligned_trace_set)
+    trace_set.traces = np.array(aligned_trace_set)
 
 @op('filter')
 def filter_trace_set(trace_set, conf=None):
@@ -52,11 +52,11 @@ def filter_trace_set(trace_set, conf=None):
     '''
     filtered_trace_set = []
 
-    for trace in trace_set:
+    for trace in trace_set.traces:
         filtered_trace = butter_filter(trace)
         filtered_trace_set.append(filtered_trace)
 
-    return np.array(filtered_trace_set)
+    trace_set.traces = np.array(filtered_trace_set)
 
 @op('save')
 def save_trace_set(trace_set, conf):
@@ -65,31 +65,27 @@ def save_trace_set(trace_set, conf):
     '''
     if conf.outform == 'cw':
         # Save back to output file
-        np.save(join(output_path, trace_set_name), trace_set)
+        np.save(join(conf.outpath, trace_set.name + '_traces.npy'), trace_set.traces)
 
         # Update the corresponding config file
-        emio.update_cw_config(output_path, trace_set, {"numPoints": len(conf.reference_trace)})
-    elif conf.outform == 'sigmf':
+        emio.update_cw_config(conf.outpath, trace_set, {"numPoints": len(conf.reference_trace)})
+    elif conf.outform == 'sigmf':  # TODO make SigMF compliant
         count = 1
-        for trace in trace_set:
-            trace.tofile(join(output_path_gnuradio, "%s-%d.rf32_le" % (trace_set.rpartition('_')[0], count)))
+        for trace in trace_set.traces:
+            trace.tofile(join(output_path_gnuradio, "%s-%d.rf32_le" % (trace_set.name, count)))
             count += 1
     else:
         print("Unknown format: %s" % conf.outform)
         exit(1)
-
-    return trace_set
 
 @op('plot')
 def plot_trace_set(trace_set, conf=None):
     '''
     Plot each trace in a trace set using Matplotlib
     '''
-    for trace in trace_set:
+    for trace in trace_set.traces:
         plt.plot(range(0, len(trace)), trace)
     plt.show()
-
-    return trace_set
 
 @app.task
 def work(trace_set_paths, conf):
@@ -109,7 +105,7 @@ def work(trace_set_paths, conf):
         # Perform actions
         for action in conf.actions:
             if action in ops:
-                trace_set = ops[action](trace_set, conf=conf)
+                ops[action](trace_set, conf=conf)
             else:
                 logger.warning("Ignoring unknown action '%s'." % action)
     return "Finished"
