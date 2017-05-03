@@ -1,3 +1,8 @@
+# ----------------------------------------------------
+# Electromagnetic Mining Array (EMMA)
+# Copyright 2017, Pieter Robyns
+# ----------------------------------------------------
+
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
@@ -55,6 +60,9 @@ def filter_trace_set(trace_set, conf=None):
 
 @op('save')
 def save_trace_set(trace_set, conf):
+    '''
+    Save the trace set to a file using the output format specified in the conf object.
+    '''
     if conf.outform == 'cw':
         # Save back to output file
         np.save(join(output_path, trace_set_name), trace_set)
@@ -74,6 +82,9 @@ def save_trace_set(trace_set, conf):
 
 @op('plot')
 def plot_trace_set(trace_set, conf=None):
+    '''
+    Plot each trace in a trace set using Matplotlib
+    '''
     for trace in trace_set:
         plt.plot(range(0, len(trace)), trace)
     plt.show()
@@ -82,6 +93,9 @@ def plot_trace_set(trace_set, conf=None):
 
 @app.task
 def work(trace_set_paths, conf):
+    '''
+    Actions to be performed by workers on the trace sets given in trace_set_paths.
+    '''
     logger.info("Node performing %s on trace set of length %d" % (str(conf.actions), len(trace_set_paths)))
 
     # Perform actions on the sample sets
@@ -96,7 +110,6 @@ def work(trace_set_paths, conf):
         for action in conf.actions:
             if action in ops:
                 trace_set = ops[action](trace_set, conf=conf)
-                #trace_set = filter_trace_set(trace_set)
             else:
                 logger.warning("Ignoring unknown action '%s'." % action)
     return "Finished"

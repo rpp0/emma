@@ -18,7 +18,7 @@ import emutils
 import emio
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')  # ['align','attack','filter','save']
+    parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')
     parser.add_argument('actions', type=str, choices=ops.keys(), help='Action to perform', nargs='+')
     parser.add_argument('inpath', type=str, help='Input path where the trace sets are located')
     parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')

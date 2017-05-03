@@ -1,3 +1,8 @@
+# ----------------------------------------------------
+# Electromagnetic Mining Array (EMMA)
+# Copyright 2017, Pieter Robyns
+# ----------------------------------------------------
+
 import numpy as np
 import configparser
 from sigmf import SigMFFile
@@ -5,6 +10,9 @@ from os import listdir
 from os.path import isfile, join
 
 def get_trace_paths(input_path, inform):
+    '''
+    Get a list of trace set paths given a specified input format.
+    '''
     if inform == "cw":  # .npy
         return sorted([join(input_path,f) for f in listdir(input_path) if isfile(join(input_path, f)) and '_traces.npy' in f])
     elif inform == "sigmf":  # .meta
@@ -16,6 +24,9 @@ def get_trace_paths(input_path, inform):
         exit(1)
 
 def get_trace_set(trace_set_path, inform):  # TODO wrap in some kind of SigMF class?
+    '''
+    Load traces in trace_set_path into a TraceSet object depending on the format.
+    '''
     if inform == "cw":
         return np.load(trace_set_path)
     elif inform == "sigmf":  # .meta
@@ -27,6 +38,10 @@ def get_trace_set(trace_set_path, inform):  # TODO wrap in some kind of SigMF cl
         exit(1)
 
 def update_cw_config(path, trace_set, update_dict):
+    '''
+    Update ChipWhisperer config file in order to reflect changes made to
+    the traces by EMMA. 
+    '''
     cp = configparser.RawConfigParser()
     cp.optionxform = str  # Preserve case sensitivity
 
