@@ -24,20 +24,23 @@ def get_trace_paths(input_path, inform):
         print("Unknown input format '%s'" % inform)
         exit(1)
 
-def get_trace_set(trace_set_path, inform):  # TODO wrap in some kind of SigMF class?
+def get_trace_set(trace_set_path, inform, ignore_malformed=True):
     '''
     Load traces in trace_set_path into a TraceSet object depending on the format.
     '''
 
-    trace_set = TraceSet()
-
     if inform == "cw":
-        trace_name = trace_set_path.rpartition('_traces')[0]
-        plaintext_set_path = trace_name + '_textin.npy'
+        name = trace_set_path.rpartition('_traces')[0]
+        plaintext_set_path = name + '_textin.npy'
 
-        trace_set.name = trace_name
-        trace_set.traces = np.load(trace_set_path)  # TODO make more robust towards non-existing paths
-        trace_set.plaintexts = np.load(plaintext_set_path)
+        traces = np.load(trace_set_path)  # TODO make more robust towards non-existing paths
+        plaintexts = np.load(plaintext_set_path)
+
+        if ignore_malformed:
+            if traces.shape[0] == plaintexts.shape[0]:
+                return TraceSet(name=name, traces=traces, plaintexts=plaintexts)
+        else:
+            return TraceSet(name=name, traces=traces, plaintexts=plaintexts)
     elif inform == "sigmf":  # .meta
         raise NotImplementedError
     elif inform == "gnuradio":  # .cfile
@@ -46,7 +49,7 @@ def get_trace_set(trace_set_path, inform):  # TODO wrap in some kind of SigMF cl
         print("Unknown input format '%s'" % inform)
         exit(1)
 
-    return trace_set
+    return None
 
 def update_cw_config(path, trace_set, update_dict):
     '''

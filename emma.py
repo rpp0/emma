@@ -35,7 +35,7 @@ if __name__ == "__main__":
         # Worker-specific configuration
         window = Window(begin=1600, end=14000)
         conf = argparse.Namespace(
-            reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform).traces[0][window.begin:window.end],
+            reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[0][window.begin:window.end],
             window=window,
             **args.__dict__
         )
@@ -45,7 +45,12 @@ if __name__ == "__main__":
             jobs.append(work.s(part, conf))
 
         result = group(jobs)()
-        print(result.get())
+        corr_collection = np.concatenate(result.get(), axis=0)  # Concatenate all correlation matrices in one 3d array
+        print(corr_collection.shape)
+        avg_corr = np.mean(corr_collection, axis=0)
+        print(avg_corr.shape)
+        most_likely_bytes = np.argmax(avg_corr, axis=1)
+        print(emutils.numpy_to_hex(most_likely_bytes))
     except KeyboardInterrupt:
         pass
 
