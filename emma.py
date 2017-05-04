@@ -51,6 +51,7 @@ if __name__ == "__main__":
         print(avg_corr.shape)
         most_likely_bytes = np.argmax(avg_corr, axis=1)
         print(emutils.numpy_to_hex(most_likely_bytes))
+        emutils.pretty_print_table(np.transpose(avg_corr))
     except KeyboardInterrupt:
         pass
 

@@ -95,10 +95,10 @@ def attack_trace_set(trace_set, conf=None):
     '''
     logger.info("Attacking trace set %s..." % trace_set.name)
     trace_set.assert_validity()  # TODO temporary solution (plaintext vs traces problem in CW)
-    #window = Window(begin=0, end=1)  # test
+    #window = Window(begin=1080, end=1081)  # test
     window = Window(begin=980, end=1700)
     trace_set.correlations = np.zeros([16,256]) # 16 byte key with 256 possibilities TODO get from conf
-    for subkey in range(0, 1):
+    for subkey in range(0, 16):
         hypotheses = np.empty([256, trace_set.num_traces])
 
         # Build all 256 possibilities for power outputs
