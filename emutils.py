@@ -45,3 +45,10 @@ def pretty_print_table(np_array, limit_rows=20):
         np.set_printoptions(threshold=np.inf, linewidth=np.inf, precision=2)
         print(sorted_array[0:20,:])
         np.set_printoptions(**tmp)
+
+
+class Window(object):
+    def __init__(self, begin, end):
+        self.begin = begin
+        self.end = end
+        self.size = end - begin

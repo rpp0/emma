@@ -17,6 +17,19 @@ import configparser
 import emutils
 import emio
 
+def merge_correlations(correlations_list, num_samples=1):
+    result = Correlation.init([16,256])
+    for subkey_idx in range(0, 16):
+        for subkey_guess in range(0, 256):
+            for correlation in correlations_list:
+                if not correlation is None:
+                    result[subkey_idx, subkey_guess].merge(correlation[subkey_idx, subkey_guess])
+                    result[subkey_idx, subkey_guess].request()
+
+    emutils.pretty_print_table(np.transpose(result))
+    return result
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')
     parser.add_argument('actions', type=str, choices=ops.keys(), help='Action to perform', nargs='+')
@@ -24,7 +37,7 @@ if __name__ == "__main__":
     parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
-    parser.add_argument('--num-cores', dest='num_cores', type=int, default=4, help='Number of CPU cores')
+    parser.add_argument('--num-cores', dest='num_cores', type=int, default=4, help='Number of CPU cores')  # TODO remove, useless
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -41,30 +54,23 @@ if __name__ == "__main__":
         )
 
         jobs = []
-        #for part in emutils.partition(trace_set_paths, int(len(trace_set_paths) / args.num_cores)):
-        #    jobs.append(work.s(part, conf))
-        for path in trace_set_paths:  # New way: separate job for each path
+        for path in trace_set_paths:  # Create job for each path
             jobs.append(work.s(path, conf))
 
         # Execute jobs
-        result = group(jobs)()
+        correlations_list = group(jobs)().get()
 
-        # Stack all correlation matrices in one 3d array
-        stack = []
-        for trace in result.get():
-            if not trace is None:
-                stack.append(trace)
-        corr_collection = np.stack(stack)
-        print(corr_collection.shape)
+        # Merge all correlations
+        result = merge_correlations(correlations_list)
+        print(result.shape)
 
-        avg_corr = np.mean(corr_collection, axis=0)
-        print(avg_corr.shape)
-        most_likely_bytes = np.argmax(avg_corr, axis=1)
+        # Print key
+        most_likely_bytes = np.argmax(result, axis=1)
         print(emutils.numpy_to_hex(most_likely_bytes))
-        emutils.pretty_print_table(np.transpose(avg_corr))
     except KeyboardInterrupt:
         pass
 
     # Clean up
     print("Cleaning up")
+    app.control.purge()
     app.backend.cleanup()

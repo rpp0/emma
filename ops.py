@@ -11,7 +11,7 @@ from emma_worker import app
 from dsp import *
 from functools import wraps
 from os.path import join, basename
-from namedtuples import Window
+from emutils import Window
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
 
@@ -97,34 +97,38 @@ def attack_trace_set(trace_set, conf=None):
     trace_set.assert_validity()  # TODO temporary solution (plaintext vs traces problem in CW)
     #window = Window(begin=1080, end=1081)  # test
     window = Window(begin=980, end=1700)
-    trace_set.correlations = np.zeros([16,256]) # 16 byte key with 256 possibilities TODO get from conf
-    for subkey in range(0, 16):
+    trace_set.correlations = Correlation.init([16,256]) # 16 byte key with 256 guesses TODO get from conf
+    for subkey_idx in range(0, 1):
         hypotheses = np.empty([256, trace_set.num_traces])
 
         # Build all 256 possibilities for power outputs
-        for key_byte_guess in range(0, 256):
+        for subkey_guess in range(0, 256):
             for i in range(0, trace_set.num_traces):
-                hypotheses[key_byte_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey] ^ key_byte_guess]]  # Model of the power consumption
+                hypotheses[subkey_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey_idx] ^ subkey_guess]]  # Model of the power consumption
 
         # Given point j of trace i, calculate the correlation between all hypotheses
-        subkey_correlations = np.zeros([256, trace_set.num_samples])
-        for j in range(window.begin, window.end):
+        subkey_correlations = Correlation.init([256, window.size])
+        for j in range(0, window.size):
             measurements = np.empty(trace_set.num_traces)
             for i in range(0, trace_set.num_traces):
                 measurements[i] = trace_set.traces[i][j]
 
-            for key_byte_guess in range(0, 256):
-                subkey_correlations[key_byte_guess, j] = np.abs(np.corrcoef(hypotheses[key_byte_guess,:], measurements)[0,1])  # corr(a,b)
+            for subkey_guess in range(0, 256):
+                # Update correlation
+                subkey_correlations[subkey_guess, j].update(hypotheses[subkey_guess,:], measurements)
 
-        # Determine best achieved correlations for each guess, regardless of the point
-        trace_set.correlations[subkey,:] = np.amax(subkey_correlations, axis=1)
+        # Get best correlations found in all points and use them for the guesses
+        best_point_idx = np.argmax(subkey_correlations, axis=1)
+        for subkey_guess in range(0, 256):
+            trace_set.correlations[subkey_idx, subkey_guess].merge(subkey_correlations[subkey_guess, best_point_idx[subkey_guess]])
+        del subkey_correlations
 
 @app.task
 def work(trace_set_path, conf):
     '''
     Actions to be performed by workers on the trace set given in trace_set_path.
     '''
-    logger.info("Node performing %s on trace set of length %s" % (str(conf.actions), trace_set_path))
+    logger.info("Node performing %s on trace set '%s'" % (str(conf.actions), trace_set_path))
 
     # Get trace name from path
     trace_set_name = basename(trace_set_path)
