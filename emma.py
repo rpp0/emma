@@ -41,12 +41,22 @@ if __name__ == "__main__":
         )
 
         jobs = []
-        for part in emutils.partition(trace_set_paths, int(len(trace_set_paths) / args.num_cores)):
-            jobs.append(work.s(part, conf))
+        #for part in emutils.partition(trace_set_paths, int(len(trace_set_paths) / args.num_cores)):
+        #    jobs.append(work.s(part, conf))
+        for path in trace_set_paths:  # New way: separate job for each path
+            jobs.append(work.s(path, conf))
 
+        # Execute jobs
         result = group(jobs)()
-        corr_collection = np.concatenate(result.get(), axis=0)  # Concatenate all correlation matrices in one 3d array
+
+        # Stack all correlation matrices in one 3d array
+        stack = []
+        for trace in result.get():
+            if not trace is None:
+                stack.append(trace)
+        corr_collection = np.stack(stack)
         print(corr_collection.shape)
+
         avg_corr = np.mean(corr_collection, axis=0)
         print(avg_corr.shape)
         most_likely_bytes = np.argmax(avg_corr, axis=1)

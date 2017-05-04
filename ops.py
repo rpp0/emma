@@ -114,36 +114,32 @@ def attack_trace_set(trace_set, conf=None):
                 measurements[i] = trace_set.traces[i][j]
 
             for key_byte_guess in range(0, 256):
-                subkey_correlations[key_byte_guess, j] = np.corrcoef(hypotheses[key_byte_guess,:], measurements)[0,1]  # corr(a,b)
+                subkey_correlations[key_byte_guess, j] = np.abs(np.corrcoef(hypotheses[key_byte_guess,:], measurements)[0,1])  # corr(a,b)
 
         # Determine best achieved correlations for each guess, regardless of the point
         trace_set.correlations[subkey,:] = np.amax(subkey_correlations, axis=1)
 
 @app.task
-def work(trace_set_paths, conf):
+def work(trace_set_path, conf):
     '''
-    Actions to be performed by workers on the trace sets given in trace_set_paths.
+    Actions to be performed by workers on the trace set given in trace_set_path.
     '''
-    logger.info("Node performing %s on trace set of length %d" % (str(conf.actions), len(trace_set_paths)))
+    logger.info("Node performing %s on trace set of length %s" % (str(conf.actions), trace_set_path))
 
-    # Perform actions on the sample sets
-    results = []
-    for trace_set_path in trace_set_paths:
-        # Get trace name from path
-        trace_set_name = basename(trace_set_path)
+    # Get trace name from path
+    trace_set_name = basename(trace_set_path)
 
-        # Load trace
-        trace_set = emio.get_trace_set(trace_set_path, conf.inform)
-        if trace_set is None:
-            logger.warning("Skipping trace set %s" % trace_set_path)
-            continue
+    # Load trace
+    trace_set = emio.get_trace_set(trace_set_path, conf.inform)
+    if trace_set is None:
+        logger.warning("Skipping trace set %s" % trace_set_path)
+        return None
 
-        # Perform actions
-        for action in conf.actions:
-            if action in ops:
-                ops[action](trace_set, conf=conf)
-            else:
-                logger.warning("Ignoring unknown action '%s'." % action)
+    # Perform actions
+    for action in conf.actions:
+        if action in ops:
+            ops[action](trace_set, conf=conf)
+        else:
+            logger.warning("Ignoring unknown action '%s'." % action)
 
-        results.append(trace_set.correlations)
-    return np.array(results)
+    return trace_set.correlations
