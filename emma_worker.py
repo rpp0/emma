@@ -7,11 +7,16 @@
 
 from __future__ import absolute_import
 from celery import Celery
+import configparser
+
+settings = configparser.RawConfigParser()  # TODO: error handling, detect first usage of EMMA by presence of settings.conf
+settings.read('settings.conf')
+broker = settings.get("Network", "broker")
+backend = settings.get("Network", "backend")
 
 app = Celery('emma',
-             #broker='redis://:password@mini:6379/0',
-             broker='redis://localhost:6379/0',
-             backend='redis://localhost:6379/0',
+             broker=broker,
+             backend=backend,
              include=['ops'])
 
 # Optional configuration, see the application user guide.
