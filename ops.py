@@ -111,7 +111,7 @@ def attack_trace_set(trace_set, conf=None):
         for j in range(0, window.size):
             measurements = np.empty(trace_set.num_traces)
             for i in range(0, trace_set.num_traces):
-                measurements[i] = trace_set.traces[i][j]
+                measurements[i] = trace_set.traces[i][j+window.begin]
 
             for subkey_guess in range(0, 256):
                 # Update correlation
