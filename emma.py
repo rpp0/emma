@@ -16,17 +16,17 @@ import argparse
 import configparser
 import emutils
 import emio
+import subprocess
 
-def merge_correlations(correlations_list, num_samples=1):
+def merge_correlations(correlations_list):
     result = Correlation.init([16,256])
     for subkey_idx in range(0, 16):
         for subkey_guess in range(0, 256):
             for correlation in correlations_list:
                 if not correlation is None:
                     result[subkey_idx, subkey_guess].merge(correlation[subkey_idx, subkey_guess])
-                    result[subkey_idx, subkey_guess].request()
 
-    emutils.pretty_print_table(np.transpose(result))
+    emutils.pretty_print_correlations(result, limit_rows=20)
     return result
 
 
@@ -74,3 +74,4 @@ if __name__ == "__main__":
     print("Cleaning up")
     app.control.purge()
     app.backend.cleanup()
+    subprocess.check_output(['pkill', '-9', '-f', 'celery'])

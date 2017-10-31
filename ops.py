@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import emio
 from emma_worker import app
 from dsp import *
+from correlation import Correlation
 from functools import wraps
 from os.path import join, basename
 from emutils import Window
@@ -107,21 +108,21 @@ def attack_trace_set(trace_set, conf=None):
                 hypotheses[subkey_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey_idx] ^ subkey_guess]]  # Model of the power consumption
 
         # Given point j of trace i, calculate the correlation between all hypotheses
-        subkey_correlations = Correlation.init([256, window.size])
+        point_correlations = Correlation.init([256, window.size])
         for j in range(0, window.size):
             measurements = np.empty(trace_set.num_traces)
             for i in range(0, trace_set.num_traces):
-                measurements[i] = trace_set.traces[i][j+window.begin]
+                measurements[i] = trace_set.traces[i][window.begin+j]
 
             for subkey_guess in range(0, 256):
                 # Update correlation
-                subkey_correlations[subkey_guess, j].update(hypotheses[subkey_guess,:], measurements)
+                point_correlations[subkey_guess, j].update(hypotheses[subkey_guess,:], measurements)
 
-        # Get best correlations found in all points and use them for the guesses
-        best_point_idx = np.argmax(subkey_correlations, axis=1)
+        # Get best correlations found in all points for each subkey and use them for the guesses
+        best_point_idx = np.argmax(point_correlations, axis=1)
         for subkey_guess in range(0, 256):
-            trace_set.correlations[subkey_idx, subkey_guess].merge(subkey_correlations[subkey_guess, best_point_idx[subkey_guess]])
-        del subkey_correlations
+            trace_set.correlations[subkey_idx, subkey_guess].merge(point_correlations[subkey_guess, best_point_idx[subkey_guess]])
+        del point_correlations
 
 @app.task
 def work(trace_set_path, conf):

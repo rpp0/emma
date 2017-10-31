@@ -5,7 +5,7 @@
 
 import numpy as np
 import configparser
-from sigmf import SigMFFile
+from sigmf.sigmffile import SigMFFile
 from os import listdir
 from os.path import isfile, join
 from traceset import TraceSet

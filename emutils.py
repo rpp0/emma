@@ -26,7 +26,7 @@ def numpy_to_hex(np_array):
         result += "{:0>2} ".format(hex(elem)[2:])
     return result
 
-def pretty_print_table(np_array, limit_rows=20):
+def pretty_print_correlations(np_array, limit_rows=20):
     if type(np_array) != np.ndarray:
         print("Warning: pretty_print_table: not a numpy array!")
         return
@@ -35,17 +35,20 @@ def pretty_print_table(np_array, limit_rows=20):
         return
     else:
         # Sort array
-        sorted_array = []
-        for i in range(0, np_array.shape[1]):
-            sorted_array.append(sorted(np_array[:,i], reverse=True))
-        sorted_array = np.transpose(np.matrix(sorted_array))
+        print('')
+        sorted_correlations = []
+        for subkey in range(0, 16):
+            sorted_subkey = sorted(zip(np_array[subkey,:], range(256)), key=lambda f: f[0], reverse=True)[0:limit_rows]
+            sorted_correlations.append(sorted_subkey)
 
-        # Print array
-        tmp = np.get_printoptions()
-        np.set_printoptions(threshold=np.inf, linewidth=np.inf, precision=2)
-        print(sorted_array[0:20,:])
-        np.set_printoptions(**tmp)
-
+        for subkey in range(0, 16):
+            print("    {:>2d}      ".format(subkey), end='')
+        print("\n" + "-"*192)
+        for key_guess in range(0, limit_rows):
+            for subkey in range(0, 16):
+                corr, byte = sorted_correlations[subkey][key_guess]
+                print(" {:>4.2f} ({:02x}) |".format(float(corr), byte),end='')
+            print('')
 
 class Window(object):
     def __init__(self, begin, end):
