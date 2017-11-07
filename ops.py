@@ -7,7 +7,9 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 import emio
-from emma_worker import app
+import redis_lock
+import pickle
+from emma_worker import app, broker
 from dsp import *
 from correlation import Correlation
 from functools import wraps
@@ -15,9 +17,11 @@ from os.path import join, basename
 from emutils import Window
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
+from memstore import MemStore
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
+memstore = MemStore(redis_url=broker)  # Shared memory at broker
 
 def op(name):
     '''
@@ -96,9 +100,10 @@ def attack_trace_set(trace_set, conf=None):
     '''
     logger.info("Attacking trace set %s..." % trace_set.name)
     trace_set.assert_validity()  # TODO temporary solution (plaintext vs traces problem in CW)
-    #window = Window(begin=1080, end=1081)  # test
-    window = Window(begin=980, end=1700)
-    trace_set.correlations = Correlation.init([16,256]) # 16 byte key with 256 guesses TODO get from conf
+    window = Window(begin=1080, end=1082)  # test
+    #window = Window(begin=980, end=1700)
+    #window = Window(begin=980, end=1008)
+    #window = Window(begin=1080, end=1308)
     for subkey_idx in range(0, 1):
         hypotheses = np.empty([256, trace_set.num_traces])
 
@@ -107,22 +112,24 @@ def attack_trace_set(trace_set, conf=None):
             for i in range(0, trace_set.num_traces):
                 hypotheses[subkey_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey_idx] ^ subkey_guess]]  # Model of the power consumption
 
-        # Given point j of trace i, calculate the correlation between all hypotheses
-        point_correlations = Correlation.init([256, window.size])
-        for j in range(0, window.size):
-            measurements = np.empty(trace_set.num_traces)
-            for i in range(0, trace_set.num_traces):
-                measurements[i] = trace_set.traces[i][window.begin+j]
+        with redis_lock.Lock(memstore.db, "correlation-lock"):
+            correlations = memstore.get("correlations")
+            if correlations is None:
+                correlations = Correlation.init([16,256,window.size])
+            else:
+                correlations = pickle.loads(correlations)
+            # Given point j of trace i, calculate the correlation between all hypotheses
+            for j in range(0, window.size):
+                measurements = np.empty(trace_set.num_traces)
+                for i in range(0, trace_set.num_traces):
+                    measurements[i] = trace_set.traces[i][window.begin+j]
 
-            for subkey_guess in range(0, 256):
-                # Update correlation
-                point_correlations[subkey_guess, j].update(hypotheses[subkey_guess,:], measurements)
+                for subkey_guess in range(0, 256):
+                    # Update correlation
+                    correlations[subkey_idx,subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
+            memstore.set("correlations", pickle.dumps(correlations, -1))
 
-        # Get best correlations found in all points for each subkey and use them for the guesses
-        best_point_idx = np.argmax(point_correlations, axis=1)
-        for subkey_guess in range(0, 256):
-            trace_set.correlations[subkey_idx, subkey_guess].merge(point_correlations[subkey_guess, best_point_idx[subkey_guess]])
-        del point_correlations
+
 
 @app.task
 def work(trace_set_path, conf):
@@ -147,4 +154,4 @@ def work(trace_set_path, conf):
         else:
             logger.warning("Ignoring unknown action '%s'." % action)
 
-    return trace_set.correlations
+    return None

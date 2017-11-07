@@ -7,8 +7,9 @@
 from ops import *
 from debug import DEBUG
 from time import sleep
-from emma_worker import app
+from emma_worker import app, backend
 from celery import group
+from asyncio import Semaphore
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -17,18 +18,26 @@ import configparser
 import emutils
 import emio
 import subprocess
+import pickle
 
-def merge_correlations(correlations_list):
-    result = Correlation.init([16,256])
-    for subkey_idx in range(0, 16):
-        for subkey_guess in range(0, 256):
-            for correlation in correlations_list:
-                if not correlation is None:
-                    result[subkey_idx, subkey_guess].merge(correlation[subkey_idx, subkey_guess])
+mutex = Semaphore()
+memstore = MemStore(redis_url=backend)
 
-    emutils.pretty_print_correlations(result, limit_rows=20)
+def result_callback(task_id, value):
+    mutex.acquire()
+    print("Job %s done!" % task_id)
+    mutex.release()
+
+def get_redis_result():
+    result = Correlation.init([16, 256])
+    with redis_lock.Lock(memstore.db, "correlation-lock"):
+        correlations = pickle.loads(memstore.get('correlations'))
+        for subkey_idx in range(0, 16):
+            for subkey_guess in range(0, 256):
+                best_point = np.argmax(abs(correlations[subkey_idx,subkey_guess]))
+                result[subkey_idx,subkey_guess].merge(correlations[subkey_idx,subkey_guess,best_point])
+        emutils.pretty_print_correlations(result, limit_rows=20)
     return result
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')
@@ -42,6 +51,10 @@ if __name__ == "__main__":
     print(emutils.BANNER)
 
     try:
+        # Clear any previous results
+        memstore.delete("correlations")
+        memstore.reset_lock("correlation-lock")
+
         # Get a list of filenames depending on the format
         trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
 
@@ -58,11 +71,10 @@ if __name__ == "__main__":
             jobs.append(work.s(path, conf))
 
         # Execute jobs
-        correlations_list = group(jobs)().get()
+        group(jobs)().get(callback=result_callback)
 
-        # Merge all correlations
-        result = merge_correlations(correlations_list)
-        print(result.shape)
+        # Print results
+        result = get_redis_result()
 
         # Print key
         most_likely_bytes = np.argmax(result, axis=1)

@@ -20,11 +20,20 @@ class Correlation():
     def __str__(self):
         return str(self._corr)
 
+    def __abs__(self):
+        return abs(self._corr)
+
     def __sub__(self, other):
         return self._corr - float(other)
 
     def __rsub__(self, other):
         return self._corr - float(other)
+
+    def __add__(self, other):
+        return self._corr + float(other)
+
+    def __radd__(self, other):
+        return self._corr + float(other)
 
     def __lt__(self, other):
         return self._corr < float(other)
