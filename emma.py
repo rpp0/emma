@@ -18,26 +18,22 @@ import configparser
 import emutils
 import emio
 import subprocess
-import pickle
 
 mutex = Semaphore()
-memstore = MemStore(redis_url=backend)
+windowsize = Window(begin=1080, end=1308).size
+result = Correlation.init([256, windowsize]) # 256 * window size
 
 def result_callback(task_id, value):
+    global result
     mutex.acquire()
+    if not value is None:
+        subkey_idx = 0
+        for subkey_guess in range(0, 256):
+            for p in range(0, windowsize):
+                result[subkey_guess, p].merge(value[subkey_guess, p])
     print("Job %s done!" % task_id)
     mutex.release()
-
-def get_redis_result():
-    result = Correlation.init([16, 256])
-    with redis_lock.Lock(memstore.db, "correlation-lock"):
-        correlations = pickle.loads(memstore.get('correlations'))
-        for subkey_idx in range(0, 16):
-            for subkey_guess in range(0, 256):
-                best_point = np.argmax(abs(correlations[subkey_idx,subkey_guess]))
-                result[subkey_idx,subkey_guess].merge(correlations[subkey_idx,subkey_guess,best_point])
-        emutils.pretty_print_correlations(result, limit_rows=20)
-    return result
+    app.AsyncResult(task_id).forget()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')
@@ -51,9 +47,8 @@ if __name__ == "__main__":
     print(emutils.BANNER)
 
     try:
-        # Clear any previous results
-        memstore.delete("correlations")
-        memstore.reset_lock("correlation-lock")
+        # Clear any previous results. Sadly, there is no cleaner way atm.
+        subprocess.check_output(["redis-cli", "flushall"])
 
         # Get a list of filenames depending on the format
         trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
@@ -71,13 +66,16 @@ if __name__ == "__main__":
             jobs.append(work.s(path, conf))
 
         # Execute jobs
-        group(jobs)().get(callback=result_callback)
+        group(jobs)().join(callback=result_callback)  # Do not use get. Currently, a bug in Celery causes that one to hang if the callback takes too long to complete
 
         # Print results
-        result = get_redis_result()
+        max_correlations = np.zeros([16, 256])
+        for subkey_guess in range(0, 256):
+            max_correlations[0, subkey_guess] = np.max(np.abs(result[subkey_guess,:]))
+        emutils.pretty_print_correlations(max_correlations, limit_rows=20)
 
         # Print key
-        most_likely_bytes = np.argmax(result, axis=1)
+        most_likely_bytes = np.argmax(max_correlations, axis=1)
         print(emutils.numpy_to_hex(most_likely_bytes))
     except KeyboardInterrupt:
         pass

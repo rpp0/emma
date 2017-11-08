@@ -100,34 +100,30 @@ def attack_trace_set(trace_set, conf=None):
     '''
     logger.info("Attacking trace set %s..." % trace_set.name)
     trace_set.assert_validity()  # TODO temporary solution (plaintext vs traces problem in CW)
-    window = Window(begin=1080, end=1082)  # test
+    #window = Window(begin=1080, end=1082)  # test
     #window = Window(begin=980, end=1700)
     #window = Window(begin=980, end=1008)
-    #window = Window(begin=1080, end=1308)
-    for subkey_idx in range(0, 1):
-        hypotheses = np.empty([256, trace_set.num_traces])
+    window = Window(begin=1080, end=1308)
+    subkey_idx = 0
+    hypotheses = np.empty([256, trace_set.num_traces])
 
-        # Build all 256 possibilities for power outputs
+    # 1. Build hypotheses for all 256 possibilities of the key and all traces
+    for subkey_guess in range(0, 256):
+        for i in range(0, trace_set.num_traces):
+            hypotheses[subkey_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey_idx] ^ subkey_guess]]  # Model of the power consumption
+
+    # 2. Given point j of trace i, calculate the correlation between all hypotheses
+    trace_set.correlations = Correlation.init([256,window.size])
+    for j in range(0, window.size):
+        # Get measurements (columns) from all traces
+        measurements = np.empty(trace_set.num_traces)
+        for i in range(0, trace_set.num_traces):
+            measurements[i] = trace_set.traces[i][window.begin+j]
+
+        # Correlate measurements with 256 hypotheses
         for subkey_guess in range(0, 256):
-            for i in range(0, trace_set.num_traces):
-                hypotheses[subkey_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey_idx] ^ subkey_guess]]  # Model of the power consumption
-
-        with redis_lock.Lock(memstore.db, "correlation-lock"):
-            correlations = memstore.get("correlations")
-            if correlations is None:
-                correlations = Correlation.init([16,256,window.size])
-            else:
-                correlations = pickle.loads(correlations)
-            # Given point j of trace i, calculate the correlation between all hypotheses
-            for j in range(0, window.size):
-                measurements = np.empty(trace_set.num_traces)
-                for i in range(0, trace_set.num_traces):
-                    measurements[i] = trace_set.traces[i][window.begin+j]
-
-                for subkey_guess in range(0, 256):
-                    # Update correlation
-                    correlations[subkey_idx,subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
-            memstore.set("correlations", pickle.dumps(correlations, -1))
+            # Update correlation
+            trace_set.correlations[subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
 
 
 
@@ -154,4 +150,4 @@ def work(trace_set_path, conf):
         else:
             logger.warning("Ignoring unknown action '%s'." % action)
 
-    return None
+    return trace_set.correlations  # TODO: Return this only if attack is specified. Find clean way to do this. Perhaps add a return value to a list for every action?

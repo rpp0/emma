@@ -21,7 +21,6 @@ app = Celery('emma',
 
 # Optional configuration, see the application user guide.
 app.conf.update(
-    result_expires=60,
     task_serializer='pickle',
     accept_content={'pickle'},
     result_serializer='pickle'
