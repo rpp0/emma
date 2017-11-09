@@ -105,8 +105,8 @@ def attack_trace_set(trace_set, conf=None):
     trace_set.assert_validity()  # TODO temporary solution (plaintext vs traces problem in CW)
     #window = Window(begin=1080, end=1082)  # test
     #window = Window(begin=980, end=1700)
-    window = Window(begin=980, end=1008)
-    #window = Window(begin=1080, end=1308)
+    #window = Window(begin=980, end=1008)
+    window = Window(begin=1080, end=1308)
     subkey_idx = 0
     hypotheses = np.empty([256, trace_set.num_traces])
 
@@ -128,7 +128,7 @@ def attack_trace_set(trace_set, conf=None):
             # Update correlation
             trace_set.correlations[subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
 
-@app.task(bind=True)
+@app.task(bind=True, queue='priority.high')
 def merge(self, results):  # results length should always be 2 TODO check
     left_result = results[0]
     right_result = results[1]
