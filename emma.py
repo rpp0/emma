@@ -8,7 +8,7 @@ from ops import *
 from debug import DEBUG
 from time import sleep
 from emma_worker import app, backend
-from celery import group, chord
+from celery import group, chord, chain
 from asyncio import Semaphore
 import numpy as np
 import matplotlib.pyplot as plt
@@ -40,7 +40,7 @@ def build_task_graph(paths, conf):
         return None
     elif len(paths) == 1:
         print(paths[0])
-        return work.s(paths[0], conf)
+        return work.si(paths[0], conf)
     else:
         mid = int(len(paths) / 2)
         left = build_task_graph(paths[0:mid], conf)
@@ -80,8 +80,9 @@ if __name__ == "__main__":
         # Execute jobs
         #group_task = group(jobs)()
 
-        damnboi = build_task_graph(trace_set_paths, conf)
-        result = damnboi().get_leaf().data['correlations']
+        damnboi = build_task_graph(trace_set_paths[0:8], conf)
+        result = damnboi().get().data['correlations']  # Bug workaround that .get() returns early
+        print("Num entries: %d" % result[0][0]._n)
 
         # Print results
         max_correlations = np.zeros([16, 256])
@@ -99,4 +100,4 @@ if __name__ == "__main__":
     print("Cleaning up")
     app.control.purge()
     app.backend.cleanup()
-    subprocess.check_output(['pkill', '-9', '-f', 'celery'])
+    #subprocess.check_output(['pkill', '-9', '-f', 'celery'])
