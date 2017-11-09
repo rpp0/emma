@@ -17,11 +17,14 @@ from os.path import join, basename
 from emutils import Window
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
-from memstore import MemStore
+from celery import Task
+from emresult import EMResult
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
-memstore = MemStore(redis_url=broker)  # Shared memory at broker
+
+class EMMATask(Task):
+    test = 'a'
 
 def op(name):
     '''
@@ -102,8 +105,8 @@ def attack_trace_set(trace_set, conf=None):
     trace_set.assert_validity()  # TODO temporary solution (plaintext vs traces problem in CW)
     #window = Window(begin=1080, end=1082)  # test
     #window = Window(begin=980, end=1700)
-    #window = Window(begin=980, end=1008)
-    window = Window(begin=1080, end=1308)
+    window = Window(begin=980, end=1008)
+    #window = Window(begin=1080, end=1308)
     subkey_idx = 0
     hypotheses = np.empty([256, trace_set.num_traces])
 
@@ -125,10 +128,47 @@ def attack_trace_set(trace_set, conf=None):
             # Update correlation
             trace_set.correlations[subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
 
+@app.task(bind=True)
+def merge(self, results):  # results length should always be 2 TODO check
+    left_result = results[0]
+    right_result = results[1]
+    if left_result is None and right_result is None:
+        return None
+    elif left_result is None:
+        return right_result
+    elif right_result is None:
+        return left_result
+    else:
+        left = results[0].data['correlations']
+        right = results[1].data['correlations']
+        if left is None and right is None:
+            return None
+        elif left is None:
+            return right_result
+        elif right is None:
+            return left_result
+        else:
+            # Build result
+            subkey_idx = 0
+            shape = left.shape
+            for subkey_guess in range(0, shape[0]):
+                for point in range(0, shape[1]):
+                    left[subkey_guess, point].merge(right[subkey_guess, point])
 
+            result = EMResult(data={'correlations': left}, task_id=self.request.id)
 
-@app.task
-def work(trace_set_path, conf):
+            # Clean up
+            left_task = results[0].task_id
+            right_task = results[1].task_id
+            logger.warning("Deleting %s" % left_task)
+            app.AsyncResult(left_task).forget()
+            logger.warning("Deleting %s" % right_task)
+            app.AsyncResult(right_task).forget()
+
+            return result
+
+@app.task(bind=True)
+def work(self, trace_set_path, conf):
     '''
     Actions to be performed by workers on the trace set given in trace_set_path.
     '''
@@ -150,4 +190,7 @@ def work(trace_set_path, conf):
         else:
             logger.warning("Ignoring unknown action '%s'." % action)
 
-    return trace_set.correlations  # TODO: Return this only if attack is specified. Find clean way to do this. Perhaps add a return value to a list for every action?
+    # TODO build this from within the ops themselves by passing as ref!
+    result = EMResult(task_id=self.request.id)
+    result.data['correlations'] = trace_set.correlations
+    return result

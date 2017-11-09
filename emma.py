@@ -8,7 +8,7 @@ from ops import *
 from debug import DEBUG
 from time import sleep
 from emma_worker import app, backend
-from celery import group
+from celery import group, chord
 from asyncio import Semaphore
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,6 +34,18 @@ def result_callback(task_id, value):
     print("Job %s done!" % task_id)
     mutex.release()
     app.AsyncResult(task_id).forget()
+
+def build_task_graph(paths, conf):
+    if len(paths) == 0:
+        return None
+    elif len(paths) == 1:
+        print(paths[0])
+        return work.s(paths[0], conf)
+    else:
+        mid = int(len(paths) / 2)
+        left = build_task_graph(paths[0:mid], conf)
+        right = build_task_graph(paths[mid:], conf)
+        return chord([left, right], body=merge.s())
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')
@@ -61,12 +73,15 @@ if __name__ == "__main__":
             **args.__dict__
         )
 
-        jobs = []
-        for path in trace_set_paths:  # Create job for each path
-            jobs.append(work.s(path, conf))
+        #jobs = []
+        #for path in trace_set_paths:  # Create job for each path
+        #    jobs.append(work.s(path, conf))
 
         # Execute jobs
-        group(jobs)().join(callback=result_callback)  # Do not use get. Currently, a bug in Celery causes that one to hang if the callback takes too long to complete
+        #group_task = group(jobs)()
+
+        damnboi = build_task_graph(trace_set_paths, conf)
+        result = damnboi().get_leaf().data['correlations']
 
         # Print results
         max_correlations = np.zeros([16, 256])
