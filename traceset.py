@@ -14,7 +14,6 @@ class TraceSet(object):
         self.key = key
         self.num_traces = traces.shape[0]
         self.num_samples = traces.shape[1]
-        self.correlations = None
 
     def set_traces(self, traces):
         self.traces = traces

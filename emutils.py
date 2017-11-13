@@ -13,12 +13,21 @@ BANNER = """  _____ __  __ __  __    _
  |Electromagnetic Mining Array
  ============================="""
 
-def partition(input_list, partition_size):
+def chunks(input_list, chunk_size):
     '''
-    Partition a list into chunks of size 'partition_size'
+    Divide a list into chunks of size 'chunk_size'
     '''
-    for i in range(0, len(input_list), partition_size):
-        yield input_list[i:i + partition_size]
+    for i in range(0, len(input_list), chunk_size):
+        yield input_list[i:i+chunk_size]
+
+def partition(input_list, num_partitions):
+    '''
+    Divide list in 'num_partitions' partitions
+    '''
+    n = int(len(input_list)/ num_partitions)
+
+    for i in range(0, len(input_list), n):
+        yield input_list[i:i+n]
 
 def numpy_to_hex(np_array):
     result = ""

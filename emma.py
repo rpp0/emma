@@ -9,7 +9,6 @@ from debug import DEBUG
 from time import sleep
 from emma_worker import app, backend
 from celery import group, chord, chain
-from asyncio import Semaphore
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -18,34 +17,13 @@ import configparser
 import emutils
 import emio
 import subprocess
+import time
 
-mutex = Semaphore()
-windowsize = Window(begin=1080, end=1308).size
-result = Correlation.init([256, windowsize]) # 256 * window size
-
-def result_callback(task_id, value):
-    global result
-    mutex.acquire()
-    if not value is None:
-        subkey_idx = 0
-        for subkey_guess in range(0, 256):
-            for p in range(0, windowsize):
-                result[subkey_guess, p].merge(value[subkey_guess, p])
-    print("Job %s done!" % task_id)
-    mutex.release()
-    app.AsyncResult(task_id).forget()
-
-def build_task_graph(paths, conf):
-    if len(paths) == 0:
-        return None
-    elif len(paths) == 1:
-        print(paths[0])
-        return work.si(paths[0], conf)
-    else:
-        mid = int(len(paths) / 2)
-        left = build_task_graph(paths[0:mid], conf)
-        right = build_task_graph(paths[mid:], conf)
-        return chord([left, right], body=merge.s())
+def partition_work(trace_set_paths, conf, num_partitions):
+    result = []
+    for part in emutils.partition(trace_set_paths, num_partitions):
+        result.append(work.si(part, conf).set(compression='zlib'))
+    return chord(result, body=merge.s())
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')
@@ -54,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
-    parser.add_argument('--num-cores', dest='num_cores', type=int, default=4, help='Number of CPU cores')  # TODO remove, useless
+    parser.add_argument('--max-subtasks', type=int, default=2, help='Maximum number of subtasks')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -70,18 +48,22 @@ if __name__ == "__main__":
         conf = argparse.Namespace(
             reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[0][window.begin:window.end],
             window=window,
+            #attack_window = Window(begin=1080, end=1082),
+            attack_window = Window(begin=980, end=1700),
+            #attack_window = Window(begin=980, end=1008),
+            #attack_window = Window(begin=1080, end=1308),
             **args.__dict__
         )
 
-        #jobs = []
-        #for path in trace_set_paths:  # Create job for each path
-        #    jobs.append(work.s(path, conf))
-
-        # Execute jobs
-        #group_task = group(jobs)()
-
-        damnboi = build_task_graph(trace_set_paths[0:8], conf)
-        result = damnboi().get().data['correlations']  # Bug workaround that .get() returns early
+        task = partition_work(trace_set_paths, conf, num_partitions=args.max_subtasks)
+        async_result = task()
+        count = 0
+        while not async_result.ready():
+            print("\rElapsed: %d" % count, end='')
+            count += 1
+            time.sleep(1)
+        print("")
+        result = async_result.result.correlations
         print("Num entries: %d" % result[0][0]._n)
 
         # Print results
@@ -100,4 +82,4 @@ if __name__ == "__main__":
     print("Cleaning up")
     app.control.purge()
     app.backend.cleanup()
-    #subprocess.check_output(['pkill', '-9', '-f', 'celery'])
+    subprocess.check_output(['pkill', '-9', '-f', 'celery'])

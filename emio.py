@@ -40,7 +40,7 @@ def get_trace_set(trace_set_path, inform, ignore_malformed=True):
             if traces.shape[0] == plaintexts.shape[0]:
                 return TraceSet(name=name, traces=traces, plaintexts=plaintexts)
         else:
-            return TraceSet(name=name, traces=traces, plaintexts=plaintexts)
+            return TraceSet(name=name, traces=traces[0:len(plaintexts)], plaintexts=plaintexts)
     elif inform == "sigmf":  # .meta
         raise NotImplementedError
     elif inform == "gnuradio":  # .cfile
