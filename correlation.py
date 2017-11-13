@@ -54,16 +54,18 @@ class Correlation():
         return self._corr >= float(other)
 
     def _update_corr(self):
-        if self._n != 0:
+        try:
             num = self._sumxy - (self._sumx * self._sumy / self._n)
             denom1 = self._sumxsq - (self._sumx**2 / self._n)
             denom2 = self._sumysq - (self._sumy**2 / self._n)
             self._corr = num / np.sqrt(denom1 * denom2)
+        except ZeroDivisionError:
+            pass
 
     def update(self, x, y):
         self._sumx += np.sum(x)
         self._sumy += np.sum(y)
-        self._sumxy += np.sum(np.multiply(x, y))
+        self._sumxy += np.dot(x, y)
         self._sumxsq += np.sum(np.square(x))
         self._sumysq += np.sum(np.square(y))
         self._n += len(x)

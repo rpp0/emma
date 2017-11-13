@@ -104,25 +104,25 @@ def attack_trace_set(trace_set, result, conf=None):
     logger.info("Attacking trace set %s..." % trace_set.name)
     trace_set.assert_validity()
 
-    subkey_idx = 0
-    hypotheses = np.empty([256, trace_set.num_traces])
+    for subkey_idx in range(0, conf.num_subkeys):
+        hypotheses = np.empty([256, trace_set.num_traces])
 
-    # 1. Build hypotheses for all 256 possibilities of the key and all traces
-    for subkey_guess in range(0, 256):
-        for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey_idx] ^ subkey_guess]]  # Model of the power consumption
-
-    # 2. Given point j of trace i, calculate the correlation between all hypotheses
-    for j in range(0, conf.attack_window.size):
-        # Get measurements (columns) from all traces
-        measurements = np.empty(trace_set.num_traces)
-        for i in range(0, trace_set.num_traces):
-            measurements[i] = trace_set.traces[i][conf.attack_window.begin+j]
-
-        # Correlate measurements with 256 hypotheses
+        # 1. Build hypotheses for all 256 possibilities of the key and all traces
         for subkey_guess in range(0, 256):
-            # Update correlation
-            result.correlations[subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
+            for i in range(0, trace_set.num_traces):
+                hypotheses[subkey_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey_idx] ^ subkey_guess]]  # Model of the power consumption
+
+        # 2. Given point j of trace i, calculate the correlation between all hypotheses
+        for j in range(0, conf.attack_window.size):
+            # Get measurements (columns) from all traces
+            measurements = np.empty(trace_set.num_traces)
+            for i in range(0, trace_set.num_traces):
+                measurements[i] = trace_set.traces[i][conf.attack_window.begin+j]
+
+            # Correlate measurements with 256 hypotheses
+            for subkey_guess in range(0, 256):
+                # Update correlation
+                result.correlations[subkey_idx,subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
 
 @app.task(bind=True)
 def merge(self, to_merge):
@@ -139,9 +139,10 @@ def merge(self, to_merge):
 
         # Start merging
         for m in to_merge:
-            for subkey_guess in range(0, shape[0]):
-                for point in range(0, shape[1]):
-                    result.correlations[subkey_guess, point].merge(m.correlations[subkey_guess, point])
+            for subkey_idx in range(0, shape[0]):
+                for subkey_guess in range(0, shape[1]):
+                    for point in range(0, shape[2]):
+                        result.correlations[subkey_idx,subkey_guess, point].merge(m.correlations[subkey_idx,subkey_guess, point])
 
             # Done with this task, so delete it
             logger.warning("Deleting %s" % m.task_id)
@@ -160,7 +161,7 @@ def work(self, trace_set_paths, conf):
     if type(trace_set_paths) is list:
         # TODO build this from within the ops themselves by passing as ref!
         result = EMResult(task_id=self.request.id)
-        result.correlations = Correlation.init([256, conf.attack_window.size])
+        result.correlations = Correlation.init([16, 256, conf.attack_window.size])
 
         for trace_set_path in trace_set_paths:
             logger.info("Node performing %s on trace set '%s'" % (str(conf.actions), trace_set_path))

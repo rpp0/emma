@@ -22,6 +22,7 @@ app = Celery('emma',
 # Optional configuration, see the application user guide.
 app.conf.update(
     task_serializer='pickle',
+    task_compression='zlib',
     accept_content={'pickle'},
     result_serializer='pickle'
 )

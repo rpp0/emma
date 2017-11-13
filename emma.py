@@ -22,7 +22,7 @@ import time
 def partition_work(trace_set_paths, conf, num_partitions):
     result = []
     for part in emutils.partition(trace_set_paths, num_partitions):
-        result.append(work.si(part, conf).set(compression='zlib'))
+        result.append(work.si(part, conf))
     return chord(result, body=merge.s())
 
 if __name__ == "__main__":
@@ -33,6 +33,7 @@ if __name__ == "__main__":
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
     parser.add_argument('--max-subtasks', type=int, default=2, help='Maximum number of subtasks')
+    parser.add_argument('--num-subkeys', type=int, default=16, help='Number of subkeys to break')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -49,9 +50,9 @@ if __name__ == "__main__":
             reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[0][window.begin:window.end],
             window=window,
             #attack_window = Window(begin=1080, end=1082),
-            attack_window = Window(begin=980, end=1700),
+            #attack_window = Window(begin=980, end=1700),
             #attack_window = Window(begin=980, end=1008),
-            #attack_window = Window(begin=1080, end=1308),
+            attack_window = Window(begin=1280, end=1308),
             **args.__dict__
         )
 
@@ -64,12 +65,13 @@ if __name__ == "__main__":
             time.sleep(1)
         print("")
         result = async_result.result.correlations
-        print("Num entries: %d" % result[0][0]._n)
+        print("Num entries: %d" % result[0][0][0]._n)
 
         # Print results
         max_correlations = np.zeros([16, 256])
-        for subkey_guess in range(0, 256):
-            max_correlations[0, subkey_guess] = np.max(np.abs(result[subkey_guess,:]))
+        for subkey_idx in range(0, conf.num_subkeys):
+            for subkey_guess in range(0, 256):
+                max_correlations[subkey_idx, subkey_guess] = np.max(np.abs(result[subkey_idx,subkey_guess,:]))
         emutils.pretty_print_correlations(max_correlations, limit_rows=20)
 
         # Print key
