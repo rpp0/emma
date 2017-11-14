@@ -18,7 +18,7 @@ def normalize(trace):
         raise ValueError
     return (trace - mean) / std
 
-def butter_filter(trace, order=4, cutoff=0.004, filter_type='low'):
+def butter_filter(trace, order=1, cutoff=0.01, filter_type='low'):
     '''
     Apply butter filter to trace
     '''
