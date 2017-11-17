@@ -10,6 +10,8 @@ from time import sleep
 from threading import Thread
 from datetime import datetime
 from sigmf.sigmffile import SigMFFile
+from dsp import butter_filter
+import matplotlib.pyplot as plt
 import numpy as np
 import time
 import sys
@@ -17,6 +19,8 @@ import socket
 import os
 import signal
 import logging
+import struct
+import binascii
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -26,6 +30,16 @@ def handler(signum, frame):
     exit(0)
 
 signal.signal(signal.SIGINT, handler)
+
+def binary_to_hex(binary):
+    result = []
+    for elem in binary:
+        result.append("{:0>2}".format(binascii.hexlify(elem)))
+    return ' '.join(result)
+
+class CtrlPacketType:
+    SIGNAL_START = 0
+    SIGNAL_END = 1
 
 # USRP capture device
 class USRP(gr.top_block):
@@ -38,6 +52,7 @@ class USRP(gr.top_block):
         self.samp_rate = samp_rate
         self.freq = freq
         self.gain = gain
+        logger.info("USRP: samp_rate=%d, freq=%f, gain=%d" % (samp_rate, freq, gain))
 
         ##################################################
         # Blocks
@@ -87,13 +102,13 @@ class SocketWrapper(Thread):
         Thread.__init__(self)
         self.setDaemon(True)
         self.socket = s
-        logger.info("Binding to %s" % str(address))
+        logger.debug("Binding to %s" % str(address))
         self.socket.bind(address)
         self.cb_pkt = cb_pkt
         self.data = b""
 
-    def _parse(self, client_address):
-        bytes_parsed = self.cb_pkt(client_address, self.data)
+    def _parse(self, client_socket, client_address):
+        bytes_parsed = self.cb_pkt(client_socket, client_address, self.data)
         self.data = self.data[bytes_parsed:]
 
     def recv_stream(self):
@@ -111,10 +126,10 @@ class SocketWrapper(Thread):
                     self.data += chunk
                 else:
                     streaming = False
-                    logger.info("Received null, stopping soon!")
+                    logger.debug("Received null, stopping soon!")
 
                 # Parse existing data
-                self._parse(client_address)
+                self._parse(client_socket, client_address)
         finally:
             client_socket.close()
 
@@ -126,9 +141,9 @@ class SocketWrapper(Thread):
                 self.data += chunk
             else:
                 receiving = False
-                logger.info("Received null packet, stopping soon!")
+                logger.debug("Received null packet, stopping soon!")
 
-            self._parse(client_address)
+            self._parse(None, client_address)
 
     def run(self):
         '''
@@ -147,11 +162,13 @@ class EMCap():
         unix_domain_socket = '/tmp/emma.socket'
 
         self.clear_domain_socket(unix_domain_socket)
-        self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3883), self.cb_data)
+        self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3884), self.cb_data)
         self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
 
         self.usrp = USRP(**cap_kwargs)
         self.store = False
+        self.stored_data = []
+        self.gvd = []
 
         self.global_meta = {
             "core:datatype": "cf32_le",
@@ -179,45 +196,72 @@ class EMCap():
         logger.warning("Timeout on capture, skipping...")
         self.usrp.stop()
 
-    def cb_data(self, client_address, data):
-        if self.store:
-            # We are in a region of interest, so write data to file
-            #np_data = np.array(data, dtype=np.float32)
-            #np.abs(np_data)
-            #np.save(...)
+    def cb_data(self, client_socket, client_address, data):
+        self.stored_data.append(data)
+        return len(data)
 
-            # Write metadata to sigmf file
-            with open(test_meta_path, 'w') as f:
-                test_sigmf = SigMFFile(data_file=test_data_path, global_info=copy.deepcopy(self.global_meta))
-                test_sigmf.add_capture(0, metadata=capture_meta)
-                test_sigmf.dump(f, pretty=True)
+    def cb_ctrl(self, client_socket, client_address, data):
+        logger.debug("Control packet: " + binary_to_hex(data))
+        if len(data) < 5:
+            # Not enough for TLV
+            return 0
         else:
-            # Unimportant data
-            print("Data is now: " + data)
+            pkt_type, payload_len = struct.unpack(">BI", data[0:5])
+            payload = data[5:]
+            if len(payload) < payload_len:
+                return 0  # Not enough for payload
+            else:
+                self.process_ctrl_packet(pkt_type, payload)
+                # Send ack
+                client_socket.sendall("k")
+                return payload_len + 5
 
-        return len(data)
+    def process_ctrl_packet(self, pkt_type, payload):
+        if pkt_type == CtrlPacketType.SIGNAL_START:
+            logger.debug("SIGNAL_START")
+            self.usrp.start()
+            # Spinlock
+            while len(self.stored_data) == 0:
+                # TODO timeout if usrp errors
+                pass
+        elif pkt_type == CtrlPacketType.SIGNAL_END:
+            logger.debug("SIGNAL_END")
+            self.usrp.stop()
+            self.usrp.wait()
+            if len(self.stored_data) > 0:
+                # Data to file
+                np_data = np.fromstring(b"".join(self.stored_data), dtype=np.float32)
+                self.gvd.append(np.abs(np_data))
+                #np.save(...)
 
-    def cb_ctrl(self, client_address, data):
-        print("Got ctrl: " + data)
-        return len(data)
+                # Write metadata to sigmf file
+                #with open(test_meta_path, 'w') as f:
+                #    test_sigmf = SigMFFile(data_file=test_data_path, global_info=copy.deepcopy(self.global_meta))
+                #    test_sigmf.add_capture(0, metadata=capture_meta)
+                #    test_sigmf.dump(f, pretty=True)
+                logger.info("Dumping %d floats to file." % len(np_data))
+
+                # Clear
+                self.stored_data = []
 
     def capture(self, to_skip=0, timeout=1.0):
-        # Start capturing and listening for data
-        self.usrp.start()
+        # Start listening for signals
         self.data_socket.start()
         self.ctrl_socket.start()
 
         # Wait until supplicant signals end of acquisition
         while self.ctrl_socket.is_alive():
             self.ctrl_socket.join(timeout=1.0)
-        logging.info("Supplicant disconnected on control channel. Stopping...")
 
-        # Stop capturing data with the SDR
-        self.usrp.stop()
+        for g in self.gvd:
+            #plt.plot(np.arange(len(g)), butter_filter(g, cutoff=0.001, order=4))
+            plt.plot(np.arange(len(g)), butter_filter(g, cutoff=0.005, order=1))
+        plt.show()
+        logging.info("Supplicant disconnected on control channel. Stopping...")
 
 # Test function
 def main():
-    e = EMCap()
+    e = EMCap(cap_kwargs={'samp_rate': 10000000})
     e.capture()
 
 if __name__ == '__main__':
