@@ -34,6 +34,7 @@ if __name__ == "__main__":
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
     parser.add_argument('--max-subtasks', type=int, default=2, help='Maximum number of subtasks')
     parser.add_argument('--num-subkeys', type=int, default=16, help='Number of subkeys to break')
+    parser.add_argument('--kill-workers', default=False, action='store_true', help='Kill workers after finishing the tasks.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -84,4 +85,5 @@ if __name__ == "__main__":
     print("Cleaning up")
     app.control.purge()
     app.backend.cleanup()
-    subprocess.check_output(['pkill', '-9', '-f', 'celery'])
+    if args.kill_workers:
+        subprocess.check_output(['pkill', '-9', '-f', 'celery'])

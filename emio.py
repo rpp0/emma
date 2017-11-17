@@ -33,8 +33,8 @@ def get_trace_set(trace_set_path, inform, ignore_malformed=True):
         name = trace_set_path.rpartition('_traces')[0]
         plaintext_set_path = name + '_textin.npy'
 
-        traces = np.load(trace_set_path)  # TODO make more robust towards non-existing paths
-        plaintexts = np.load(plaintext_set_path)
+        traces = np.load(trace_set_path, encoding="bytes")  # TODO make more robust towards non-existing paths
+        plaintexts = np.load(plaintext_set_path, encoding="bytes")
 
         if ignore_malformed:
             if traces.shape[0] == plaintexts.shape[0]:
