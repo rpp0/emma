@@ -22,6 +22,7 @@ import logging
 import struct
 import binascii
 import osmosdr
+import argparse
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class CtrlPacketType:
 # SDR capture device
 class SDR(gr.top_block):
     def __init__(self, hw="usrp", samp_rate=100000, freq=1.6e9, gain=0):
+        gr.enable_realtime_scheduling()
         gr.top_block.__init__(self, "SDR capture device")
 
         ##################################################
@@ -80,7 +82,7 @@ class SDR(gr.top_block):
             self.sdr_source.set_dc_offset_mode(0, 0)
             self.sdr_source.set_iq_balance_mode(0, 0)
             self.sdr_source.set_gain_mode(False, 0)
-            self.sdr_source.set_gain(10, 0)
+            self.sdr_source.set_gain(gain, 0)
             self.sdr_source.set_if_gain(20, 0)
             self.sdr_source.set_bb_gain(20, 0)
             self.sdr_source.set_antenna('', 0)
@@ -286,7 +288,13 @@ class EMCap():
 
 # Test function
 def main():
-    e = EMCap(cap_kwargs={'hw': 'hackrf', 'samp_rate': 4000000})
+    parser = argparse.ArgumentParser(description='EMCAP')
+    parser.add_argument('hw', type=str, choices=['usrp', 'hackrf'], help='SDR capture hardware')
+    parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
+    parser.add_argument('--frequency', type=float, default=1.6e9, help='Capture frequency')
+    parser.add_argument('--gain', type=int, default=10, help='RX gain')
+    args, unknown = parser.parse_known_args()
+    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain})
     e.capture()
 
 if __name__ == '__main__':

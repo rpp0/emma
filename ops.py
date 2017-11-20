@@ -45,13 +45,14 @@ def align_trace_set(trace_set, result, conf):
     If a trace is empty, it is discarded.
     '''
     aligned_trace_set = []
-    reference = conf.reference_trace
+    reference = conf.reference_trace  # TODO rename to reference signal
 
     discarded = 0
     for trace in trace_set.traces:
-        aligned_trace = align(trace, reference)
-        if not aligned_trace is None and len(aligned_trace) >= conf.window.size:
-            aligned_trace_set.append(aligned_trace)
+        aligned_trace = align(trace.signal, reference)
+        if not aligned_trace is None:
+            trace.signal = aligned_trace
+            aligned_trace_set.append(trace)
         else:
             discarded += 1
 
@@ -65,13 +66,8 @@ def filter_trace_set(trace_set, result, conf=None):
     '''
     Apply a Butterworth filter to the traces.
     '''
-    filtered_trace_set = []
-
     for trace in trace_set.traces:
-        filtered_trace = butter_filter(trace)
-        filtered_trace_set.append(filtered_trace)
-
-    trace_set.set_traces(np.array(filtered_trace_set))
+        trace.signal = butter_filter(trace.signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
 
 @op('save')
 def save_trace_set(trace_set, result, conf):
@@ -99,7 +95,9 @@ def plot_trace_set(trace_set, result, conf=None):
     Plot each trace in a trace set using Matplotlib
     '''
     for trace in trace_set.traces:
-        plt.plot(range(0, len(trace)), trace)
+        plt.plot(range(0, len(trace.signal)), trace.signal)
+
+    plt.title(trace_set.name)
     plt.show()
 
 @op('attack')
@@ -108,7 +106,6 @@ def attack_trace_set(trace_set, result, conf=None):
     Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
     '''
     logger.info("Attacking trace set %s..." % trace_set.name)
-    trace_set.assert_validity()
 
     for subkey_idx in range(0, conf.num_subkeys):
         hypotheses = np.empty([256, trace_set.num_traces])
@@ -116,14 +113,14 @@ def attack_trace_set(trace_set, result, conf=None):
         # 1. Build hypotheses for all 256 possibilities of the key and all traces
         for subkey_guess in range(0, 256):
             for i in range(0, trace_set.num_traces):
-                hypotheses[subkey_guess, i] = hw[sbox[trace_set.plaintexts[i][subkey_idx] ^ subkey_guess]]  # Model of the power consumption
+                hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[subkey_idx] ^ subkey_guess]]  # Model of the power consumption
 
         # 2. Given point j of trace i, calculate the correlation between all hypotheses
         for j in range(0, conf.attack_window.size):
             # Get measurements (columns) from all traces
             measurements = np.empty(trace_set.num_traces)
             for i in range(0, trace_set.num_traces):
-                measurements[i] = trace_set.traces[i][conf.attack_window.begin+j]
+                measurements[i] = trace_set.traces[i].signal[conf.attack_window.begin+j]
 
             # Correlate measurements with 256 hypotheses
             for subkey_guess in range(0, 256):
@@ -135,7 +132,7 @@ def merge(self, to_merge):
     if type(to_merge) is EMResult:
         to_merge = [to_merge]
 
-    if len(to_merge) >= 1:
+    if len(to_merge) >= 1 and not to_merge[0].correlations is None:
         # Get size of correlations
         shape = to_merge[0].correlations.shape
 
@@ -167,7 +164,8 @@ def work(self, trace_set_paths, conf):
     if type(trace_set_paths) is list:
         # TODO build this from within the ops themselves by passing as ref!
         result = EMResult(task_id=self.request.id)
-        result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+        if 'attack' in conf.actions:
+            result.correlations = Correlation.init([16, 256, conf.attack_window.size])
 
         for trace_set_path in trace_set_paths:
             logger.info("Node performing %s on trace set '%s'" % (str(conf.actions), trace_set_path))

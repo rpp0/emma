@@ -36,6 +36,11 @@ if __name__ == "__main__":
     parser.add_argument('--max-subtasks', type=int, default=2, help='Maximum number of subtasks')
     parser.add_argument('--num-subkeys', type=int, default=16, help='Number of subkeys to break')
     parser.add_argument('--kill-workers', default=False, action='store_true', help='Kill workers after finishing the tasks.')
+    parser.add_argument('--window-start', type=int, default=0, help='Start of window')  # 1600
+    parser.add_argument('--window-end', type=int, default=None, help='End of window')  # 14000
+    parser.add_argument('--butter-order', type=int, default=1, help='Order of Butterworth filter')
+    parser.add_argument('--butter-cutoff', type=float, default=0.01, help='Cutoff of Butterworth filter')
+    parser.add_argument('--reference-signal', type=int, default=0, help='Index of reference signal')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -47,9 +52,9 @@ if __name__ == "__main__":
         trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
 
         # Worker-specific configuration
-        window = Window(begin=1600, end=14000)
+        window = Window(begin=args.window_start, end=args.window_end)
         conf = argparse.Namespace(
-            reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[0][window.begin:window.end],
+            reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_signal].signal[window.begin:window.end],
             window=window,
             #attack_window = Window(begin=1080, end=1082),
             #attack_window = Window(begin=980, end=1700),
@@ -66,19 +71,21 @@ if __name__ == "__main__":
             count += 1
             time.sleep(1)
         print("")
-        result = async_result.result.correlations
-        print("Num entries: %d" % result[0][0][0]._n)
 
-        # Print results
-        max_correlations = np.zeros([16, 256])
-        for subkey_idx in range(0, conf.num_subkeys):
-            for subkey_guess in range(0, 256):
-                max_correlations[subkey_idx, subkey_guess] = np.max(np.abs(result[subkey_idx,subkey_guess,:]))
-        emutils.pretty_print_correlations(max_correlations, limit_rows=20)
+        if 'attack' in conf.actions:
+            result = async_result.result.correlations
+            print("Num entries: %d" % result[0][0][0]._n)
 
-        # Print key
-        most_likely_bytes = np.argmax(max_correlations, axis=1)
-        print(emutils.numpy_to_hex(most_likely_bytes))
+            # Print results
+            max_correlations = np.zeros([16, 256])
+            for subkey_idx in range(0, conf.num_subkeys):
+                for subkey_guess in range(0, 256):
+                    max_correlations[subkey_idx, subkey_guess] = np.max(np.abs(result[subkey_idx,subkey_guess,:]))
+            emutils.pretty_print_correlations(max_correlations, limit_rows=20)
+
+            # Print key
+            most_likely_bytes = np.argmax(max_correlations, axis=1)
+            print(emutils.numpy_to_hex(most_likely_bytes))
     except KeyboardInterrupt:
         pass
 

@@ -63,4 +63,7 @@ class Window(object):
     def __init__(self, begin, end):
         self.begin = begin
         self.end = end
-        self.size = end - begin
+        if not end is None and not begin is None:
+            self.size = end - begin
+        else:
+            self.size = None
