@@ -47,10 +47,16 @@ def align_trace_set(trace_set, result, conf):
     aligned_trace_set = []
     reference = conf.reference_trace
 
+    discarded = 0
     for trace in trace_set.traces:
         aligned_trace = align(trace, reference)
-        if not aligned_trace is None:
+        if not aligned_trace is None and len(aligned_trace) >= conf.window.size:
             aligned_trace_set.append(aligned_trace)
+        else:
+            discarded += 1
+
+    if discarded > 0:
+        logger.warning("Discarded %d unable to align traces." % discarded)
 
     trace_set.set_traces(np.array(aligned_trace_set))
 

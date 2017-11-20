@@ -13,12 +13,10 @@ class TraceSet(object):
         self.ciphertexts = ciphertexts
         self.key = key
         self.num_traces = traces.shape[0]
-        self.num_samples = traces.shape[1]
 
     def set_traces(self, traces):
         self.traces = traces
         self.num_traces = traces.shape[0]
-        self.num_samples = traces.shape[1]
 
     def assert_validity(self):
         assert(self.traces.shape[0] == self.plaintexts.shape[0])

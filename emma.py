@@ -19,7 +19,8 @@ import emio
 import subprocess
 import time
 
-def partition_work(trace_set_paths, conf, num_partitions):
+def partition_work(trace_set_paths, conf):
+    num_partitions = min(conf.max_subtasks, len(trace_set_paths))
     result = []
     for part in emutils.partition(trace_set_paths, num_partitions):
         result.append(work.si(part, conf))
@@ -57,7 +58,7 @@ if __name__ == "__main__":
             **args.__dict__
         )
 
-        task = partition_work(trace_set_paths, conf, num_partitions=args.max_subtasks)
+        task = partition_work(trace_set_paths, conf)
         async_result = task()
         count = 0
         while not async_result.ready():
