@@ -22,3 +22,9 @@ class TraceSet(object):
     def set_traces(self, traces):
         self.traces = traces
         self.num_traces = traces.shape[0]
+
+    def save(self, path, fmt='cw'):
+        if fmt == 'cw':
+            np.save(self.name + "_p_traces.npy", np.array([t.signal for t in self.traces]))
+        elif fmt == 'sigmf':
+            raise NotImplementedError

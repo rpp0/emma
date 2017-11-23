@@ -45,7 +45,7 @@ class CtrlPacketType:
 
 # SDR capture device
 class SDR(gr.top_block):
-    def __init__(self, hw="usrp", samp_rate=100000, freq=1.6e9, gain=0):
+    def __init__(self, hw="usrp", samp_rate=100000, freq=3.2e9, gain=0):
         gr.enable_realtime_scheduling()
         gr.top_block.__init__(self, "SDR capture device")
 
@@ -189,8 +189,10 @@ class EMCap():
 
         self.sdr = SDR(**cap_kwargs)
         self.store = False
+        self.stored_plaintext = []
         self.stored_data = []
         self.trace_set = []
+        self.plaintexts = []
 
         self.global_meta = {
             "core:datatype": "cf32_le",
@@ -240,24 +242,34 @@ class EMCap():
 
     def process_ctrl_packet(self, pkt_type, payload):
         if pkt_type == CtrlPacketType.SIGNAL_START:
-            logger.debug("SIGNAL_START")
+            logger.debug(payload)
+            self.stored_plaintext = [ord(c) for c in payload]
             self.sdr.start()
-            # Spinlock
+
+            # Spinlock until data
+            timeout = 1
+            current_time = 0.0
             while len(self.stored_data) == 0:
-                # TODO timeout if sdr errors
-                pass
+                sleep(0.001)
+                current_time += 0.001
+                if current_time >= timeout:
+                    logger.warning("Timeout while waiting for data. Did the SDR crash?")
+                    break
         elif pkt_type == CtrlPacketType.SIGNAL_END:
-            logger.debug("SIGNAL_END")
             self.sdr.stop()
             self.sdr.wait()
+
+            # Successful capture (no errors or timeouts)
             if len(self.stored_data) > 0:
                 # Data to file
                 np_data = np.fromstring(b"".join(self.stored_data), dtype=np.complex64)
                 self.trace_set.append(np.abs(np_data))
+                self.plaintexts.append(self.stored_plaintext)
                 #np.save(...)
 
                 # Write metadata to sigmf file
                 if len(self.trace_set) >= 200:
+                    assert(len(self.trace_set) == len(self.plaintexts))
                     # if sigmf
                     #with open(test_meta_path, 'w') as f:
                     #    test_sigmf = SigMFFile(data_file=test_data_path, global_info=copy.deepcopy(self.global_meta))
@@ -266,10 +278,16 @@ class EMCap():
                     # elif chipwhisperer:
                     logger.info("Dumping %d traces to file" % len(self.trace_set))
                     np_trace_set = np.array(self.trace_set)
-                    np.save("/tmp/traces/test_traces.npy", np_trace_set)
+                    np_plaintexts = np.array(self.plaintexts, dtype=np.uint8)
+                    filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
+                    np.save("/tmp/traces/%s_traces.npy" % filename, np_trace_set)  # TODO abstract this in trace_set class
+                    np.save("/tmp/traces/%s_textin.npy" % filename, np_plaintexts)
+                    self.trace_set = []
+                    self.plaintexts = []
 
                 # Clear
                 self.stored_data = []
+                self.stored_plaintext = []
 
     def capture(self, to_skip=0, timeout=1.0):
         # Start listening for signals
@@ -280,10 +298,6 @@ class EMCap():
         while self.ctrl_socket.is_alive():
             self.ctrl_socket.join(timeout=1.0)
 
-        for g in self.trace_set:
-            #plt.plot(np.arange(len(g)), butter_filter(g, cutoff=0.001, order=4))
-            plt.plot(np.arange(len(g)), butter_filter(g, cutoff=0.005, order=1))
-        plt.show()
         logging.info("Supplicant disconnected on control channel. Stopping...")
 
 # Test function
@@ -291,7 +305,7 @@ def main():
     parser = argparse.ArgumentParser(description='EMCAP')
     parser.add_argument('hw', type=str, choices=['usrp', 'hackrf'], help='SDR capture hardware')
     parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
-    parser.add_argument('--frequency', type=float, default=1.6e9, help='Capture frequency')
+    parser.add_argument('--frequency', type=float, default=3.2e9, help='Capture frequency')
     parser.add_argument('--gain', type=int, default=10, help='RX gain')
     args, unknown = parser.parse_known_args()
     e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain})

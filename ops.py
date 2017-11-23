@@ -61,8 +61,47 @@ def align_trace_set(trace_set, result, conf):
 
     trace_set.set_traces(np.array(aligned_trace_set))
 
+@op('spec')
+def spectogram_trace_set(trace_set, result, conf):
+    '''
+    Calculate the spectogram of the trace set.
+    '''
+    for trace in trace_set.traces:
+        trace.signal = np.square(np.abs(np.fft.fft(trace.signal)))
+
+@op('window')
+def window_trace_set(trace_set, result, conf):
+    '''
+    Perform windowing on a specific trace set. See https://en.wikipedia.org/wiki/Window_function#Spectral_analysis
+    for a good overview of the effects of the different windowing methods on the PSD of the signal.
+
+    The trace is windowed according to conf.window.size, or according to the size of the reference trace if the
+    window is not configured.
+
+    Interesting excerpt: 'What cannot be seen from the graphs is that the rectangular window has the best noise bandwidth, which makes it a good candidate for detecting low-level sinusoids in an otherwise white noise environment. Interpolation techniques, such as zero-padding and frequency-shifting, are available to mitigate its potential scalloping loss.'
+    '''
+    ref_size = len(conf.reference_trace)
+
+    logger.info("Windowing trace set to %s window between [%d,%d]" % (conf.windowing_method, conf.window.begin, conf.window.begin+ref_size))
+
+    for trace in trace_set.traces:
+        length_diff = len(trace.signal[conf.window.begin:]) - ref_size
+        # Pad or cut
+        if length_diff < 0:
+            trace.signal = np.lib.pad(trace.signal[conf.window.begin:], (0, abs(length_diff)), 'constant', constant_values=(0.0))
+        else:
+            trace.signal = trace.signal[conf.window.begin:conf.window.begin+ref_size]
+        assert(len(trace.signal) == ref_size)
+
+        # Apply window
+        if conf.windowing_method == 'rectangular':
+            continue # Already cut rectangularly
+        else:
+            logger.warning("Requested unknown windowing method '%d'. Skipping." % conf.windowing_method)
+            return
+
 @op('filter')
-def filter_trace_set(trace_set, result, conf=None):
+def filter_trace_set(trace_set, result, conf):
     '''
     Apply a Butterworth filter to the traces.
     '''
@@ -127,6 +166,21 @@ def attack_trace_set(trace_set, result, conf=None):
                 # Update correlation
                 result.correlations[subkey_idx,subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
 
+@op('memattack')
+def memattack_trace_set(trace_set, result, conf=None):
+    for byte_idx in range(0, conf.num_subkeys):
+        for j in range(0, conf.attack_window.size):
+            # Get measurements (columns) from all traces
+            measurements = np.empty(trace_set.num_traces)
+            for i in range(0, trace_set.num_traces):
+                measurements[i] = trace_set.traces[i].signal[conf.attack_window.begin+j]
+
+            # Correlate measurements with 256 hypotheses
+            for byte_guess in range(0, 256):
+                # Update correlation
+                hypotheses = [hw[byte_guess]] * trace_set.num_traces
+                result.correlations[byte_idx,byte_guess,j].update(hypotheses, measurements)
+
 @app.task(bind=True)
 def merge(self, to_merge):
     if type(to_merge) is EMResult:
@@ -164,8 +218,10 @@ def work(self, trace_set_paths, conf):
     if type(trace_set_paths) is list:
         # TODO build this from within the ops themselves by passing as ref!
         result = EMResult(task_id=self.request.id)
-        if 'attack' in conf.actions:
-            result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+        for a in conf.actions:
+            if 'attack' in a:
+                result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+                break
 
         for trace_set_path in trace_set_paths:
             logger.info("Node performing %s on trace set '%s'" % (str(conf.actions), trace_set_path))

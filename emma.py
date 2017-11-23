@@ -41,6 +41,7 @@ if __name__ == "__main__":
     parser.add_argument('--butter-order', type=int, default=1, help='Order of Butterworth filter')
     parser.add_argument('--butter-cutoff', type=float, default=0.01, help='Cutoff of Butterworth filter')
     parser.add_argument('--reference-signal', type=int, default=0, help='Index of reference signal')
+    parser.add_argument('--windowing-method', type=str, default='rectangular', help='Windowing method')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -59,7 +60,8 @@ if __name__ == "__main__":
             #attack_window = Window(begin=1080, end=1082),
             #attack_window = Window(begin=980, end=1700),
             #attack_window = Window(begin=980, end=1008),
-            attack_window = Window(begin=1280, end=1308),
+            #attack_window = Window(begin=1280, end=1308),  # Time domain
+            attack_window = Window(begin=0, end=80), # Freq domain, win-begin 980 win-end 1700
             **args.__dict__
         )
 
@@ -72,20 +74,22 @@ if __name__ == "__main__":
             time.sleep(1)
         print("")
 
-        if 'attack' in conf.actions:
-            result = async_result.result.correlations
-            print("Num entries: %d" % result[0][0][0]._n)
+        for action in conf.actions:
+            if 'attack' in action:
+                result = async_result.result.correlations
+                print("Num entries: %d" % result[0][0][0]._n)
 
-            # Print results
-            max_correlations = np.zeros([16, 256])
-            for subkey_idx in range(0, conf.num_subkeys):
-                for subkey_guess in range(0, 256):
-                    max_correlations[subkey_idx, subkey_guess] = np.max(np.abs(result[subkey_idx,subkey_guess,:]))
-            emutils.pretty_print_correlations(max_correlations, limit_rows=20)
+                # Print results
+                max_correlations = np.zeros([16, 256])
+                for subkey_idx in range(0, conf.num_subkeys):
+                    for subkey_guess in range(0, 256):
+                        max_correlations[subkey_idx, subkey_guess] = np.max(np.abs(result[subkey_idx,subkey_guess,:]))
+                emutils.pretty_print_correlations(max_correlations, limit_rows=20)
 
-            # Print key
-            most_likely_bytes = np.argmax(max_correlations, axis=1)
-            print(emutils.numpy_to_hex(most_likely_bytes))
+                # Print key
+                most_likely_bytes = np.argmax(max_correlations, axis=1)
+                print(emutils.numpy_to_hex(most_likely_bytes))
+                break
     except KeyboardInterrupt:
         pass
 
