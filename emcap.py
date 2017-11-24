@@ -124,6 +124,7 @@ class SocketWrapper(Thread):
         Thread.__init__(self)
         self.setDaemon(True)
         self.socket = s
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         logger.debug("Binding to %s" % str(address))
         self.socket.bind(address)
         self.cb_pkt = cb_pkt
@@ -188,6 +189,7 @@ class EMCap():
         self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
 
         self.sdr = SDR(**cap_kwargs)
+        self.cap_kwargs = cap_kwargs
         self.store = False
         self.stored_plaintext = []
         self.stored_data = []
@@ -247,14 +249,19 @@ class EMCap():
             self.sdr.start()
 
             # Spinlock until data
-            timeout = 1
+            timeout = 3
             current_time = 0.0
             while len(self.stored_data) == 0:
                 sleep(0.001)
                 current_time += 0.001
                 if current_time >= timeout:
-                    logger.warning("Timeout while waiting for data. Did the SDR crash?")
-                    break
+                    logger.warning("Timeout while waiting for data. Did the SDR crash? Reinstantiating...")
+                    del self.sdr
+                    self.data_socket.socket.close()
+                    self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3884), self.cb_data)
+                    self.data_socket.start()
+                    self.sdr = SDR(**self.cap_kwargs)
+                    self.process_ctrl_packet(pkt_type, payload)
         elif pkt_type == CtrlPacketType.SIGNAL_END:
             self.sdr.stop()
             self.sdr.wait()
@@ -268,7 +275,7 @@ class EMCap():
                 #np.save(...)
 
                 # Write metadata to sigmf file
-                if len(self.trace_set) >= 200:
+                if len(self.trace_set) >= 256:
                     assert(len(self.trace_set) == len(self.plaintexts))
                     # if sigmf
                     #with open(test_meta_path, 'w') as f:
@@ -280,8 +287,8 @@ class EMCap():
                     np_trace_set = np.array(self.trace_set)
                     np_plaintexts = np.array(self.plaintexts, dtype=np.uint8)
                     filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
-                    np.save("/tmp/traces/%s_traces.npy" % filename, np_trace_set)  # TODO abstract this in trace_set class
-                    np.save("/tmp/traces/%s_textin.npy" % filename, np_plaintexts)
+                    np.save("/home/pieter/projects/em/traces/%s_traces.npy" % filename, np_trace_set)  # TODO abstract this in trace_set class
+                    np.save("/home/pieter/projects/em/traces/%s_textin.npy" % filename, np_plaintexts)
                     self.trace_set = []
                     self.plaintexts = []
 

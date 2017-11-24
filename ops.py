@@ -19,6 +19,7 @@ from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
+from ai import EMMAAI
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
@@ -66,8 +67,13 @@ def spectogram_trace_set(trace_set, result, conf):
     '''
     Calculate the spectogram of the trace set.
     '''
+    if not trace_set.windowed:
+        logger.warning("Taking the FFT of non-windowed traces will result in variable FFT sizes.")
+
     for trace in trace_set.traces:
         trace.signal = np.square(np.abs(np.fft.fft(trace.signal)))
+        if True: # If real signal
+            trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
 
 @op('window')
 def window_trace_set(trace_set, result, conf):
@@ -99,6 +105,7 @@ def window_trace_set(trace_set, result, conf):
         else:
             logger.warning("Requested unknown windowing method '%d'. Skipping." % conf.windowing_method)
             return
+    trace_set.windowed = True
 
 @op('filter')
 def filter_trace_set(trace_set, result, conf):
@@ -145,6 +152,7 @@ def attack_trace_set(trace_set, result, conf=None):
     Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
     '''
     logger.info("Attacking trace set %s..." % trace_set.name)
+    result.correlations = Correlation.init([16, 256, conf.attack_window.size])
 
     for subkey_idx in range(0, conf.num_subkeys):
         hypotheses = np.empty([256, trace_set.num_traces])
@@ -168,6 +176,9 @@ def attack_trace_set(trace_set, result, conf=None):
 
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None):
+    logger.info("Mem attacking trace set %s..." % trace_set.name)
+    result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+
     for byte_idx in range(0, conf.num_subkeys):
         for j in range(0, conf.attack_window.size):
             # Get measurements (columns) from all traces
@@ -181,6 +192,20 @@ def memattack_trace_set(trace_set, result, conf=None):
                 hypotheses = [hw[byte_guess]] * trace_set.num_traces
                 result.correlations[byte_idx,byte_guess,j].update(hypotheses, measurements)
 
+@op('memtrain')
+def memtrain_trace_set(trace_set, result, conf=None):
+    if trace_set.windowed:
+        if result.ai is None:
+            logger.debug("Initializing Keras")
+            result.ai = EMMAAI(input_dim=len(trace_set.traces[0].signal), hamming=True)
+
+        signals = np.array([trace.signal for trace in trace_set.traces])
+        values = np.array([hw[trace.plaintext[0]] for trace in trace_set.traces])
+        logger.warning("Training %d signals" % len(signals))
+        result.ai.train(signals, values)
+    else:
+        logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
+
 @app.task(bind=True)
 def merge(self, to_merge, conf):
     if type(to_merge) is EMResult:
@@ -188,13 +213,14 @@ def merge(self, to_merge, conf):
 
     # Is it useful to merge?
     if len(to_merge) >= 1:
+        result = EMResult(task_id=self.request.id)
+
         # If we are attacking, merge the correlations
         if 'attack' in conf.actions or 'memattack' in conf.actions:
             # Get size of correlations
             shape = to_merge[0].correlations.shape
 
             # Init result
-            result = EMResult(task_id=self.request.id)
             result.correlations = Correlation.init(shape)
 
             # Start merging
@@ -203,8 +229,6 @@ def merge(self, to_merge, conf):
                     for subkey_guess in range(0, shape[1]):
                         for point in range(0, shape[2]):
                             result.correlations[subkey_idx,subkey_guess, point].merge(m.correlations[subkey_idx,subkey_guess, point])
-        elif 'memtrain' in conf.actions:
-            print("Special merge TF")
 
         # Clean up tasks
         for m in to_merge:
@@ -222,9 +246,7 @@ def work(self, trace_set_paths, conf):
     '''
 
     if type(trace_set_paths) is list:
-        result = EMResult(task_id=self.request.id)
-        if 'attack' in conf.actions or 'memattack' in conf.actions: # TODO build this from within Task subclass based on conf
-            result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+        result = EMResult(task_id=self.request.id) # TODO init this from within Task subclass
 
         for trace_set_path in trace_set_paths:
             logger.info("Node performing %s on trace set '%s'" % (str(conf.actions), trace_set_path))
@@ -234,8 +256,8 @@ def work(self, trace_set_paths, conf):
 
             # Load trace
             trace_set = emio.get_trace_set(trace_set_path, conf.inform, ignore_malformed=False)
-            if trace_set is None:  # TODO FIX ME!
-                logger.warning("Skipping trace set %s" % trace_set_path)
+            if trace_set is None:
+                logger.warning("Failed to load trace set %s (got None). Skipping..." % trace_set_path)
                 continue
 
             # Perform actions
@@ -245,6 +267,7 @@ def work(self, trace_set_paths, conf):
                 else:
                     logger.warning("Ignoring unknown action '%s'." % action)
 
+        result.ai = None  # AI cannot be pickled for further processing; store separately
         return result
     else:
         logger.error("Must provide a list of trace set paths to worker!")

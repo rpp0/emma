@@ -18,6 +18,7 @@ class TraceSet(object):
         self.traces = np.array([Trace(*x) for x in zip(traces, plaintexts)])
         self.key = key
         self.num_traces = traces.shape[0]
+        self.windowed = False
 
     def set_traces(self, traces):
         self.traces = traces

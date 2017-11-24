@@ -65,6 +65,11 @@ if __name__ == "__main__":
             **args.__dict__
         )
 
+        # Don't allow multiple instances to train AI because Tensorflow is not thread safe when
+        # using the same session
+        if 'memtrain' in conf.actions:
+            conf.max_subtasks = 1
+
         task = partition_work(trace_set_paths, conf)
         async_result = task()
         count = 0
