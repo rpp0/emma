@@ -24,7 +24,7 @@ def partition_work(trace_set_paths, conf):
     result = []
     for part in emutils.partition(trace_set_paths, num_partitions):
         result.append(work.si(part, conf))
-    return chord(result, body=merge.s())
+    return chord(result, body=merge.s(conf))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')
@@ -74,8 +74,8 @@ if __name__ == "__main__":
             time.sleep(1)
         print("")
 
-        for action in conf.actions:
-            if 'attack' in action:
+        if not async_result.result is None:
+            if not async_result.result.correlations is None:
                 result = async_result.result.correlations
                 print("Num entries: %d" % result[0][0][0]._n)
 
@@ -89,7 +89,6 @@ if __name__ == "__main__":
                 # Print key
                 most_likely_bytes = np.argmax(max_correlations, axis=1)
                 print(emutils.numpy_to_hex(most_likely_bytes))
-                break
     except KeyboardInterrupt:
         pass
 

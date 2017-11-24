@@ -182,26 +182,32 @@ def memattack_trace_set(trace_set, result, conf=None):
                 result.correlations[byte_idx,byte_guess,j].update(hypotheses, measurements)
 
 @app.task(bind=True)
-def merge(self, to_merge):
+def merge(self, to_merge, conf):
     if type(to_merge) is EMResult:
         to_merge = [to_merge]
 
-    if len(to_merge) >= 1 and not to_merge[0].correlations is None:
-        # Get size of correlations
-        shape = to_merge[0].correlations.shape
+    # Is it useful to merge?
+    if len(to_merge) >= 1:
+        # If we are attacking, merge the correlations
+        if 'attack' in conf.actions or 'memattack' in conf.actions:
+            # Get size of correlations
+            shape = to_merge[0].correlations.shape
 
-        # Init result
-        result = EMResult(task_id=self.request.id)
-        result.correlations = Correlation.init(shape)
+            # Init result
+            result = EMResult(task_id=self.request.id)
+            result.correlations = Correlation.init(shape)
 
-        # Start merging
+            # Start merging
+            for m in to_merge:
+                for subkey_idx in range(0, shape[0]):
+                    for subkey_guess in range(0, shape[1]):
+                        for point in range(0, shape[2]):
+                            result.correlations[subkey_idx,subkey_guess, point].merge(m.correlations[subkey_idx,subkey_guess, point])
+        elif 'memtrain' in conf.actions:
+            print("Special merge TF")
+
+        # Clean up tasks
         for m in to_merge:
-            for subkey_idx in range(0, shape[0]):
-                for subkey_guess in range(0, shape[1]):
-                    for point in range(0, shape[2]):
-                        result.correlations[subkey_idx,subkey_guess, point].merge(m.correlations[subkey_idx,subkey_guess, point])
-
-            # Done with this task, so delete it
             logger.warning("Deleting %s" % m.task_id)
             app.AsyncResult(m.task_id).forget()
 
@@ -216,12 +222,9 @@ def work(self, trace_set_paths, conf):
     '''
 
     if type(trace_set_paths) is list:
-        # TODO build this from within the ops themselves by passing as ref!
         result = EMResult(task_id=self.request.id)
-        for a in conf.actions:
-            if 'attack' in a:
-                result.correlations = Correlation.init([16, 256, conf.attack_window.size])
-                break
+        if 'attack' in conf.actions or 'memattack' in conf.actions: # TODO build this from within Task subclass based on conf
+            result.correlations = Correlation.init([16, 256, conf.attack_window.size])
 
         for trace_set_path in trace_set_paths:
             logger.info("Node performing %s on trace set '%s'" % (str(conf.actions), trace_set_path))

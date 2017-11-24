@@ -24,8 +24,7 @@ app.conf.update(
     task_serializer='pickle',
     task_compression='zlib',
     accept_content={'pickle'},
-    result_serializer='pickle',
-    worker_max_tasks_per_child=1
+    result_serializer='pickle'
 )
 
 if __name__ == '__main__':
