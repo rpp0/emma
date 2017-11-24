@@ -40,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument('--window-end', type=int, default=None, help='End of window')  # 14000
     parser.add_argument('--butter-order', type=int, default=1, help='Order of Butterworth filter')
     parser.add_argument('--butter-cutoff', type=float, default=0.01, help='Cutoff of Butterworth filter')
-    parser.add_argument('--reference-signal', type=int, default=0, help='Index of reference signal')
+    parser.add_argument('--reference-index', type=int, default=0, help='Index of reference signal')
     parser.add_argument('--windowing-method', type=str, default='rectangular', help='Windowing method')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
@@ -55,7 +55,7 @@ if __name__ == "__main__":
         # Worker-specific configuration
         window = Window(begin=args.window_start, end=args.window_end)
         conf = argparse.Namespace(
-            reference_trace=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_signal].signal[window.begin:window.end],
+            reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal[window.begin:window.end],
             window=window,
             #attack_window = Window(begin=1080, end=1082),
             #attack_window = Window(begin=980, end=1700),

@@ -45,7 +45,7 @@ def align_trace_set(trace_set, result, conf):
     If a trace is empty, it is discarded.
     '''
     aligned_trace_set = []
-    reference = conf.reference_trace  # TODO rename to reference signal
+    reference = conf.reference_signal  # TODO rename to reference signal
 
     discarded = 0
     for trace in trace_set.traces:
@@ -80,7 +80,7 @@ def window_trace_set(trace_set, result, conf):
 
     Interesting excerpt: 'What cannot be seen from the graphs is that the rectangular window has the best noise bandwidth, which makes it a good candidate for detecting low-level sinusoids in an otherwise white noise environment. Interpolation techniques, such as zero-padding and frequency-shifting, are available to mitigate its potential scalloping loss.'
     '''
-    ref_size = len(conf.reference_trace)
+    ref_size = len(conf.reference_signal)
 
     logger.info("Windowing trace set to %s window between [%d,%d]" % (conf.windowing_method, conf.window.begin, conf.window.begin+ref_size))
 
@@ -118,7 +118,7 @@ def save_trace_set(trace_set, result, conf):
         np.save(join(conf.outpath, trace_set.name + '_traces.npy'), trace_set.traces)
 
         # Update the corresponding config file
-        emio.update_cw_config(conf.outpath, trace_set, {"numPoints": len(conf.reference_trace)})
+        emio.update_cw_config(conf.outpath, trace_set, {"numPoints": len(conf.reference_signal)})
     elif conf.outform == 'sigmf':  # TODO make SigMF compliant
         count = 1
         for trace in trace_set.traces:
