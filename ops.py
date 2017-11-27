@@ -23,16 +23,19 @@ from ai import EMMAAI
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
+ops_optargs = {}
 
 class EMMATask(Task):
     test = 'a'
 
-def op(name):
+def op(name, optargs=None):
     '''
     Defines the @op decorator
     '''
     def decorator(func):
         ops[name] = func
+        if not optargs is None:
+            ops_optargs[name] = optargs
         @wraps(func)
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
@@ -40,7 +43,7 @@ def op(name):
     return decorator
 
 @op('align')
-def align_trace_set(trace_set, result, conf):
+def align_trace_set(trace_set, result, conf, params=None):
     '''
     Align a set of traces based on a single reference trace using cross-correlation.
     If a trace is empty, it is discarded.
@@ -63,7 +66,7 @@ def align_trace_set(trace_set, result, conf):
     trace_set.set_traces(np.array(aligned_trace_set))
 
 @op('spec')
-def spectogram_trace_set(trace_set, result, conf):
+def spectogram_trace_set(trace_set, result, conf, params=None):
     '''
     Calculate the spectogram of the trace set.
     '''
@@ -75,8 +78,8 @@ def spectogram_trace_set(trace_set, result, conf):
         if True: # If real signal
             trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
 
-@op('window')
-def window_trace_set(trace_set, result, conf):
+@op('window', optargs=['window_begin', 'window_end'])
+def window_trace_set(trace_set, result, conf, params=None):
     '''
     Perform windowing on a specific trace set. See https://en.wikipedia.org/wiki/Window_function#Spectral_analysis
     for a good overview of the effects of the different windowing methods on the PSD of the signal.
@@ -85,19 +88,24 @@ def window_trace_set(trace_set, result, conf):
     window is not configured.
 
     Interesting excerpt: 'What cannot be seen from the graphs is that the rectangular window has the best noise bandwidth, which makes it a good candidate for detecting low-level sinusoids in an otherwise white noise environment. Interpolation techniques, such as zero-padding and frequency-shifting, are available to mitigate its potential scalloping loss.'
-    '''
-    ref_size = len(conf.reference_signal)
 
-    logger.info("Windowing trace set to %s window between [%d,%d]" % (conf.windowing_method, conf.window.begin, conf.window.begin+ref_size))
+    Params: (window start, window end)
+    '''
+    if params is None:  # If no parameters provided, window according to reference signal
+        window = Window(begin=0, end=len(conf.reference_signal))
+    else:
+        window = Window(begin=int(params[0]), end=int(params[1]))
+
+    logger.info("Windowing trace set to %s window between [%d,%d]" % (conf.windowing_method, window.begin, window.end))
 
     for trace in trace_set.traces:
-        length_diff = len(trace.signal[conf.window.begin:]) - ref_size
+        length_diff = len(trace.signal[window.begin:]) - window.size
         # Pad or cut
         if length_diff < 0:
-            trace.signal = np.lib.pad(trace.signal[conf.window.begin:], (0, abs(length_diff)), 'constant', constant_values=(0.0))
+            trace.signal = np.lib.pad(trace.signal[window.begin:], (0, abs(length_diff)), 'constant', constant_values=(0.0))
         else:
-            trace.signal = trace.signal[conf.window.begin:conf.window.begin+ref_size]
-        assert(len(trace.signal) == ref_size)
+            trace.signal = trace.signal[window.begin:window.end]
+        assert(len(trace.signal) == window.size)
 
         # Apply window
         if conf.windowing_method == 'rectangular':
@@ -108,7 +116,7 @@ def window_trace_set(trace_set, result, conf):
     trace_set.windowed = True
 
 @op('filter')
-def filter_trace_set(trace_set, result, conf):
+def filter_trace_set(trace_set, result, conf, params=None):
     '''
     Apply a Butterworth filter to the traces.
     '''
@@ -116,7 +124,7 @@ def filter_trace_set(trace_set, result, conf):
         trace.signal = butter_filter(trace.signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
 
 @op('save')
-def save_trace_set(trace_set, result, conf):
+def save_trace_set(trace_set, result, conf, params=None):
     '''
     Save the trace set to a file using the output format specified in the conf object.
     '''
@@ -136,7 +144,7 @@ def save_trace_set(trace_set, result, conf):
         exit(1)
 
 @op('plot')
-def plot_trace_set(trace_set, result, conf=None):
+def plot_trace_set(trace_set, result, conf=None, params=None):
     '''
     Plot each trace in a trace set using Matplotlib
     '''
@@ -147,7 +155,7 @@ def plot_trace_set(trace_set, result, conf=None):
     plt.show()
 
 @op('attack')
-def attack_trace_set(trace_set, result, conf=None):
+def attack_trace_set(trace_set, result, conf=None, params=None):
     '''
     Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
     '''
@@ -175,7 +183,7 @@ def attack_trace_set(trace_set, result, conf=None):
                 result.correlations[subkey_idx,subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
 
 @op('memattack')
-def memattack_trace_set(trace_set, result, conf=None):
+def memattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("Mem attacking trace set %s..." % trace_set.name)
     result.correlations = Correlation.init([16, 256, conf.attack_window.size])
 
@@ -193,7 +201,7 @@ def memattack_trace_set(trace_set, result, conf=None):
                 result.correlations[byte_idx,byte_guess,j].update(hypotheses, measurements)
 
 @op('memtrain')
-def memtrain_trace_set(trace_set, result, conf=None):
+def memtrain_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result.ai is None:
             logger.debug("Initializing Keras")
@@ -262,10 +270,15 @@ def work(self, trace_set_paths, conf):
 
             # Perform actions
             for action in conf.actions:
-                if action in ops:
-                    ops[action](trace_set, result, conf=conf)
+                if '[' in action:
+                    op, _, params = action.rpartition('[')
+                    params = params.rstrip(']').split(',')
                 else:
-                    logger.warning("Ignoring unknown action '%s'." % action)
+                    op = action
+                if op in ops:
+                    ops[op](trace_set, result, conf=conf, params=params)
+                else:
+                    logger.warning("Ignoring unknown op '%s'." % op)
 
         result.ai = None  # AI cannot be pickled for further processing; store separately
         return result

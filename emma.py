@@ -26,9 +26,22 @@ def partition_work(trace_set_paths, conf):
         result.append(work.si(part, conf))
     return chord(result, body=merge.s(conf))
 
+def args_epilog():
+    result = "Actions can take the following parameters between square brackets ('[]'):\n"
+    for op in ops.keys():
+        result += "{:>20s} ".format(op)
+        if op in ops_optargs:
+            result += "["
+            for optarg in ops_optargs[op]:
+                result += "{:s}, ".format(optarg)
+            result = result.strip().rstrip(',')
+            result += "]"
+        result += "\n"
+    return result
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)')
-    parser.add_argument('actions', type=str, choices=ops.keys(), help='Action to perform', nargs='+')
+    parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('actions', type=str, help='Action to perform. Choose from %s' % str(ops.keys()), nargs='+')
     parser.add_argument('inpath', type=str, help='Input path where the trace sets are located')
     parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
@@ -36,8 +49,6 @@ if __name__ == "__main__":
     parser.add_argument('--max-subtasks', type=int, default=2, help='Maximum number of subtasks')
     parser.add_argument('--num-subkeys', type=int, default=16, help='Number of subkeys to break')
     parser.add_argument('--kill-workers', default=False, action='store_true', help='Kill workers after finishing the tasks.')
-    parser.add_argument('--window-start', type=int, default=0, help='Start of window')  # 1600
-    parser.add_argument('--window-end', type=int, default=None, help='End of window')  # 14000
     parser.add_argument('--butter-order', type=int, default=1, help='Order of Butterworth filter')
     parser.add_argument('--butter-cutoff', type=float, default=0.01, help='Cutoff of Butterworth filter')
     parser.add_argument('--reference-index', type=int, default=0, help='Index of reference signal')
@@ -53,10 +64,8 @@ if __name__ == "__main__":
         trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
 
         # Worker-specific configuration
-        window = Window(begin=args.window_start, end=args.window_end)
         conf = argparse.Namespace(
-            reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal[window.begin:window.end],
-            window=window,
+            reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
             #attack_window = Window(begin=1080, end=1082),
             #attack_window = Window(begin=980, end=1700),
             #attack_window = Window(begin=980, end=1008),
