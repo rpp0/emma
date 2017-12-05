@@ -7,7 +7,6 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 import emio
-import redis_lock
 import pickle
 from emma_worker import app, broker
 from dsp import *
