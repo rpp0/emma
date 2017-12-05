@@ -69,8 +69,8 @@ if __name__ == "__main__":
             #attack_window = Window(begin=1080, end=1082),
             #attack_window = Window(begin=980, end=1700),
             #attack_window = Window(begin=980, end=1008),
-            #attack_window = Window(begin=1280, end=1308),  # Time domain
-            attack_window = Window(begin=0, end=80), # Freq domain, win-begin 980 win-end 1700
+            attack_window = Window(begin=1280, end=1308),  # Time domain
+            #attack_window = Window(begin=0, end=80), # Freq domain, win-begin 980 win-end 1700
             **args.__dict__
         )
 

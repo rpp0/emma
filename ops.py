@@ -49,7 +49,7 @@ def align_trace_set(trace_set, result, conf, params=None):
     If a trace is empty, it is discarded.
     '''
     aligned_trace_set = []
-    reference = conf.reference_signal  # TODO rename to reference signal
+    reference = conf.reference_signal
 
     discarded = 0
     for trace in trace_set.traces:
@@ -160,7 +160,9 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
     '''
     logger.info("Attacking trace set %s..." % trace_set.name)
-    result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+    # Init if first time
+    if result.correlations is None:
+        result.correlations = Correlation.init([16, 256, conf.attack_window.size])
 
     for subkey_idx in range(0, conf.num_subkeys):
         hypotheses = np.empty([256, trace_set.num_traces])
@@ -185,7 +187,8 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("Mem attacking trace set %s..." % trace_set.name)
-    result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+    if result.correlations is None:
+        result.correlations = Correlation.init([16, 256, conf.attack_window.size])
 
     for byte_idx in range(0, conf.num_subkeys):
         for j in range(0, conf.attack_window.size):
@@ -270,6 +273,7 @@ def work(self, trace_set_paths, conf):
 
             # Perform actions
             for action in conf.actions:
+                params = None
                 if '[' in action:
                     op, _, params = action.rpartition('[')
                     params = params.rstrip(']').split(',')
