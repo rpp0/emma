@@ -96,7 +96,7 @@ if __name__ == "__main__":
         if not async_result.result is None:
             if not async_result.result.correlations is None:
                 result = async_result.result.correlations
-                print("Num entries: %d" % result[0][0][0]._n)
+                print("Num entries: %d" % result._n[0][0][0])
 
                 # Print results
                 max_correlations = np.zeros([16, 256])

@@ -10,7 +10,7 @@ import emio
 import pickle
 from emma_worker import app, broker
 from dsp import *
-from correlation import Correlation
+from correlationlist import CorrelationList
 from functools import wraps
 from os.path import join, basename
 from emutils import Window
@@ -165,7 +165,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("Attacking trace set %s..." % trace_set.name)
     # Init if first time
     if result.correlations is None:
-        result.correlations = Correlation.init([16, 256, trace_set.window.size])
+        result.correlations = CorrelationList([16, 256, trace_set.window.size])
 
     for subkey_idx in range(0, conf.num_subkeys):
         hypotheses = np.empty([256, trace_set.num_traces])
@@ -185,13 +185,13 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
             # Correlate measurements with 256 hypotheses
             for subkey_guess in range(0, 256):
                 # Update correlation
-                result.correlations[subkey_idx,subkey_guess,j].update(hypotheses[subkey_guess,:], measurements)
+                result.correlations.update((subkey_idx,subkey_guess,j), hypotheses[subkey_guess,:], measurements)
 
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("Mem attacking trace set %s..." % trace_set.name)
     if result.correlations is None:
-        result.correlations = Correlation.init([16, 256, trace_set.window.size])
+        result.correlations = CorrelationList([16, 256, trace_set.window.size])
 
     for byte_idx in range(0, conf.num_subkeys):
         for j in range(0, trace_set.window.size):
@@ -204,7 +204,7 @@ def memattack_trace_set(trace_set, result, conf=None, params=None):
             for byte_guess in range(0, 256):
                 # Update correlation
                 hypotheses = [hw[byte_guess]] * trace_set.num_traces
-                result.correlations[byte_idx,byte_guess,j].update(hypotheses, measurements)
+                result.correlations.update((byte_idx,byte_guess,j), hypotheses, measurements)
 
 @op('memtrain')
 def memtrain_trace_set(trace_set, result, conf=None, params=None):
@@ -232,17 +232,14 @@ def merge(self, to_merge, conf):
         # If we are attacking, merge the correlations
         if 'attack' in conf.actions or 'memattack' in conf.actions:
             # Get size of correlations
-            shape = to_merge[0].correlations.shape
+            shape = to_merge[0].correlations._n.shape  # TODO fixme init hetzelfde als in attack
 
             # Init result
-            result.correlations = Correlation.init(shape)
+            result.correlations = CorrelationList(shape)
 
             # Start merging
             for m in to_merge:
-                for subkey_idx in range(0, shape[0]):
-                    for subkey_guess in range(0, shape[1]):
-                        for point in range(0, shape[2]):
-                            result.correlations[subkey_idx,subkey_guess, point].merge(m.correlations[subkey_idx,subkey_guess, point])
+                result.correlations.merge(m.correlations)
 
         # Clean up tasks
         for m in to_merge:
