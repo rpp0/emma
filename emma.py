@@ -39,6 +39,17 @@ def args_epilog():
         result += "\n"
     return result
 
+def clear_redis():
+    '''
+    Clear any previous results from Redis. Sadly, there is no cleaner way atm.
+    '''
+    try:
+        subprocess.check_output(["redis-cli", "flushall"])
+        logger.info("Redis cleared")
+    except FileNotFoundError:
+        logger.warning("Could not clear local Redis database")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('actions', type=str, help='Action to perform. Choose from %s' % str(ops.keys()), nargs='+')
@@ -57,8 +68,7 @@ if __name__ == "__main__":
     print(emutils.BANNER)
 
     try:
-        # Clear any previous results. Sadly, there is no cleaner way atm.
-        subprocess.check_output(["redis-cli", "flushall"])
+        clear_redis()
 
         # Get a list of filenames depending on the format
         trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
@@ -66,12 +76,6 @@ if __name__ == "__main__":
         # Worker-specific configuration
         conf = argparse.Namespace(
             reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
-            #attack_window = Window(begin=1080, end=1082),
-            #attack_window = Window(begin=980, end=1700),
-            #attack_window = Window(begin=980, end=1008),
-            #attack_window = Window(begin=1280, end=1308),  # Time domain
-            attack_window = Window(begin=1280, end=1368),
-            #attack_window = Window(begin=0, end=80), # Freq domain, win-begin 980 win-end 1700
             **args.__dict__
         )
 

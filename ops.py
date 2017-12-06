@@ -113,6 +113,7 @@ def window_trace_set(trace_set, result, conf, params=None):
             logger.warning("Requested unknown windowing method '%d'. Skipping." % conf.windowing_method)
             return
     trace_set.windowed = True
+    trace_set.window = window
 
 @op('filter')
 def filter_trace_set(trace_set, result, conf, params=None):
@@ -158,10 +159,13 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     '''
     Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
     '''
+    if not trace_set.windowed:
+        logger.warning("Trace set not windowed. Skipping attack.")
+        return
     logger.info("Attacking trace set %s..." % trace_set.name)
     # Init if first time
     if result.correlations is None:
-        result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+        result.correlations = Correlation.init([16, 256, trace_set.window.size])
 
     for subkey_idx in range(0, conf.num_subkeys):
         hypotheses = np.empty([256, trace_set.num_traces])
@@ -172,11 +176,11 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
                 hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[subkey_idx] ^ subkey_guess]]  # Model of the power consumption
 
         # 2. Given point j of trace i, calculate the correlation between all hypotheses
-        for j in range(0, conf.attack_window.size):
+        for j in range(0, trace_set.window.size):
             # Get measurements (columns) from all traces
             measurements = np.empty(trace_set.num_traces)
             for i in range(0, trace_set.num_traces):
-                measurements[i] = trace_set.traces[i].signal[conf.attack_window.begin+j]
+                measurements[i] = trace_set.traces[i].signal[j]
 
             # Correlate measurements with 256 hypotheses
             for subkey_guess in range(0, 256):
@@ -187,14 +191,14 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
 def memattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("Mem attacking trace set %s..." % trace_set.name)
     if result.correlations is None:
-        result.correlations = Correlation.init([16, 256, conf.attack_window.size])
+        result.correlations = Correlation.init([16, 256, trace_set.window.size])
 
     for byte_idx in range(0, conf.num_subkeys):
-        for j in range(0, conf.attack_window.size):
+        for j in range(0, trace_set.window.size):
             # Get measurements (columns) from all traces
             measurements = np.empty(trace_set.num_traces)
             for i in range(0, trace_set.num_traces):
-                measurements[i] = trace_set.traces[i].signal[conf.attack_window.begin+j]
+                measurements[i] = trace_set.traces[i].signal[j]
 
             # Correlate measurements with 256 hypotheses
             for byte_guess in range(0, 256):

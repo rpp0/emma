@@ -19,6 +19,7 @@ class TraceSet(object):
         self.key = key
         self.num_traces = traces.shape[0]
         self.windowed = False
+        self.window = None
 
     def set_traces(self, traces):
         self.traces = traces
