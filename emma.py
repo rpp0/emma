@@ -74,40 +74,40 @@ if __name__ == "__main__":
         trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
 
         # Worker-specific configuration
-        conf = argparse.Namespace(
-            reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
-            **args.__dict__
-        )
+        max_correlations = np.zeros([16, 256])
+        for hack in range(0, args.num_subkeys):
+            conf = argparse.Namespace(
+                reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
+                key=hack,
+                **args.__dict__
+            )
 
-        # Don't allow multiple instances to train AI because Tensorflow is not thread safe when
-        # using the same session
-        if 'memtrain' in conf.actions:
-            conf.max_subtasks = 1
+            # Don't allow multiple instances to train AI because Tensorflow is not thread safe when
+            # using the same session
+            if 'memtrain' in conf.actions:
+                conf.max_subtasks = 1
 
-        task = partition_work(trace_set_paths, conf)
-        async_result = task()
-        count = 0
-        while not async_result.ready():
-            print("\rElapsed: %d" % count, end='')
-            count += 1
-            time.sleep(1)
-        print("")
+            task = partition_work(trace_set_paths, conf)
+            async_result = task()
+            count = 0
+            while not async_result.ready():
+                print("\rSubkey %d: elapsed: %d" % (conf.key, count), end='')
+                count += 1
+                time.sleep(1)
+            print("")
 
-        if not async_result.result is None:
-            if not async_result.result.correlations is None:
-                result = async_result.result.correlations
-                print("Num entries: %d" % result._n[0][0][0])
+            if not async_result.result is None:
+                if not async_result.result.correlations is None:
+                    result = async_result.result.correlations
+                    print("Num entries: %d" % result._n[0][0][0])
 
-                # Print results
-                max_correlations = np.zeros([16, 256])
-                for subkey_idx in range(0, conf.num_subkeys):
+                    # Print results
                     for subkey_guess in range(0, 256):
-                        max_correlations[subkey_idx, subkey_guess] = np.max(np.abs(result[subkey_idx,subkey_guess,:]))
-                emutils.pretty_print_correlations(max_correlations, limit_rows=20)
+                        max_correlations[conf.key, subkey_guess] = np.max(np.abs(result[0,subkey_guess,:]))
 
-                # Print key
-                most_likely_bytes = np.argmax(max_correlations, axis=1)
-                print(emutils.numpy_to_hex(most_likely_bytes))
+        emutils.pretty_print_correlations(max_correlations, limit_rows=20)
+        most_likely_bytes = np.argmax(max_correlations, axis=1)
+        print(emutils.numpy_to_hex(most_likely_bytes))
     except KeyboardInterrupt:
         pass
 
