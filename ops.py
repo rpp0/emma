@@ -41,14 +41,24 @@ def op(name, optargs=None):
         return wrapper
     return decorator
 
-@op('align')
+@op('align', optargs=['ref_window_begin', 'ref_window_end'])
 def align_trace_set(trace_set, result, conf, params=None):
     '''
     Align a set of traces based on a single reference trace using cross-correlation.
     If a trace is empty, it is discarded.
     '''
+    if params is None:  # If no parameters provided, assume percent% max offset
+        percent = 0.30
+        length = len(conf.reference_signal)
+        end = int(length - length*percent)
+        begin = int(0 + length*percent)
+        window = Window(begin=begin, end=end)
+    else:
+        window = Window(begin=int(params[0]), end=int(params[1]))
+
+    logger.info("Aligning %d traces" % len(trace_set.traces))
     aligned_trace_set = []
-    reference = conf.reference_signal
+    reference = conf.reference_signal[window.begin:window.end]
 
     discarded = 0
     for trace in trace_set.traces:

@@ -40,11 +40,11 @@ def align(trace, reference):
         return None
 
     # Correlated processed traces to determine lag
-    result = signal.correlate(processed_trace, processed_reference, mode='valid') / len(processed_reference)
+    result = signal.correlate(processed_trace, processed_reference, mode='valid')
     lag = np.argmax(result)
 
     # Align the original trace based on this calculation
-    aligned_trace = trace[lag:lag+len(processed_reference)]
+    aligned_trace = trace[lag:]
 
     if DEBUG:
         plt.plot(range(0, len(processed_reference)), processed_reference)
