@@ -7,7 +7,7 @@ class CorrelationList():
         self._sumxy = np.zeros(shape, dtype=float)
         self._sumxsq = np.zeros(shape, dtype=float)
         self._sumysq = np.zeros(shape, dtype=float)
-        self._n = np.zeros(shape, dtype=float)
+        self._n = np.zeros(shape, dtype=float)  # TODO: Since this should be the same for every point, we can maybe use a single point for it
 
     def __getitem__(self, key):
         if isinstance(key, int) or isinstance(key, tuple) or isinstance(key, list):

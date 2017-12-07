@@ -45,16 +45,17 @@ def pretty_print_correlations(np_array, limit_rows=20):
     else:
         # Sort array
         print('')
+        num_subkeys = np_array.shape[0]
         sorted_correlations = []
-        for subkey in range(0, 16):
+        for subkey in range(0, num_subkeys):
             sorted_subkey = sorted(zip(np_array[subkey,:], range(256)), key=lambda f: f[0], reverse=True)[0:limit_rows]
             sorted_correlations.append(sorted_subkey)
 
-        for subkey in range(0, 16):
+        for subkey in range(0, num_subkeys):
             print("    {:>2d}      ".format(subkey), end='')
         print("\n" + "-"*192)
         for key_guess in range(0, limit_rows):
-            for subkey in range(0, 16):
+            for subkey in range(0, num_subkeys):
                 corr, byte = sorted_correlations[subkey][key_guess]
                 print(" {:>4.2f} ({:02x}) |".format(float(corr), byte),end='')
             print('')

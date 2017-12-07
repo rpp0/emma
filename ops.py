@@ -165,14 +165,14 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("Attacking trace set %s..." % trace_set.name)
     # Init if first time
     if result.correlations is None:
-        result.correlations = CorrelationList([1, 256, trace_set.window.size])
+        result.correlations = CorrelationList([256, trace_set.window.size])
 
     hypotheses = np.empty([256, trace_set.num_traces])
 
     # 1. Build hypotheses for all 256 possibilities of the key and all traces
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.key] ^ subkey_guess]]  # Model of the power consumption
+            hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]]  # Model of the power consumption
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for j in range(0, trace_set.window.size):
@@ -184,7 +184,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
         # Correlate measurements with 256 hypotheses
         for subkey_guess in range(0, 256):
             # Update correlation
-            result.correlations.update((0,subkey_guess,j), hypotheses[subkey_guess,:], measurements)
+            result.correlations.update((subkey_guess,j), hypotheses[subkey_guess,:], measurements)
 
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None, params=None):

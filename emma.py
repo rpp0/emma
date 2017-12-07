@@ -9,6 +9,7 @@ from debug import DEBUG
 from time import sleep
 from emma_worker import app, backend
 from celery import group, chord, chain
+from celery.result import AsyncResult, GroupResult
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -19,12 +20,19 @@ import emio
 import subprocess
 import time
 
-def partition_work(trace_set_paths, conf):
+def parallel_actions_merge_corr(trace_set_paths, conf):
     num_partitions = min(conf.max_subtasks, len(trace_set_paths))
     result = []
     for part in emutils.partition(trace_set_paths, num_partitions):
         result.append(work.si(part, conf))
-    return chord(result, body=merge.s(conf))
+    return chord(result, body=merge.s(conf))()
+
+def parallel_actions(trace_set_paths, conf):
+    num_partitions = min(conf.max_subtasks, len(trace_set_paths))
+    result = []
+    for part in emutils.partition(trace_set_paths, num_partitions):
+        result.append(work.si(part, conf))
+    return group(result)()
 
 def args_epilog():
     result = "Actions can take the following parameters between square brackets ('[]'):\n"
@@ -49,6 +57,51 @@ def clear_redis():
     except FileNotFoundError:
         logger.warning("Could not clear local Redis database")
 
+def wait_until_completion(async_result, message="Task"):
+    count = 0
+    while not async_result.ready():
+        print("\r%s: elapsed: %ds" % (message, count), end='')
+        count += 1
+        time.sleep(1)
+    print("")
+
+    if isinstance(async_result, AsyncResult):
+        return async_result.result
+    elif isinstance(async_result, GroupResult):
+        return async_result.results
+    else:
+        raise TypeError
+
+def perform_cpa_attack(conf):
+    max_correlations = np.zeros([conf.num_subkeys, 256])
+
+    for subkey in range(0, conf.num_subkeys):
+        conf.subkey = subkey
+
+        # Execute task
+        async_result = parallel_actions_merge_corr(trace_set_paths, conf)
+        em_result = wait_until_completion(async_result, message="Attacking subkey %d" % conf.subkey)
+
+        # Parse results
+        if not em_result is None:
+            corr_result = em_result.correlations
+            print("Num entries: %d" % corr_result._n[0][0])
+
+            # Get maximum correlations over all points
+            for subkey_guess in range(0, 256):
+                max_correlations[conf.subkey, subkey_guess] = np.max(np.abs(corr_result[subkey_guess,:]))
+
+    # Print results to stdout
+    emutils.pretty_print_correlations(max_correlations, limit_rows=20)
+    most_likely_bytes = np.argmax(max_correlations, axis=1)
+    print(emutils.numpy_to_hex(most_likely_bytes))
+
+def perform_ml_attack(conf):
+    conf.max_subtasks = 1
+
+def perform_actions(conf):
+    async_result = parallel_actions(trace_set_paths, conf)
+    wait_until_completion(async_result, message="Performing actions")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -57,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
-    parser.add_argument('--max-subtasks', type=int, default=2, help='Maximum number of subtasks')
+    parser.add_argument('--max-subtasks', type=int, default=4, help='Maximum number of subtasks')
     parser.add_argument('--num-subkeys', type=int, default=16, help='Number of subkeys to break')
     parser.add_argument('--kill-workers', default=False, action='store_true', help='Kill workers after finishing the tasks.')
     parser.add_argument('--butter-order', type=int, default=1, help='Order of Butterworth filter')
@@ -74,40 +127,18 @@ if __name__ == "__main__":
         trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
 
         # Worker-specific configuration
-        max_correlations = np.zeros([16, 256])
-        for hack in range(0, args.num_subkeys):
-            conf = argparse.Namespace(
-                reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
-                key=hack,
-                **args.__dict__
-            )
+        conf = argparse.Namespace(
+            reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
+            subkey=0,
+            **args.__dict__
+        )
 
-            # Don't allow multiple instances to train AI because Tensorflow is not thread safe when
-            # using the same session
-            if 'memtrain' in conf.actions:
-                conf.max_subtasks = 1
-
-            task = partition_work(trace_set_paths, conf)
-            async_result = task()
-            count = 0
-            while not async_result.ready():
-                print("\rSubkey %d: elapsed: %d" % (conf.key, count), end='')
-                count += 1
-                time.sleep(1)
-            print("")
-
-            if not async_result.result is None:
-                if not async_result.result.correlations is None:
-                    result = async_result.result.correlations
-                    print("Num entries: %d" % result._n[0][0][0])
-
-                    # Print results
-                    for subkey_guess in range(0, 256):
-                        max_correlations[conf.key, subkey_guess] = np.max(np.abs(result[0,subkey_guess,:]))
-
-        emutils.pretty_print_correlations(max_correlations, limit_rows=20)
-        most_likely_bytes = np.argmax(max_correlations, axis=1)
-        print(emutils.numpy_to_hex(most_likely_bytes))
+        if 'attack' in conf.actions:  # Group of tasks and merge correlation results
+            perform_cpa_attack(conf)
+        elif 'memtrain' in conf.actions:  # Only one task since TF uses multiple cores and is not thread safe
+            perform_ml_attack(conf)
+        else:  # Regular group of tasks
+            perform_actions(conf)
     except KeyboardInterrupt:
         pass
 
