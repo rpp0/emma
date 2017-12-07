@@ -84,8 +84,8 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
 
     for trace in trace_set.traces:
         trace.signal = np.square(np.abs(np.fft.fft(trace.signal)))
-        if True: # If real signal
-            trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
+        #if True: # If real signal
+        #    trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
 
 @op('window', optargs=['window_begin', 'window_end'])
 def window_trace_set(trace_set, result, conf, params=None):
