@@ -98,6 +98,7 @@ def perform_cpa_attack(conf):
 
 def perform_ml_attack(conf):
     conf.max_subtasks = 1
+    perform_actions(conf)
 
 def perform_actions(conf):
     async_result = parallel_actions(trace_set_paths, conf)
@@ -135,7 +136,7 @@ if __name__ == "__main__":
 
         if 'attack' in conf.actions:  # Group of tasks and merge correlation results
             perform_cpa_attack(conf)
-        elif 'memtrain' in conf.actions:  # Only one task since TF uses multiple cores and is not thread safe
+        elif True in [a.find('train') > -1 for a in conf.actions]:  # Only one task since TF uses multiple cores and is not thread safe
             perform_ml_attack(conf)
         else:  # Regular group of tasks
             perform_actions(conf)

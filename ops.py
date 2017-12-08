@@ -18,7 +18,7 @@ from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
-from ai import EMMAAI
+from ai import AIMemCopyDirect, AICorrNet
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
@@ -47,6 +47,7 @@ def align_trace_set(trace_set, result, conf, params=None):
     Align a set of traces based on a single reference trace using cross-correlation.
     If a trace is empty, it is discarded.
     '''
+    logger.info("align %s" % (str(params) if not params is None else ""))
     if params is None:  # If no parameters provided, assume percent% max offset
         percent = 0.30
         length = len(conf.reference_signal)
@@ -79,6 +80,7 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
     '''
     Calculate the spectogram of the trace set.
     '''
+    logger.info("spec %s" % (str(params) if not params is None else ""))
     if not trace_set.windowed:
         logger.warning("Taking the FFT of non-windowed traces will result in variable FFT sizes.")
 
@@ -100,12 +102,11 @@ def window_trace_set(trace_set, result, conf, params=None):
 
     Params: (window start, window end)
     '''
+    logger.info("window %s" % (str(params) if not params is None else ""))
     if params is None:  # If no parameters provided, window according to reference signal
         window = Window(begin=0, end=len(conf.reference_signal))
     else:
         window = Window(begin=int(params[0]), end=int(params[1]))
-
-    logger.info("Windowing trace set to %s window between [%d,%d]" % (conf.windowing_method, window.begin, window.end))
 
     for trace in trace_set.traces:
         length_diff = len(trace.signal[window.begin:]) - window.size
@@ -130,6 +131,7 @@ def filter_trace_set(trace_set, result, conf, params=None):
     '''
     Apply a Butterworth filter to the traces.
     '''
+    logger.info("filter %s" % (str(params) if not params is None else ""))
     for trace in trace_set.traces:
         trace.signal = butter_filter(trace.signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
 
@@ -138,6 +140,7 @@ def save_trace_set(trace_set, result, conf, params=None):
     '''
     Save the trace set to a file using the output format specified in the conf object.
     '''
+    logger.info("save %s" % (str(params) if not params is None else ""))
     if conf.outform == 'cw':
         # Save back to output file
         np.save(join(conf.outpath, trace_set.name + '_traces.npy'), trace_set.traces)
@@ -158,6 +161,7 @@ def plot_trace_set(trace_set, result, conf=None, params=None):
     '''
     Plot each trace in a trace set using Matplotlib
     '''
+    logger.info("plot %s" % (str(params) if not params is None else ""))
     for trace in trace_set.traces:
         plt.plot(range(0, len(trace.signal)), trace.signal)
 
@@ -169,10 +173,11 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     '''
     Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
     '''
+    logger.info("attack %s" % (str(params) if not params is None else ""))
+
     if not trace_set.windowed:
         logger.warning("Trace set not windowed. Skipping attack.")
         return
-    logger.info("Attacking trace set %s..." % trace_set.name)
     # Init if first time
     if result.correlations is None:
         result.correlations = CorrelationList([256, trace_set.window.size])
@@ -198,7 +203,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
 
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("Mem attacking trace set %s..." % trace_set.name)
+    logger.info("memattack %s" % (str(params) if not params is None else ""))
     if result.correlations is None:
         result.correlations = CorrelationList([16, 256, trace_set.window.size])
 
@@ -220,12 +225,50 @@ def memtrain_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result.ai is None:
             logger.debug("Initializing Keras")
-            result.ai = EMMAAI(input_dim=len(trace_set.traces[0].signal), hamming=True)
+            result.ai = AIMemCopyDirect(input_dim=len(trace_set.traces[0].signal), hamming=True)
 
         signals = np.array([trace.signal for trace in trace_set.traces])
         values = np.array([hw[trace.plaintext[0]] for trace in trace_set.traces])
         logger.warning("Training %d signals" % len(signals))
         result.ai.train(signals, values)
+    else:
+        logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
+
+@op('weight', optargs=['weight_filename'])
+def weight_trace_set(trace_set, result, conf=None, params=None):
+    '''
+    Multiply trace signal element-wise with weights stored in a file.
+    '''
+    logger.info("weight %s" % (str(params) if not params is None else ""))
+    if trace_set.windowed:
+        if params is None:
+            filename = "weights.p"
+        else:
+            filename = str(params[0])
+
+        weights = pickle.load(open(filename, "rb"))
+        if len(weights) == trace_set.window.size:
+            for trace in trace_set.traces:
+                trace.signal = np.multiply(trace.signal, weights)
+        else:
+            logger.error("Weight length is not equal to signal length.")
+    else:
+        logger.error("The trace set must be windowed before applying weights.")
+
+
+@op('corrtrain')
+def corrtrain_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("corrtrain %s" % (str(params) if not params is None else ""))
+    if trace_set.windowed:
+        if result.ai is None:
+            logger.debug("Initializing Keras")
+            result.ai = AICorrNet(input_dim=len(trace_set.traces[0].signal))
+
+        signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
+        values = np.array([hw[sbox[trace.plaintext[0] ^ 0x0e]] for trace in trace_set.traces], dtype=float)
+        logger.warning("Training %d signals" % len(signals))
+        weights = result.ai.train(signals, values)
+        pickle.dump(weights, open("weights.p", "wb"))
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
@@ -267,12 +310,12 @@ def work(self, trace_set_paths, conf):
 
     if type(trace_set_paths) is list:
         result = EMResult(task_id=self.request.id) # TODO init this from within Task subclass
-
+        num_todo = len(trace_set_paths)
+        num_done = 0
         for trace_set_path in trace_set_paths:
-            logger.info("Node performing %s on trace set '%s'" % (str(conf.actions), trace_set_path))
-
             # Get trace name from path
             trace_set_name = basename(trace_set_path)
+            logger.info("Processing '%s' (%d/%d)" % (trace_set_name, num_done, num_todo))
 
             # Load trace
             trace_set = emio.get_trace_set(trace_set_path, conf.inform, ignore_malformed=False)
@@ -292,6 +335,9 @@ def work(self, trace_set_paths, conf):
                     ops[op](trace_set, result, conf=conf, params=params)
                 else:
                     logger.warning("Ignoring unknown op '%s'." % op)
+
+            # Count progress
+            num_done += 1
 
         result.ai = None  # AI cannot be pickled for further processing; store separately
         return result
