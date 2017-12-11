@@ -89,6 +89,15 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
         #if True: # If real signal
         #    trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
 
+@op('fft')
+def fft_trace_set(trace_set, result, conf, params=None):
+    logger.info("fft %s" % (str(params) if not params is None else ""))
+    if not trace_set.windowed:
+        logger.warning("Taking the FFT of non-windowed traces will result in variable FFT sizes.")
+
+    for trace in trace_set.traces:
+        trace.signal = np.fft.fft(trace.signal)
+
 @op('window', optargs=['window_begin', 'window_end'])
 def window_trace_set(trace_set, result, conf, params=None):
     '''
@@ -255,6 +264,14 @@ def weight_trace_set(trace_set, result, conf=None, params=None):
     else:
         logger.error("The trace set must be windowed before applying weights.")
 
+@op('sum')
+def sum_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("sum %s" % (str(params) if not params is None else ""))
+    for trace in trace_set.traces:
+        trace.signal = np.array([np.sum(trace.signal)])
+
+    trace_set.windowed = True
+    trace_set.window = Window(begin=0, end=1)
 
 @op('corrtrain')
 def corrtrain_trace_set(trace_set, result, conf=None, params=None):
@@ -263,12 +280,43 @@ def corrtrain_trace_set(trace_set, result, conf=None, params=None):
         if result.ai is None:
             logger.debug("Initializing Keras")
             result.ai = AICorrNet(input_dim=len(trace_set.traces[0].signal))
+            result._data['hackx'] = []
+            result._data['hacky'] = []
 
+        """
         signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
         values = np.array([hw[sbox[trace.plaintext[0] ^ 0x0e]] for trace in trace_set.traces], dtype=float)
         logger.warning("Training %d signals" % len(signals))
-        weights = result.ai.train(signals, values)
-        pickle.dump(weights, open("weights.p", "wb"))
+        result.ai.train(signals, values)
+        """
+        if len(result._data['hackx']) > 19000:
+            signals = np.array(result._data['hackx'], dtype=float)
+            values = np.array(result._data['hacky'], dtype=float)
+            logger.warning("Training %d signals" % len(signals))
+            result.ai.train(signals, values)
+
+            result._data['hackx'] = []
+            result._data['hacky'] = []
+        else:
+            result._data['hackx'].extend([trace.signal for trace in trace_set.traces])
+            result._data['hacky'].extend([hw[sbox[trace.plaintext[0] ^ 0xff]] for trace in trace_set.traces])
+    else:
+        logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
+
+@op('corrtest')
+def corrtrain_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("corrtest %s" % (str(params) if not params is None else ""))
+    if trace_set.windowed:
+        if result.ai is None:
+            logger.debug("Loading Keras")
+            result.ai = AICorrNet(input_dim=len(trace_set.traces[0].signal))
+            result.ai.load()
+
+        for trace in trace_set.traces:
+            trace.signal = result.ai.predict(np.array([trace.signal], dtype=float))
+
+        trace_set.window = Window(begin=0, end=len(trace_set.traces[0].signal))
+        trace_set.windowed = True
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
