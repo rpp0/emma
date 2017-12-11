@@ -88,7 +88,7 @@ class AICorrNet(AI):
     def train(self, x, y):
         last_loss = LastLoss()
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
-        self.model.fit(x, y, epochs=10, batch_size=100, shuffle=False, verbose=1, callbacks=[last_loss, tensorboard_callback])
+        self.model.fit(x, y, epochs=500, batch_size=1000, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
 
         activations = self.model.get_weights()[0]
         print(activations)

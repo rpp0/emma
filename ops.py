@@ -289,6 +289,7 @@ def corrtrain_trace_set(trace_set, result, conf=None, params=None):
         logger.warning("Training %d signals" % len(signals))
         result.ai.train(signals, values)
         """
+
         if len(result._data['hackx']) > 19000:
             signals = np.array(result._data['hackx'], dtype=float)
             values = np.array(result._data['hacky'], dtype=float)
@@ -299,7 +300,7 @@ def corrtrain_trace_set(trace_set, result, conf=None, params=None):
             result._data['hacky'] = []
         else:
             result._data['hackx'].extend([trace.signal for trace in trace_set.traces])
-            result._data['hacky'].extend([hw[sbox[trace.plaintext[0] ^ 0xff]] for trace in trace_set.traces])
+            result._data['hacky'].extend([hw[sbox[trace.plaintext[0] ^ 0x0e]] for trace in trace_set.traces])
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
