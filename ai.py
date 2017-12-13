@@ -50,7 +50,7 @@ def correlation_loss(y_true, y_pred):
 
 class Clip(keras.constraints.Constraint):
     def __init__(self):
-        self.weight_range = [0.0, 1.0]
+        self.weight_range = [-1.0, 1.0]
 
     def __call__(self, w):
         return K.clip(w, self.weight_range[0], self.weight_range[1])
@@ -82,8 +82,8 @@ class AICorrNet(AI):
         activation = None
         #activation = 'relu'
 
-        self.model.add(Dense(256, input_dim=input_dim))
-        input_dim=256
+        #self.model.add(Dense(256, input_dim=input_dim))
+        #input_dim=256
         self.model.add(Dense(1, activation=activation, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim))
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=['accuracy'])
 
