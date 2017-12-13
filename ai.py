@@ -64,8 +64,10 @@ class LastLoss(keras.callbacks.Callback):
         self.value = logs.get('loss')
 
 class AICorrNet(AI):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, name="aicorrnet"):
         super(AICorrNet, self).__init__()
+        self.name = name
+        self.path = "models/%s.h5" % name
         self.model = Sequential()
         self.use_bias = False
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
@@ -104,11 +106,11 @@ class AICorrNet(AI):
         print("Loss: %f" % last_loss.value)
 
         # Save progress
-        pickle.dump(activations, open("weights.p", "wb"))
-        self.model.save('aicorrnet.h5')
+        pickle.dump(activations, open("weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
+        self.model.save(self.path)
 
     def predict(self, x):
         return self.model.predict(x, batch_size=999999999, verbose=0)
 
     def load(self):
-        self.model = load_model('aicorrnet.h5', custom_objects={'correlation_loss': correlation_loss})
+        self.model = load_model(self.path, custom_objects={'correlation_loss': correlation_loss})
