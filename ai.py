@@ -42,10 +42,12 @@ class AIMemCopyDirect():
 
 def correlation_loss(y_true, y_pred):
     loss = K.variable(0.0)
-    denom = K.sqrt(K.dot(K.transpose(y_pred), y_pred)) * K.sqrt(K.dot(K.transpose(y_true), y_true))
-    denom = K.maximum(denom, K.epsilon())
-    correlation = K.dot(K.transpose(y_true), y_pred) / denom
-    loss += 1.0 - K.abs(correlation)
+    for key_col in range(0, 16):
+        y_key = K.expand_dims(y_true[:,key_col], axis=1)  # [?, 16] -> [?, 1]
+        denom = K.sqrt(K.dot(K.transpose(y_pred), y_pred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
+        denom = K.maximum(denom, K.epsilon())
+        correlation = K.dot(K.transpose(y_key), y_pred) / denom
+        loss += 1.0 - K.abs(correlation)
     return loss
 
 class Clip(keras.constraints.Constraint):
