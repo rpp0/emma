@@ -277,11 +277,13 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
 def corrtrain_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtrain %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
+        key = [0x0E, 0xEB, 0xA7, 0x43, 0x00, 0x9D, 0x67, 0xD2, 0xE5, 0x63, 0xCF, 0x4C, 0x5C, 0xB0, 0x77, 0xCB]
         if result.ai is None:
             logger.debug("Initializing Keras")
             result.ai = AICorrNet(input_dim=len(trace_set.traces[0].signal))
             result._data['hackx'] = []
-            result._data['hacky'] = []
+            for i in range(0, 16):
+                result._data['hacky' + str(i)] = []
 
         """
         signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
@@ -292,15 +294,22 @@ def corrtrain_trace_set(trace_set, result, conf=None, params=None):
 
         if len(result._data['hackx']) > 19000:
             signals = np.array(result._data['hackx'], dtype=float)
-            values = np.array(result._data['hacky'], dtype=float)
+            values = np.zeros([len(result._data['hacky0']), 16])
+            for i in range(0, 16):
+                values[:,i] = np.array(result._data['hacky' + str(i)], dtype=float)
+            print(values.shape)
+            print(values)
             logger.warning("Training %d signals" % len(signals))
             result.ai.train(signals, values)
 
             result._data['hackx'] = []
-            result._data['hacky'] = []
+            for i in range(0, 16):
+                result._data['hacky'+ str(i)] = []
         else:
             result._data['hackx'].extend([trace.signal for trace in trace_set.traces])
-            result._data['hacky'].extend([hw[sbox[trace.plaintext[0] ^ 0x0e]] for trace in trace_set.traces])
+            # TODO New idea: pass model hw values for ALL keys (as an extra dimension) to AICorrNet. Then make the loss function so that the correlation loss function minimizes the loss of ALL models
+            for i in range(0, 16):
+                result._data['hacky' + str(i)].extend([hw[sbox[trace.plaintext[i] ^ key[i]]] for trace in trace_set.traces])
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
