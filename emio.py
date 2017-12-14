@@ -5,10 +5,17 @@
 
 import numpy as np
 import configparser
+import ops
 from sigmf.sigmffile import SigMFFile
 from os import listdir
 from os.path import isfile, join
 from traceset import TraceSet
+
+def remote_get_trace_paths(input_path, inform):
+    return ops.remote_get_trace_paths.si(input_path, inform).apply_async().get()
+
+def remote_get_trace_set(trace_set_path, inform, ignore_malformed=True):
+    return ops.remote_get_trace_set.si(trace_set_path, inform, ignore_malformed).apply_async().get()
 
 def get_trace_paths(input_path, inform):
     '''

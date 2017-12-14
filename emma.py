@@ -125,11 +125,11 @@ if __name__ == "__main__":
         clear_redis()
 
         # Get a list of filenames depending on the format
-        trace_set_paths = emio.get_trace_paths(args.inpath, args.inform)
+        trace_set_paths = emio.remote_get_trace_paths(args.inpath, args.inform)
 
         # Worker-specific configuration
         conf = argparse.Namespace(
-            reference_signal=emio.get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
+            reference_signal=emio.remote_get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
             subkey=0,
             **args.__dict__
         )

@@ -351,6 +351,14 @@ def merge(self, to_merge, conf):
     else:
         return None
 
+@app.task
+def remote_get_trace_paths(input_path, inform):
+    return emio.get_trace_paths(input_path, inform)
+
+@app.task
+def remote_get_trace_set(trace_set_path, inform, ignore_malformed):
+    return emio.get_trace_set(trace_set_path, inform, ignore_malformed)
+
 @app.task(bind=True)
 def work(self, trace_set_paths, conf):
     '''
