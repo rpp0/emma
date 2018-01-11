@@ -129,6 +129,10 @@ def window_trace_set(trace_set, result, conf, params=None):
         # Apply window
         if conf.windowing_method == 'rectangular':
             continue # Already cut rectangularly
+        elif conf.windowing_method == 'kaiser':
+            trace.signal = trace.signal * np.kaiser(window.size, 14)
+        elif conf.windowing_method == 'blackman':
+            trace.signal = trace.signal * np.blackman(window.size)
         else:
             logger.warning("Requested unknown windowing method '%d'. Skipping." % conf.windowing_method)
             return

@@ -52,7 +52,7 @@ def correlation_loss(y_true, y_pred):
 
 class Clip(keras.constraints.Constraint):
     def __init__(self):
-        self.weight_range = [-1.0, 1.0]
+        self.weight_range = [0.0, 1.0]
 
     def __call__(self, w):
         return K.clip(w, self.weight_range[0], self.weight_range[1])
@@ -73,14 +73,14 @@ class AICorrNet(AI):
         self.model = Sequential()
         self.use_bias = False
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
-        initializer = keras.initializers.Constant(value=0.5)
-        #initializer = keras.initializers.Constant(value=1.0)
+        #initializer = keras.initializers.Constant(value=0.5)
+        initializer = keras.initializers.Constant(value=1.0)
         #initializer = keras.initializers.RandomUniform(minval=0, maxval=1.0, seed=None)
         #initializer = 'glorot_uniform'
-        constraint = Clip()
-        #constraint = None
-        #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-        optimizer = 'adam'
+        #constraint = Clip()
+        constraint = None
+        optimizer = keras.optimizers.SGD(lr=10.0, decay=1e-6, momentum=0.9, nesterov=True)
+        #optimizer = 'adam'
         activation = None
         #activation = 'relu'
 
@@ -92,7 +92,7 @@ class AICorrNet(AI):
     def train(self, x, y):
         last_loss = LastLoss()
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
-        self.model.fit(x, y, epochs=500, batch_size=1000, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
+        self.model.fit(x, y, epochs=50000, batch_size=10000, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
 
         activations = self.model.get_weights()[0]
         print(activations)
@@ -108,7 +108,7 @@ class AICorrNet(AI):
         print("Loss: %f" % last_loss.value)
 
         # Save progress
-        pickle.dump(activations, open("weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
+        pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
         self.model.save(self.path)
 
     def predict(self, x):
