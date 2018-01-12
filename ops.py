@@ -318,7 +318,7 @@ def corrtrain_trace_set(trace_set, result, conf=None, params=None):
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
 @op('corrtest')
-def corrtrain_trace_set(trace_set, result, conf=None, params=None):
+def corrtest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result.ai is None:
@@ -326,8 +326,10 @@ def corrtrain_trace_set(trace_set, result, conf=None, params=None):
             result.ai = AICorrNet(input_dim=len(trace_set.traces[0].signal))
             result.ai.load()
 
+        mean_trace = np.mean([trace.signal for trace in trace_set.traces], axis=0)  # Required for calculating correct correlation!
+
         for trace in trace_set.traces:
-            trace.signal = result.ai.predict(np.array([trace.signal], dtype=float))
+            trace.signal = result.ai.predict(np.array([trace.signal], dtype=float) - mean_trace)
 
         trace_set.window = Window(begin=0, end=len(trace_set.traces[0].signal))
         trace_set.windowed = True

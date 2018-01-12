@@ -42,12 +42,12 @@ class AIMemCopyDirect():
 
 def correlation_loss(y_true, y_pred):
     loss = K.variable(0.0)
-    for key_col in range(0, 16):
+    for key_col in range(0, 1):  # 0 - 16
         y_key = K.expand_dims(y_true[:,key_col], axis=1)  # [?, 16] -> [?, 1]
         denom = K.sqrt(K.dot(K.transpose(y_pred), y_pred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
         denom = K.maximum(denom, K.epsilon())
         correlation = K.dot(K.transpose(y_key), y_pred) / denom
-        loss += 1.0 - K.abs(correlation)
+        loss += 1.0 - K.square(correlation)
     return loss
 
 class Clip(keras.constraints.Constraint):
@@ -74,25 +74,30 @@ class AICorrNet(AI):
         self.use_bias = False
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
-        initializer = keras.initializers.Constant(value=1.0)
+        #initializer = keras.initializers.Constant(value=1.0)
         #initializer = keras.initializers.RandomUniform(minval=0, maxval=1.0, seed=None)
-        #initializer = 'glorot_uniform'
+        #initializer = keras.initializers.RandomUniform(minval=0, maxval=0.001, seed=None)
+        initializer = 'glorot_uniform'
         #constraint = Clip()
         constraint = None
-        optimizer = keras.optimizers.SGD(lr=10.0, decay=1e-6, momentum=0.9, nesterov=True)
-        #optimizer = 'adam'
+        #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
+        #optimizer = keras.optimizers.Adam(lr=0.1, beta_1=0.9, beta_2=0.999, decay=0.0)
+        optimizer = 'adam'
         activation = None
         #activation = 'relu'
 
-        #self.model.add(Dense(256, input_dim=input_dim))
-        #input_dim=256
+        self.model.add(Dense(256, input_dim=input_dim, activation='tanh'))
+        input_dim=256
         self.model.add(Dense(1, activation=activation, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim))
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=['accuracy'])
 
-    def train(self, x, y):
+    def train(self, x, y, save=True):
         last_loss = LastLoss()
+        self.last_loss = last_loss
+        x = x - np.mean(x, axis=0)  # Required for correct correlation calculation!
+        y = y - np.mean(y, axis=0)
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
-        self.model.fit(x, y, epochs=50000, batch_size=10000, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
+        self.model.fit(x, y, epochs=100, batch_size=10000, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
 
         activations = self.model.get_weights()[0]
         print(activations)
@@ -108,8 +113,9 @@ class AICorrNet(AI):
         print("Loss: %f" % last_loss.value)
 
         # Save progress
-        pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
-        self.model.save(self.path)
+        if save:
+            pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
+            self.model.save(self.path)
 
     def predict(self, x):
         return self.model.predict(x, batch_size=999999999, verbose=0)

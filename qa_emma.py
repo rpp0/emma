@@ -6,6 +6,7 @@
 # ----------------------------------------------------
 
 from correlationlist import CorrelationList
+from ai import AICorrNet
 import unittest
 import numpy as np
 import emutils
@@ -81,6 +82,52 @@ class TestUtils(unittest.TestCase):
         # TODO implement me
         test = CorrelationList([16,256])
         #emutils.pretty_print_correlations(test)
+
+class TestAI(unittest.TestCase):
+    def test_corrtrain(self):
+        ai = AICorrNet(4, name="test")
+        x = [ # Contains abs(trace). Shape = [trace, point]
+            [1, 1, 1, -15],
+            [2, 1, -4, -12],
+            [3, 1, 10, 8],
+        ]
+
+        y = [  # Contains hw[sbox[plaintext[trace] ^ key[key_index]]]. Shape = [trace, key_index]
+            [6, 16, 5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+            [7, -17, 9, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+            [8, 7, 23, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+        ]
+
+        x = np.array(x)
+        y = np.array(y)
+
+        ai.train(x, y, save=False)
+        result = []
+        # Simulate same approach used in ops.py
+        for i in range(0, 3):
+            result.append(ai.predict(np.array([x[i,:]], dtype=float)))  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 1]
+        result = np.array(result).flatten()
+        y_pred = result.reshape([-1,1])
+
+        print("Optimal point sums: " + str(y_pred[:,0]))
+        print("Key 0 values: " + str(y[:,0]))
+        calculated_loss = 0
+        calculated_loss_vec = 0
+        for i in range(0, 16):
+            y_key = y[:,i].reshape([-1, 1])
+            y_key_norm = y_key - np.mean(y_key)
+            y_pred_norm = y_pred - np.mean(y_pred)
+            denom = np.sqrt(np.dot(y_pred_norm.T, y_pred_norm)) * np.sqrt(np.dot(y_key_norm.T, y_key_norm))
+            #denom = np.maximum(denom, 0.00000000001)
+            corr_key_i_vec = np.square(np.dot(y_key_norm.T, y_pred_norm) / denom)
+            corr_key_i = np.square(np.corrcoef(y_pred[:,0], y_key[:,0], rowvar=False)[1,0])
+            calculated_loss += 1.0 - corr_key_i
+            calculated_loss_vec += 1.0 - corr_key_i_vec
+            print("pearson: %s" % corr_key_i)
+            print("vec    : %s" % corr_key_i_vec[0,0])
+        print("Last loss: " + str(ai.last_loss.value))
+        print("Calculated loss: " + str(calculated_loss))
+        print("Calculated loss vec: " + str(calculated_loss_vec))
 
 if __name__ == '__main__':
     unittest.main()
