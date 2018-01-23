@@ -3,14 +3,20 @@ import keras
 import pickle
 import numpy as np
 import time
+import os
 from keras.models import Sequential
 from keras.layers import Dense, Dropout
 from keras.models import load_model
 from keras.callbacks import TensorBoard
 
 class AI():
-    def __init__(self):
+    def __init__(self, name="unknown"):
         self.id = str(int(time.time()))
+        self.name = name
+        self.models_dir = os.path.join(os.getcwd(), 'models')
+        if not os.path.isdir(self.models_dir):
+            os.makedirs(self.models_dir)
+        self.model_path = os.path.join(self.models_dir, "%s.h5" % self.name)
 
 class AIMemCopyDirect():
     '''
@@ -67,9 +73,7 @@ class LastLoss(keras.callbacks.Callback):
 
 class AICorrNet(AI):
     def __init__(self, input_dim, name="aicorrnet"):
-        super(AICorrNet, self).__init__()
-        self.name = name
-        self.path = "models/%s.h5" % name
+        super(AICorrNet, self).__init__(name)
         self.model = Sequential()
         self.use_bias = False
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
@@ -94,7 +98,8 @@ class AICorrNet(AI):
     def train(self, x, y, save=True):
         last_loss = LastLoss()
         self.last_loss = last_loss
-        x = x - np.mean(x, axis=0)  # Required for correct correlation calculation!
+        mean_x = np.mean(x, axis=0)
+        x = x - mean_x  # Required for correct correlation calculation!
         y = y - np.mean(y, axis=0)
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
         self.model.fit(x, y, epochs=2000, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
@@ -114,11 +119,21 @@ class AICorrNet(AI):
 
         # Save progress
         if save:
+            mean_x_path = os.path.join(self.models_dir, "%s_mean_x.p" % self.name)
+
+            pickle.dump(mean_x, open(mean_x_path, "wb"))
             pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
-            self.model.save(self.path)
+            self.model.save(self.model_path)
 
     def predict(self, x):
-        return self.model.predict(x, batch_size=999999999, verbose=0)
+        if not self.mean_x is None:
+            x = x - self.mean_x # Required for calculating correct correlation!
+            return self.model.predict(x, batch_size=999999999, verbose=0)
+        else:
+            print("Mean_x was not loaded")
 
     def load(self):
-        self.model = load_model(self.path, custom_objects={'correlation_loss': correlation_loss})
+        mean_x_path = os.path.join(self.models_dir, "%s_mean_x.p" % self.name)
+
+        self.mean_x = pickle.load(open(mean_x_path, "rb"))
+        self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss})

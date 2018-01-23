@@ -326,10 +326,8 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
             result.ai = AICorrNet(input_dim=len(trace_set.traces[0].signal))
             result.ai.load()
 
-        mean_trace = np.mean([trace.signal for trace in trace_set.traces], axis=0)  # Required for calculating correct correlation!
-
         for trace in trace_set.traces:
-            trace.signal = result.ai.predict(np.array([trace.signal], dtype=float) - mean_trace)
+            trace.signal = result.ai.predict(np.array([trace.signal], dtype=float))
 
         trace_set.window = Window(begin=0, end=len(trace_set.traces[0].signal))
         trace_set.windowed = True
