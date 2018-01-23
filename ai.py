@@ -74,14 +74,14 @@ class AICorrNet(AI):
         self.use_bias = False
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
-        initializer = keras.initializers.Constant(value=1.0)
+        #initializer = keras.initializers.Constant(value=1.0)
         #initializer = keras.initializers.RandomUniform(minval=0, maxval=1.0, seed=None)
-        #initializer = keras.initializers.RandomUniform(minval=0, maxval=0.001, seed=None)
+        initializer = keras.initializers.RandomUniform(minval=0, maxval=0.001, seed=None)
         #initializer = 'glorot_uniform'
         #constraint = Clip()
         constraint = None
-        optimizer = keras.optimizers.SGD(lr=10.0, decay=1e-6, momentum=0.9, nesterov=True)
-        #optimizer = keras.optimizers.Adam(lr=0.1, beta_1=0.9, beta_2=0.999, decay=0.0)
+        #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
+        optimizer = keras.optimizers.Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.0)
         #optimizer = 'adam'
         activation = None
         #activation = 'relu'
@@ -97,7 +97,7 @@ class AICorrNet(AI):
         x = x - np.mean(x, axis=0)  # Required for correct correlation calculation!
         y = y - np.mean(y, axis=0)
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
-        self.model.fit(x, y, epochs=100000, batch_size=10000, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
+        self.model.fit(x, y, epochs=2000, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
 
         activations = self.model.get_weights()[0]
         print(activations)
