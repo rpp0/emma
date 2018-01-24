@@ -5,7 +5,8 @@ import numpy as np
 import time
 import os
 from keras.models import Sequential
-from keras.layers import Dense, Dropout
+from keras.layers import Dense, Dropout, Activation
+from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
 from keras.callbacks import TensorBoard
 
@@ -92,7 +93,9 @@ class AICorrNet(AI):
 
         #self.model.add(Dense(256, input_dim=input_dim, activation='tanh'))
         #input_dim=256
-        self.model.add(Dense(1, activation=activation, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim))
+        self.model.add(Dense(1, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim))
+        if not activation is None:
+            self.model.add(Activation(activation))
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=['accuracy'])
 
     def train(self, x, y, save=True):
