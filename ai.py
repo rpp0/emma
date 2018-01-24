@@ -1,7 +1,8 @@
+import numpy as np
+np.random.seed(1)  # Make results reproducible
 import keras.backend as K
 import keras
 import pickle
-import numpy as np
 import time
 import os
 from keras.models import Sequential
@@ -87,13 +88,13 @@ class AICorrNet(AI):
         constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         optimizer = keras.optimizers.Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.0)
-        #optimizer = 'adam'
         activation = None
         #activation = 'relu'
 
         #self.model.add(Dense(256, input_dim=input_dim, activation='tanh'))
         #input_dim=256
         self.model.add(Dense(1, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim))
+        self.model.add(BatchNormalization())  # Required for correct correlation calculation TODO is variance still needed in denominator of loss function if we divide y by it (since batch normalization does this for x)?
         if not activation is None:
             self.model.add(Activation(activation))
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=['accuracy'])
@@ -101,9 +102,7 @@ class AICorrNet(AI):
     def train(self, x, y, save=True):
         last_loss = LastLoss()
         self.last_loss = last_loss
-        mean_x = np.mean(x, axis=0)
-        x = x - mean_x  # Required for correct correlation calculation!
-        y = y - np.mean(y, axis=0)
+        y = y - np.mean(y, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
         self.model.fit(x, y, epochs=2000, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
 
@@ -122,21 +121,11 @@ class AICorrNet(AI):
 
         # Save progress
         if save:
-            mean_x_path = os.path.join(self.models_dir, "%s_mean_x.p" % self.name)
-
-            pickle.dump(mean_x, open(mean_x_path, "wb"))
             pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
             self.model.save(self.model_path)
 
     def predict(self, x):
-        if not self.mean_x is None:
-            x = x - self.mean_x # Required for calculating correct correlation!
-            return self.model.predict(x, batch_size=999999999, verbose=0)
-        else:
-            print("Mean_x was not loaded")
+        return self.model.predict(x, batch_size=999999999, verbose=0)
 
     def load(self):
-        mean_x_path = os.path.join(self.models_dir, "%s_mean_x.p" % self.name)
-
-        self.mean_x = pickle.load(open(mean_x_path, "rb"))
         self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss})
