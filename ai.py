@@ -94,17 +94,17 @@ class AICorrNet(AI):
         #self.model.add(Dense(256, input_dim=input_dim, activation='tanh'))
         #input_dim=256
         self.model.add(Dense(1, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim))
-        self.model.add(BatchNormalization())  # Required for correct correlation calculation TODO is variance still needed in denominator of loss function if we divide y by it (since batch normalization does this for x)?
+        self.model.add(BatchNormalization())  # Required for correct correlation calculation
         if not activation is None:
             self.model.add(Activation(activation))
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=['accuracy'])
 
-    def train(self, x, y, save=True):
+    def train(self, x, y, save=True, epochs=2000):
         last_loss = LastLoss()
         self.last_loss = last_loss
         y = y - np.mean(y, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
-        self.model.fit(x, y, epochs=2000, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
+        self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
 
         activations = self.model.get_weights()[0]
         print(activations)

@@ -102,10 +102,10 @@ class TestAI(unittest.TestCase):
         y = np.array(y)
 
         # Find optimal weights
-        ai.train(x, y, save=False)
+        ai.train(x, y, save=False, epochs=100)
         result = []
 
-        # Simulate same approach used in ops.py
+        # Simulate same approach used in ops.py corrtest
         for i in range(0, 3):
             result.append(ai.predict(np.array([x[i,:]], dtype=float)))  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 1]
         result = np.array(result).flatten()
@@ -123,7 +123,7 @@ class TestAI(unittest.TestCase):
 
             # Calculate correlation (vector approach)
             denom = np.sqrt(np.dot(y_pred_norm.T, y_pred_norm)) * np.sqrt(np.dot(y_key_norm.T, y_key_norm))
-            #denom = np.maximum(denom, 0.00000000001)
+            denom = np.maximum(denom, 0.00000000001)
             corr_key_i = np.square(np.dot(y_key_norm.T, y_pred_norm) / denom)
             print("corr_vec: %s" % corr_key_i[0,0])
 
@@ -135,7 +135,7 @@ class TestAI(unittest.TestCase):
 
         print("Last loss: %s" % str(ai.last_loss.value))
         print("Calculated loss: %s" % str(calculated_loss))
-        self.assertAlmostEqual(ai.last_loss.value, calculated_loss, places=5)
+        self.assertAlmostEqual(ai.last_loss.value, calculated_loss, places=3)
 
 if __name__ == '__main__':
     unittest.main()
