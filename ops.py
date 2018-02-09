@@ -243,7 +243,7 @@ def memtrain_trace_set(trace_set, result, conf=None, params=None):
         signals = np.array([trace.signal for trace in trace_set.traces])
         values = np.array([hw[trace.plaintext[0]] for trace in trace_set.traces])
         logger.warning("Training %d signals" % len(signals))
-        result.ai.train(signals, values)
+        result.ai.train_set(signals, values)
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
@@ -333,7 +333,7 @@ def remote_get_trace_set(trace_set_path, inform, ignore_malformed):
     return emio.get_trace_set(trace_set_path, inform, ignore_malformed)
 
 class AISignalIterator():
-    def __init__(self, trace_set_paths, conf, batch_size=10000):
+    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None):
         self.trace_set_paths = trace_set_paths
         self.conf = conf
         self.batch_size = batch_size
@@ -341,6 +341,7 @@ class AISignalIterator():
         self.index = 0
         self.values_batch = []
         self.signals_batch = []
+        self.request_id = request_id
 
     def __iter__(self):
         return self
@@ -354,7 +355,7 @@ class AISignalIterator():
             return self.cache[trace_set_path]
 
         # Apply actions from work()
-        result = process_trace_sets([trace_set_path], self.conf, keep_trace_sets=True)
+        result = process_trace_sets([trace_set_path], self.conf, keep_trace_sets=True, request_id=self.request_id)
 
         if len(result.trace_sets) > 0:
             trace_set = result.trace_sets[0]  # Since we iterate per path, there will be only 1 result in trace_sets
@@ -471,12 +472,13 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
         logger.error("Must provide a list of trace set paths to worker!")
         return None
 
-@app.task
-def corrtrain(trace_set_paths, conf):
+@app.task(bind=True)
+def corrtrain(self, trace_set_paths, conf):
+    logger.debug("Determining post-processed training sample size")
+    iterator = AISignalIterator(trace_set_paths, conf, request_id=self.request.id)
+    x, _ = iterator.next()
+    input_dim = x.shape[1]
+
     logger.debug("Initializing Keras")
-    ai = AICorrNet(input_dim=11000)  # TODO FIX: determine input size
-
-    iterator = AISignalIterator(trace_set_paths, conf)
-    ai.train2(iterator, epochs=100, workers=1)
-
-    print("Done training")
+    ai = AICorrNet(input_dim=input_dim)
+    ai.train_generator(iterator, epochs=2000, workers=1)

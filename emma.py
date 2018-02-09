@@ -97,11 +97,9 @@ def perform_cpa_attack(conf):
     print(emutils.numpy_to_hex(most_likely_bytes))
 
 def perform_ml_attack(conf):
-    conf.max_subtasks = 1
-    perform_actions(conf)
-
-def perform_ml_attack_wicked(conf):
-    corrtrain.si(trace_set_paths, conf).delay()
+    # Only one task since TF uses multiple cores and is not thread safe
+    async_result = corrtrain.si(trace_set_paths, conf).delay()
+    wait_until_completion(async_result, message="Training neural network")
 
 def perform_actions(conf):
     async_result = parallel_actions(trace_set_paths, conf)
@@ -139,9 +137,8 @@ if __name__ == "__main__":
 
         if 'attack' in conf.actions:  # Group of tasks and merge correlation results
             perform_cpa_attack(conf)
-        elif True in [a.find('train') > -1 for a in conf.actions]:  # Only one task since TF uses multiple cores and is not thread safe
-            #perform_ml_attack(conf)
-            perform_ml_attack_wicked(conf)
+        elif True in [a.find('train') > -1 for a in conf.actions]:
+            perform_ml_attack(conf)
         else:  # Regular group of tasks
             perform_actions(conf)
     except KeyboardInterrupt:

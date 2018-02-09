@@ -102,7 +102,7 @@ class TestAI(unittest.TestCase):
         y = np.array(y)
 
         # Find optimal weights
-        ai.train(x, y, save=False, epochs=100)
+        ai.train_set(x, y, save=False, epochs=100)
         result = []
 
         # Simulate same approach used in ops.py corrtest (iterate over rows)

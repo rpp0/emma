@@ -41,7 +41,7 @@ class AIMemCopyDirect():
                            loss='categorical_crossentropy',
                            metrics=['accuracy'])
 
-    def train(self, x, y):
+    def train_set(self, x, y):
         one_hot_labels = keras.utils.to_categorical(y, num_classes=self.num_outputs)
         self.model.fit(x, one_hot_labels, epochs=10, batch_size=256, shuffle=True)
 
@@ -99,40 +99,42 @@ class AICorrNet(AI):
             self.model.add(Activation(activation))
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
-    def train(self, x, y, save=True, epochs=1):
-        last_loss = LastLoss()
+    def train_set(self, x, y, save=True, epochs=1):
         y = y - np.mean(y, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
+
+        # Callbacks
+        last_loss = LastLoss()
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
+
+        # Fit model
         self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
+
+        # Get loss from callback
         self.last_loss = last_loss.value
 
-        activations = self.model.get_weights()[0]
-        print(activations)
-        if self.use_bias:
-            bias = self.model.get_weights()[1]
-            print(bias)
+        self._post_train(save)
 
-        top = 10
-        activations = np.reshape(activations, -1)
-        best_indices = np.argsort(activations)[-top:]
-        print("Best indices: %s" % str(best_indices))
-        print("Max weights: %s" % str([activations[i] for i in best_indices]))
-        print("Loss: %f" % self.last_loss)
-
-        # Save progress
-        if save:
-            pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
-            self.model.save(self.model_path)
-
-    def train2(self, generator, epochs=1, workers=1, save=True):
+    def train_generator(self, generator, epochs=2000, workers=1, save=True):
+        # Callbacks
+        last_loss = LastLoss()
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
-        #self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
-        self.model.fit_generator(generator,
-                                epochs=2000,
-                                steps_per_epoch=1, # TODO FIX
-                                #validation_data=(x_test, y_test),
-                                workers=1, callbacks=[tensorboard_callback], verbose=2)
 
+        # Train model
+        self.model.fit_generator(generator,
+                                epochs=epochs,
+                                steps_per_epoch=1,
+                                #validation_data=(x_test, y_test),
+                                workers=workers, callbacks=[last_loss, tensorboard_callback], verbose=2)
+
+        # Get loss from callback
+        self.last_loss = last_loss.value
+
+        self._post_train(save)
+
+    def _post_train(self, save=True):
+        '''
+        Do some post-train actions like getting the model weights and saving the model.
+        '''
         activations = self.model.get_weights()[0]
         print(activations)
         if self.use_bias:
