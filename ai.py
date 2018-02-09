@@ -97,14 +97,14 @@ class AICorrNet(AI):
         self.model.add(BatchNormalization())  # Required for correct correlation calculation
         if not activation is None:
             self.model.add(Activation(activation))
-        self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=['accuracy'])
+        self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
-    def train(self, x, y, save=True, epochs=2000):
+    def train(self, x, y, save=True, epochs=1):
         last_loss = LastLoss()
-        self.last_loss = last_loss
         y = y - np.mean(y, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
         self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
+        self.last_loss = last_loss.value
 
         activations = self.model.get_weights()[0]
         print(activations)
@@ -117,7 +117,33 @@ class AICorrNet(AI):
         best_indices = np.argsort(activations)[-top:]
         print("Best indices: %s" % str(best_indices))
         print("Max weights: %s" % str([activations[i] for i in best_indices]))
-        print("Loss: %f" % last_loss.value)
+        print("Loss: %f" % self.last_loss)
+
+        # Save progress
+        if save:
+            pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
+            self.model.save(self.model_path)
+
+    def train2(self, generator, epochs=1, workers=1, save=True):
+        tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
+        #self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
+        self.model.fit_generator(generator,
+                                epochs=2000,
+                                steps_per_epoch=1, # TODO FIX
+                                #validation_data=(x_test, y_test),
+                                workers=1, callbacks=[tensorboard_callback], verbose=2)
+
+        activations = self.model.get_weights()[0]
+        print(activations)
+        if self.use_bias:
+            bias = self.model.get_weights()[1]
+            print(bias)
+
+        top = 10
+        activations = np.reshape(activations, -1)
+        best_indices = np.argsort(activations)[-top:]
+        print("Best indices: %s" % str(best_indices))
+        print("Max weights: %s" % str([activations[i] for i in best_indices]))
 
         # Save progress
         if save:

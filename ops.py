@@ -277,57 +277,17 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
     trace_set.windowed = True
     trace_set.window = Window(begin=0, end=1)
 
-@op('corrtrain')
-def corrtrain_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("corrtrain %s" % (str(params) if not params is None else ""))
-    if trace_set.windowed:
-        key = [0x0E, 0xEB, 0xA7, 0x43, 0x00, 0x9D, 0x67, 0xD2, 0xE5, 0x63, 0xCF, 0x4C, 0x5C, 0xB0, 0x77, 0xCB]
-        if result.ai is None:
-            logger.debug("Initializing Keras")
-            result.ai = AICorrNet(input_dim=len(trace_set.traces[0].signal))
-            result._data['hackx'] = []
-            for i in range(0, 16):
-                result._data['hacky' + str(i)] = []
-
-        """
-        signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
-        values = np.array([hw[sbox[trace.plaintext[0] ^ 0x0e]] for trace in trace_set.traces], dtype=float)
-        logger.warning("Training %d signals" % len(signals))
-        result.ai.train(signals, values)
-        """
-
-        if len(result._data['hackx']) > 19000:
-            signals = np.array(result._data['hackx'], dtype=float)
-            values = np.zeros([len(result._data['hacky0']), 16])
-            for i in range(0, 16):
-                values[:,i] = np.array(result._data['hacky' + str(i)], dtype=float)
-            print(values.shape)
-            print(values)
-            logger.warning("Training %d signals" % len(signals))
-            result.ai.train(signals, values)
-
-            result._data['hackx'] = []
-            for i in range(0, 16):
-                result._data['hacky'+ str(i)] = []
-        else:
-            result._data['hackx'].extend([trace.signal for trace in trace_set.traces])
-            # TODO New idea: pass model hw values for ALL keys (as an extra dimension) to AICorrNet. Then make the loss function so that the correlation loss function minimizes the loss of ALL models
-            for i in range(0, 16):
-                result._data['hacky' + str(i)].extend([hw[sbox[trace.plaintext[i] ^ key[i]]] for trace in trace_set.traces])
-    else:
-        logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
-
 @op('corrtest')
 def corrtest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
-        if result.ai is None:
+        if result._data['state'] is None:
             logger.debug("Loading Keras")
-            result.ai = AICorrNet(input_dim=len(trace_set.traces[0].signal))
-            result.ai.load()
+            result._data['state'] = AICorrNet(input_dim=len(trace_set.traces[0].signal))
+            result._data['state'].load()
 
         for trace in trace_set.traces:
-            trace.signal = result.ai.predict(np.array([trace.signal], dtype=float))
+            trace.signal = result._data['state'].predict(np.array([trace.signal], dtype=float))
 
         trace_set.window = Window(begin=0, end=len(trace_set.traces[0].signal))
         trace_set.windowed = True
@@ -372,45 +332,151 @@ def remote_get_trace_paths(input_path, inform):
 def remote_get_trace_set(trace_set_path, inform, ignore_malformed):
     return emio.get_trace_set(trace_set_path, inform, ignore_malformed)
 
+class AISignalIterator():
+    def __init__(self, trace_set_paths, conf, batch_size=10000):
+        self.trace_set_paths = trace_set_paths
+        self.conf = conf
+        self.batch_size = batch_size
+        self.cache = {}
+        self.index = 0
+        self.values_batch = []
+        self.signals_batch = []
+
+    def __iter__(self):
+        return self
+
+    def fetch_features(self, trace_set_path):
+        '''
+        Fethes the features (raw trace and y-values) for a single trace path.
+        '''
+        # Memoize
+        if trace_set_path in self.cache:
+            return self.cache[trace_set_path]
+
+        # Apply actions from work()
+        result = process_trace_sets([trace_set_path], self.conf, keep_trace_sets=True)
+
+        if len(result.trace_sets) > 0:
+            trace_set = result.trace_sets[0]  # Since we iterate per path, there will be only 1 result in trace_sets
+
+            # Get training data
+            signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
+
+            # Get model labels
+            key = [0x0E, 0xEB, 0xA7, 0x43, 0x00, 0x9D, 0x67, 0xD2, 0xE5, 0x63, 0xCF, 0x4C, 0x5C, 0xB0, 0x77, 0xCB]
+            values = np.zeros((len(trace_set.traces), len(key)), dtype=float)
+            for i in range(len(trace_set.traces)):
+                for j in range(len(key)):
+                    values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ key[j]]]
+
+            # Normalize
+            values = values - np.mean(values, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
+
+            # Cache
+            self.cache[trace_set_path] = (signals, values)
+
+            return signals, values
+        else:
+            return None
+
+    def next(self):
+        # Bound checking
+        if self.index < 0 or self.index >= len(self.trace_set_paths):
+            return None
+
+        while True:
+            # Do we have enough samples in buffer already?
+            if len(self.signals_batch) > self.batch_size:
+                # Get exactly batch_size training examples
+                signals_return_batch = np.array(self.signals_batch[0:self.batch_size])
+                values_return_batch = np.array(self.values_batch[0:self.batch_size])
+
+                # Keep the remainder for next iteration
+                self.signals_batch = self.signals_batch[self.batch_size:]
+                self.values_batch = self.values_batch[self.batch_size:]
+
+                # Return
+                return signals_return_batch,values_return_batch
+
+            # Determine next trace set path
+            trace_set_path = self.trace_set_paths[self.index]
+            self.index += 1
+            if self.index >= len(self.trace_set_paths):
+                self.index = 0
+
+            # Fetch features from selected path
+            result = self.fetch_features(trace_set_path)
+            if result is None:
+                continue
+            signals, values = result
+
+            # Concatenate arrays until batch obtained
+            self.signals_batch.extend(signals)
+            self.values_batch.extend(values)
+
+    def __next__(self):
+        return self.next()
+
+def process_trace_sets(trace_set_paths, conf, request_id=None, keep_trace_sets=False):
+    result = EMResult(task_id=request_id)
+    num_todo = len(trace_set_paths)
+    num_done = 0
+    for trace_set_path in trace_set_paths:
+        # Get trace name from path
+        trace_set_name = basename(trace_set_path)
+        logger.info("Processing '%s' (%d/%d)" % (trace_set_name, num_done, num_todo))
+
+        # Load trace
+        trace_set = emio.get_trace_set(trace_set_path, conf.inform, ignore_malformed=False)
+        if trace_set is None:
+            logger.warning("Failed to load trace set %s (got None). Skipping..." % trace_set_path)
+            continue
+
+        # Perform actions
+        for action in conf.actions:
+            params = None
+            if '[' in action:
+                op, _, params = action.rpartition('[')
+                params = params.rstrip(']').split(',')
+            else:
+                op = action
+            if op in ops:
+                ops[op](trace_set, result, conf=conf, params=params)
+            else:
+                logger.warning("Ignoring unknown op '%s'." % op)
+
+        # Store result
+        if keep_trace_sets:
+            result.trace_sets.append(trace_set)
+        num_done += 1
+    return result
+
 @app.task(bind=True)
-def work(self, trace_set_paths, conf):
+def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=True):
     '''
     Actions to be performed by workers on the trace set given in trace_set_path.
     '''
 
     if type(trace_set_paths) is list:
-        result = EMResult(task_id=self.request.id) # TODO init this from within Task subclass
-        num_todo = len(trace_set_paths)
-        num_done = 0
-        for trace_set_path in trace_set_paths:
-            # Get trace name from path
-            trace_set_name = basename(trace_set_path)
-            logger.info("Processing '%s' (%d/%d)" % (trace_set_name, num_done, num_todo))
+        result = process_trace_sets(trace_set_paths, conf, request_id=self.request.id, keep_trace_sets=keep_trace_sets)
 
-            # Load trace
-            trace_set = emio.get_trace_set(trace_set_path, conf.inform, ignore_malformed=False)
-            if trace_set is None:
-                logger.warning("Failed to load trace set %s (got None). Skipping..." % trace_set_path)
-                continue
+        if not keep_trace_sets:  # Do not return processed traces
+            result.trace_sets = None
+        if not keep_correlations:  # Do not return correlations
+            result.correlations = None
+        result._data['state'] = None  # Never return state
 
-            # Perform actions
-            for action in conf.actions:
-                params = None
-                if '[' in action:
-                    op, _, params = action.rpartition('[')
-                    params = params.rstrip(']').split(',')
-                else:
-                    op = action
-                if op in ops:
-                    ops[op](trace_set, result, conf=conf, params=params)
-                else:
-                    logger.warning("Ignoring unknown op '%s'." % op)
-
-            # Count progress
-            num_done += 1
-
-        result.ai = None  # AI cannot be pickled for further processing; store separately
         return result
     else:
         logger.error("Must provide a list of trace set paths to worker!")
         return None
+
+@app.task
+def corrtrain(trace_set_paths, conf):
+    logger.debug("Initializing Keras")
+    ai = AICorrNet(input_dim=11000)  # TODO FIX: determine input size
+
+    iterator = AISignalIterator(trace_set_paths, conf)
+    ai.train2(iterator, epochs=100, workers=1)
+
+    print("Done training")

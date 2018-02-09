@@ -105,7 +105,7 @@ class TestAI(unittest.TestCase):
         ai.train(x, y, save=False, epochs=100)
         result = []
 
-        # Simulate same approach used in ops.py corrtest
+        # Simulate same approach used in ops.py corrtest (iterate over rows)
         for i in range(0, 3):
             result.append(ai.predict(np.array([x[i,:]], dtype=float)))  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 1]
         result = np.array(result).flatten()
@@ -133,9 +133,9 @@ class TestAI(unittest.TestCase):
 
             calculated_loss += 1.0 - corr_key_i[0,0]
 
-        print("Last loss: %s" % str(ai.last_loss.value))
+        print("Last loss: %s" % str(ai.last_loss))
         print("Calculated loss: %s" % str(calculated_loss))
-        self.assertAlmostEqual(ai.last_loss.value, calculated_loss, places=3)
+        self.assertAlmostEqual(ai.last_loss, calculated_loss, places=3)
 
 if __name__ == '__main__':
     unittest.main()
