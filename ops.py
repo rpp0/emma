@@ -3,6 +3,10 @@
 # Copyright 2017, Pieter Robyns
 # ----------------------------------------------------
 
+import os
+import matplotlib
+if os.environ['DISPLAY'] == '':  # Do not attempt to show plot windows when headless
+    matplotlib.use('Agg')
 import numpy as np
 import sys
 import matplotlib.pyplot as plt

@@ -5,6 +5,9 @@ import keras
 import pickle
 import time
 import os
+import io
+import matplotlib.pyplot as plt
+import tensorflow as tf
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation
 from keras.layers.normalization import BatchNormalization
@@ -12,6 +15,9 @@ from keras.models import load_model
 from keras.callbacks import TensorBoard
 
 class AI():
+    '''
+    Base class for the models.
+    '''
     def __init__(self, name="unknown"):
         self.id = str(int(time.time()))
         self.name = name
@@ -49,6 +55,10 @@ class AIMemCopyDirect():
         pass
 
 def correlation_loss(y_true, y_pred):
+    '''
+    Custom loss function that calculates the correlation of the prediction with
+    the true values.
+    '''
     loss = K.variable(0.0)
     for key_col in range(0, 16):  # 0 - 16
         y_key = K.expand_dims(y_true[:,key_col], axis=1)  # [?, 16] -> [?, 1]
@@ -59,19 +69,57 @@ def correlation_loss(y_true, y_pred):
     return loss
 
 class Clip(keras.constraints.Constraint):
+    '''
+    Custom kernel constraint, limiting their values between a certain range.
+    '''
     def __init__(self):
         self.weight_range = [0.0, 1.0]
 
     def __call__(self, w):
         return K.clip(w, self.weight_range[0], self.weight_range[1])
-keras.constraints.Clip = Clip
+keras.constraints.Clip = Clip  # Register custom constraint in Keras
 
 class LastLoss(keras.callbacks.Callback):
+    '''
+    Callback to keep last loss.
+    '''
     def on_train_begin(self, logs={}):
         self.value = None
 
     def on_batch_end(self, batch, logs={}):
         self.value = logs.get('loss')
+
+class CustomTensorboard(keras.callbacks.TensorBoard):
+    '''
+    Extension of the standard Tensorboard callback that uses Matplotlib to
+    plot graphs to Tensorboard.
+    '''
+    def _plt_to_tf(self, plot, tag='plot'):
+        '''
+        Convert Matplotlib plot to Tensorboard summary.
+        '''
+        # Write to PNG buffer
+        buf = io.BytesIO()
+        plot.savefig(buf, format='png')
+        buf.seek(0)
+
+        # Add to TensorBoard summary
+        image = tf.image.decode_png(buf.getvalue(), channels=4)
+        image = tf.expand_dims(image, 0) # Add the batch dimension
+        return tf.summary.image(tag, image, 1)
+
+    def on_epoch_end(self, epoch, logs=None):
+        super(CustomTensorboard, self).on_epoch_end(epoch, logs)
+        if epoch % 100 == 0:
+            weights = self.model.get_weights()[0]
+            weights = np.reshape(weights, -1)
+            plt.clf()
+            plt.title('Weights')
+            plt.plot(weights)
+            images = [self._plt_to_tf(plt, tag='plot'+str(epoch))]
+            summary_images = tf.summary.merge(images, collections=None, name=None)
+            summary_result = K.get_session().run(summary_images)
+            self.writer.add_summary(summary_result)
 
 class AICorrNet(AI):
     def __init__(self, input_dim, name="aicorrnet"):
@@ -117,13 +165,15 @@ class AICorrNet(AI):
     def train_generator(self, generator, epochs=2000, workers=1, save=True):
         # Callbacks
         last_loss = LastLoss()
-        tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
+        tensorboard_callback = CustomTensorboard(log_dir='/tmp/keras/' + self.id)
+
+        validation_batch = generator.next()  # TODO take from separate set
 
         # Train model
         self.model.fit_generator(generator,
                                 epochs=epochs,
                                 steps_per_epoch=1,
-                                #validation_data=(x_test, y_test),
+                                validation_data=validation_batch,
                                 workers=workers, callbacks=[last_loss, tensorboard_callback], verbose=2)
 
         # Get loss from callback
