@@ -13,6 +13,7 @@ from keras.layers import Dense, Dropout, Activation
 from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
 from keras.callbacks import TensorBoard
+from matplotlib.ticker import FuncFormatter
 
 class AI():
     '''
@@ -108,14 +109,28 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
         image = tf.expand_dims(image, 0) # Add the batch dimension
         return tf.summary.image(tag, image, 1)
 
+    def _plot_fft_weights(self, n, samp_rate):
+        # Get weights
+        weights = self.model.get_weights()[0]
+        weights = np.reshape(weights, -1)
+
+        # Plot weights
+        fig = plt.figure()
+        axis = fig.add_subplot(111)
+        plt.title('FFT magnitude weights')
+        x = np.arange(len(weights))
+        y = weights
+        labels = np.fft.fftfreq(n, d=1.0/samp_rate)
+        axis.xaxis.set_major_formatter(FuncFormatter(lambda val, pos: "%.2f kHz" % (labels[int(val)] / 1000.0) if int(val) in x else ""))
+        axis.plot(x, y)
+        plt.xticks(rotation=15.0)
+
     def on_epoch_end(self, epoch, logs=None):
         super(CustomTensorboard, self).on_epoch_end(epoch, logs)
         if epoch % 100 == 0:
-            weights = self.model.get_weights()[0]
-            weights = np.reshape(weights, -1)
-            plt.clf()
-            plt.title('Weights')
-            plt.plot(weights)
+            self._plot_fft_weights(22000, 4000000)  # TODO: hardcoded stuff
+
+            # Generate plot summary
             images = [self._plt_to_tf(plt, tag='plot'+str(epoch))]
             summary_images = tf.summary.merge(images, collections=None, name=None)
             summary_result = K.get_session().run(summary_images)

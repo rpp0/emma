@@ -5,7 +5,7 @@
 
 import os
 import matplotlib
-if os.environ['DISPLAY'] == '':  # Do not attempt to show plot windows when headless
+if not 'DISPLAY' in os.environ:  # Do not attempt to show plot windows when headless
     matplotlib.use('Agg')
 import numpy as np
 import sys
