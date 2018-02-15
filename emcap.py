@@ -181,15 +181,21 @@ class SocketWrapper(Thread):
 
 # EMCap class: wait for signal and start capturing using a SDR
 class EMCap():
-    def __init__(self, cap_kwargs={}):
-        unix_domain_socket = '/tmp/emma.socket'
-
-        self.clear_domain_socket(unix_domain_socket)
+    def __init__(self, cap_kwargs={}, kwargs={}, use_domain_socket=False):
+        # Set up data socket
         self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3884), self.cb_data)
-        self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
+
+        # Set up control socket
+        if use_domain_socket:
+            unix_domain_socket = '/tmp/emma.socket'
+            self.clear_domain_socket(unix_domain_socket)
+            self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
+        else:
+            self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('127.0.0.1', 3884), self.cb_ctrl)
 
         self.sdr = SDR(**cap_kwargs)
         self.cap_kwargs = cap_kwargs
+        self.kwargs = kwargs
         self.store = False
         self.stored_plaintext = []
         self.stored_data = []
@@ -227,7 +233,7 @@ class EMCap():
         return len(data)
 
     def cb_ctrl(self, client_socket, client_address, data):
-        logger.debug("Control packet: " + binary_to_hex(data))
+        logger.debug("Control packet: %s" % binary_to_hex(data))
         if len(data) < 5:
             # Not enough for TLV
             return 0
@@ -244,7 +250,7 @@ class EMCap():
 
     def process_ctrl_packet(self, pkt_type, payload):
         if pkt_type == CtrlPacketType.SIGNAL_START:
-            logger.debug(payload)
+            logger.debug("Starting for payload: %s" % binary_to_hex(payload))
             self.stored_plaintext = [ord(c) for c in payload]
             self.sdr.start()
 
@@ -287,8 +293,9 @@ class EMCap():
                     np_trace_set = np.array(self.trace_set)
                     np_plaintexts = np.array(self.plaintexts, dtype=np.uint8)
                     filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
-                    np.save("/home/pieter/projects/em/traces/%s_traces.npy" % filename, np_trace_set)  # TODO abstract this in trace_set class
-                    np.save("/home/pieter/projects/em/traces/%s_textin.npy" % filename, np_plaintexts)
+                    output_dir = self.kwargs['output_dir']
+                    np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
+                    np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
                     self.trace_set = []
                     self.plaintexts = []
 
@@ -314,8 +321,9 @@ def main():
     parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
     parser.add_argument('--frequency', type=float, default=3.2e9, help='Capture frequency')
     parser.add_argument('--gain', type=int, default=10, help='RX gain')
+    parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
     args, unknown = parser.parse_known_args()
-    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain})
+    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__)
     e.capture()
 
 if __name__ == '__main__':
