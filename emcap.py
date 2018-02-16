@@ -191,7 +191,7 @@ class EMCap():
             self.clear_domain_socket(unix_domain_socket)
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
         else:
-            self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('127.0.0.1', 3884), self.cb_ctrl)
+            self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.15.48', 3884), self.cb_ctrl)
 
         self.sdr = SDR(**cap_kwargs)
         self.cap_kwargs = cap_kwargs
@@ -318,9 +318,9 @@ class EMCap():
 def main():
     parser = argparse.ArgumentParser(description='EMCAP')
     parser.add_argument('hw', type=str, choices=['usrp', 'hackrf'], help='SDR capture hardware')
-    parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
-    parser.add_argument('--frequency', type=float, default=3.2e9, help='Capture frequency')
-    parser.add_argument('--gain', type=int, default=10, help='RX gain')
+    parser.add_argument('--sample-rate', type=int, default=10000000, help='Sample rate')
+    parser.add_argument('--frequency', type=float, default=1.6e9, help='Capture frequency')
+    parser.add_argument('--gain', type=int, default=20, help='RX gain')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
     args, unknown = parser.parse_known_args()
     e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__)
