@@ -62,8 +62,8 @@ class SDR(gr.top_block):
         # Blocks
         ##################################################
         if hw == "usrp":
-            self.sdr_source = uhd.usrp_source(  # Set recv_frame_size to 65536 and num_recv_frames to 1024
-               ",".join(("", "recv_frame_size=4096", "num_recv_frames=1024")),
+            self.sdr_source = uhd.usrp_source(
+               ",".join(("", "recv_frame_size=1024", "num_recv_frames=1024", "spp=1024")),
                #",".join(("", "")),
                uhd.stream_args(
                cpu_format="fc32",
