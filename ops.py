@@ -22,7 +22,7 @@ from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
-from ai import AIMemCopyDirect, AICorrNet
+from ai import AIMemCopyDirect, AICorrNet, AISHACPU
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
@@ -336,7 +336,7 @@ def remote_get_trace_paths(input_path, inform):
 def remote_get_trace_set(trace_set_path, inform, ignore_malformed):
     return emio.get_trace_set(trace_set_path, inform, ignore_malformed)
 
-class AISignalIterator():
+class AISignalIteratorBase():
     def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None):
         self.trace_set_paths = trace_set_paths
         self.conf = conf
@@ -346,9 +346,19 @@ class AISignalIterator():
         self.values_batch = []
         self.signals_batch = []
         self.request_id = request_id
+        self.max_cache = 1000
 
     def __iter__(self):
         return self
+
+    def _preprocess_trace_set(self, trace_set):
+        # X
+        signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
+
+        # Y
+        values = np.array([trace.plaintext for trace in trace_set.traces], dtype=float)
+
+        return signals, values
 
     def fetch_features(self, trace_set_path):
         '''
@@ -362,23 +372,11 @@ class AISignalIterator():
         result = process_trace_sets([trace_set_path], self.conf, keep_trace_sets=True, request_id=self.request_id)
 
         if len(result.trace_sets) > 0:
-            trace_set = result.trace_sets[0]  # Since we iterate per path, there will be only 1 result in trace_sets
-
-            # Get training data
-            signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
-
-            # Get model labels
-            key = [0x0E, 0xEB, 0xA7, 0x43, 0x00, 0x9D, 0x67, 0xD2, 0xE5, 0x63, 0xCF, 0x4C, 0x5C, 0xB0, 0x77, 0xCB]
-            values = np.zeros((len(trace_set.traces), len(key)), dtype=float)
-            for i in range(len(trace_set.traces)):
-                for j in range(len(key)):
-                    values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ key[j]]]
-
-            # Normalize
-            values = values - np.mean(values, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
+            signals, values = self._preprocess_trace_set(result.trace_sets[0])  # Since we iterate per path, there will be only 1 result in trace_sets
 
             # Cache
-            self.cache[trace_set_path] = (signals, values)
+            if len(self.cache.keys()) < self.max_cache:
+                self.cache[trace_set_path] = (signals, values)
 
             return signals, values
         else:
@@ -421,6 +419,72 @@ class AISignalIterator():
 
     def __next__(self):
         return self.next()
+
+class AICorrSignalIterator(AISignalIteratorBase):
+    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None):
+        super(AICorrSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id)
+
+    def _preprocess_trace_set(self, trace_set):
+        '''
+        Preprocessing specifically for AICorrNet
+        '''
+
+        # Get training data
+        signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
+
+        # Get model labels (key bytes to correlate)
+        key = [0x0E, 0xEB, 0xA7, 0x43, 0x00, 0x9D, 0x67, 0xD2, 0xE5, 0x63, 0xCF, 0x4C, 0x5C, 0xB0, 0x77, 0xCB]
+        values = np.zeros((len(trace_set.traces), len(key)), dtype=float)
+        for i in range(len(trace_set.traces)):
+            for j in range(len(key)):
+                values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ key[j]]]
+
+        # Normalize key labels: required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
+        values = values - np.mean(values, axis=0)
+
+        return signals, values
+
+class AISHACPUSignalIterator(AISignalIteratorBase):
+    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, hamming=True, subtype='vgg16'):
+        super(AISHACPUSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id)
+        self.hamming = hamming
+        self.subtype = subtype
+
+    def _adapt_input_vgg(self, traces):
+        batch = []
+        for trace in traces:
+            side_len = int(np.sqrt(len(trace.signal) / 3.0))
+            max_len = side_len * side_len * 3
+            image = np.array(trace.signal[0:max_len], dtype=float).reshape(side_len, side_len, 3)
+            batch.append(image)
+        return np.array(batch)
+
+    def _preprocess_trace_set(self, trace_set):
+        '''
+        Preprocessing specifically for AISHACPU
+        '''
+
+        # Get training data
+        if self.subtype == 'vgg16':
+            signals = self._adapt_input_vgg(trace_set.traces)
+        else:
+            signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
+
+        # Get one-hot labels (bytes XORed with 0x36)
+        if self.hamming:
+            values = np.zeros((len(trace_set.traces), 9), dtype=float)
+        else:
+            values = np.zeros((len(trace_set.traces), 256), dtype=float)
+        index_to_find = 0  # Byte index of SHA-1 key
+        for i in range(len(trace_set.traces)):
+            trace = trace_set.traces[i]
+            key_byte = trace.plaintext[index_to_find]
+            if self.hamming:
+                values[i, hw[key_byte ^ 0x36]] = 1.0
+            else:
+                values[i, key_byte ^ 0x36] = 1.0
+
+        return signals, values
 
 def process_trace_sets(trace_set_paths, conf, request_id=None, keep_trace_sets=False):
     result = EMResult(task_id=request_id)
@@ -477,12 +541,39 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
         return None
 
 @app.task(bind=True)
-def corrtrain(self, trace_set_paths, conf):
+def aitrain(self, trace_set_paths, conf):
     logger.debug("Determining post-processed training sample size")
-    iterator = AISignalIterator(trace_set_paths, conf, request_id=self.request.id)
-    x, _ = iterator.next()
-    input_dim = x.shape[1]
 
-    logger.debug("Initializing Keras")
-    ai = AICorrNet(input_dim=input_dim)
-    ai.train_generator(iterator, epochs=2000, workers=1)
+    # Hardcoded stuff
+    hamming = False
+    subtype = 'custom'
+
+    # Determine type of model to train
+    model_type = None
+    for action in conf.actions:
+        if action in ['corrtrain', 'shacputrain']:
+            model_type = action
+            break
+
+    # Select training iterator (gathers data, performs augmentation and preprocessing)
+    iterator = None
+    if model_type == 'corrtrain':
+        iterator = AICorrSignalIterator(trace_set_paths, conf, request_id=self.request.id)
+    elif model_type == 'shacputrain':
+        iterator = AISHACPUSignalIterator(trace_set_paths, conf, batch_size=512, request_id=self.request.id, hamming=hamming, subtype=subtype)
+    else:
+        logger.error("Unknown training procedure specified.")
+        return
+    x, _ = iterator.next()
+    input_shape = x.shape[1:]  # Shape excluding batch
+    print("Shape of data to train: %s" % str(input_shape))
+
+    # Select model
+    model = None
+    if model_type == 'corrtrain':
+        model = AICorrNet(input_dim=input_shape[0])
+    elif model_type == 'shacputrain':
+        model = AISHACPU(input_shape=input_shape, hamming=hamming, subtype=subtype)
+
+    logger.debug("Training...")
+    model.train_generator(iterator, epochs=10000, workers=1)

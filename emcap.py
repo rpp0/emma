@@ -318,8 +318,8 @@ class EMCap():
 def main():
     parser = argparse.ArgumentParser(description='EMCAP')
     parser.add_argument('hw', type=str, choices=['usrp', 'hackrf'], help='SDR capture hardware')
-    parser.add_argument('--sample-rate', type=int, default=10000000, help='Sample rate')
-    parser.add_argument('--frequency', type=float, default=1.6e9, help='Capture frequency')
+    parser.add_argument('--sample-rate', type=int, default=20000000, help='Sample rate')
+    parser.add_argument('--frequency', type=float, default=1.2e9, help='Capture frequency')
     parser.add_argument('--gain', type=int, default=20, help='RX gain')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
     args, unknown = parser.parse_known_args()

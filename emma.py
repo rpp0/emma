@@ -98,7 +98,7 @@ def perform_cpa_attack(conf):
 
 def perform_ml_attack(conf):
     # Only one task since TF uses multiple cores and is not thread safe
-    async_result = corrtrain.si(trace_set_paths, conf).delay()
+    async_result = aitrain.si(trace_set_paths, conf).delay()
     wait_until_completion(async_result, message="Training neural network")
 
 def perform_actions(conf):

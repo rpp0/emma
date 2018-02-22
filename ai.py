@@ -9,11 +9,13 @@ import io
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation
+from keras.layers import Dense, Dropout, Activation, Input
 from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
 from keras.callbacks import TensorBoard
 from matplotlib.ticker import FuncFormatter
+from keras.applications.vgg16 import VGG16
+from keras import regularizers
 
 class AI():
     '''
@@ -26,6 +28,61 @@ class AI():
         if not os.path.isdir(self.models_dir):
             os.makedirs(self.models_dir)
         self.model_path = os.path.join(self.models_dir, "%s.h5" % self.name)
+        self.model = None
+
+        # Callbacks during training
+        self.callbacks = {
+            'lastloss': LastLoss(),
+            'tensorboard': TensorBoard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
+        }
+
+    def train_generator(self, generator, epochs=2000, workers=1, save=True):
+        validation_batch = generator.next()  # TODO take from separate set
+
+        # Train model
+        self.model.fit_generator(generator,
+                                epochs=epochs,
+                                steps_per_epoch=1,
+                                validation_data=validation_batch,
+                                workers=workers, callbacks=list(self.callbacks.values()), verbose=2)
+
+        # Get loss from callback
+        self.last_loss = self.callbacks['lastloss'].value
+
+        self._post_train(save)
+
+    def _old_post_train(self):
+        '''
+        DEPRECATED
+        '''
+        activations = self.model.get_weights()[0]
+        print(activations)
+        if self.use_bias:
+            bias = self.model.get_weights()[1]
+            print(bias)
+
+        top = 10
+        activations = np.reshape(activations, -1)
+        best_indices = np.argsort(activations)[-top:]
+        print("Best indices: %s" % str(best_indices))
+        print("Max weights: %s" % str([activations[i] for i in best_indices]))
+
+        # Save progress
+        if save:
+            pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later
+
+    def _post_train(self, save=True):
+        '''
+        Do some post-train actions like printing the model weights and saving the model.
+        '''
+        if save:
+            self.model.save(self.model_path)
+
+    def predict(self, x):
+        return self.model.predict(x, batch_size=999999999, verbose=0)
+
+    def load(self):
+        self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss})
 
 class AIMemCopyDirect():
     '''
@@ -128,7 +185,7 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
     def on_epoch_end(self, epoch, logs=None):
         super(CustomTensorboard, self).on_epoch_end(epoch, logs)
         if epoch % 100 == 0:
-            self._plot_fft_weights(22000, 4000000)  # TODO: hardcoded stuff
+            self._plot_fft_weights(12500, 20000000)  # TODO: hardcoded stuff
 
             # Generate plot summary
             images = [self._plt_to_tf(plt, tag='plot'+str(epoch))]
@@ -162,7 +219,14 @@ class AICorrNet(AI):
             self.model.add(Activation(activation))
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
+        # Custom callbacks
+        self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
+
     def train_set(self, x, y, save=True, epochs=1):
+        '''
+        DEPRECATED
+        Train entire training set with model.fit()
+        '''
         y = y - np.mean(y, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
 
         # Callbacks
@@ -177,48 +241,26 @@ class AICorrNet(AI):
 
         self._post_train(save)
 
-    def train_generator(self, generator, epochs=2000, workers=1, save=True):
-        # Callbacks
-        last_loss = LastLoss()
-        tensorboard_callback = CustomTensorboard(log_dir='/tmp/keras/' + self.id)
+class AISHACPU(AI):
+    def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16'):
+        super(AISHACPU, self).__init__(name + '-hw' if hamming else '')
+        assert(K.image_data_format() == 'channels_last')
+        input_tensor = Input(shape=input_shape)  # Does not include batch size
 
-        validation_batch = generator.next()  # TODO take from separate set
+        self.model = None
+        if subtype == 'vgg16':
+            self.model = VGG16(include_top=True, weights=None, input_tensor=input_tensor, input_shape=None, pooling='avg', classes=9 if hamming else 256)
+        elif subtype == 'custom':
+            #reg = regularizers.l2(0.01)
+            reg = None
+            self.model = Sequential()
+            self.model.add(Dense(9 if hamming else 256, use_bias=True, input_shape=input_shape, kernel_regularizer=reg))
+            self.model.add(BatchNormalization())
+            self.model.add(Activation('softmax'))
 
-        # Train model
-        self.model.fit_generator(generator,
-                                epochs=epochs,
-                                steps_per_epoch=1,
-                                validation_data=validation_batch,
-                                workers=workers, callbacks=[last_loss, tensorboard_callback], verbose=2)
+            # Extra callbacks
+            #self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
 
-        # Get loss from callback
-        self.last_loss = last_loss.value
+        optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
 
-        self._post_train(save)
-
-    def _post_train(self, save=True):
-        '''
-        Do some post-train actions like getting the model weights and saving the model.
-        '''
-        activations = self.model.get_weights()[0]
-        print(activations)
-        if self.use_bias:
-            bias = self.model.get_weights()[1]
-            print(bias)
-
-        top = 10
-        activations = np.reshape(activations, -1)
-        best_indices = np.argsort(activations)[-top:]
-        print("Best indices: %s" % str(best_indices))
-        print("Max weights: %s" % str([activations[i] for i in best_indices]))
-
-        # Save progress
-        if save:
-            pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later. Use Tensorboard instead
-            self.model.save(self.model_path)
-
-    def predict(self, x):
-        return self.model.predict(x, batch_size=999999999, verbose=0)
-
-    def load(self):
-        self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss})
+        self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
