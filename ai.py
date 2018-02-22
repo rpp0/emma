@@ -36,11 +36,11 @@ class AI():
             'tensorboard': TensorBoard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
         }
 
-    def train_generator(self, generator, epochs=2000, workers=1, save=True):
-        validation_batch = generator.next()  # TODO take from separate set
+    def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
+        validation_batch = validation_iterator.next()
 
         # Train model
-        self.model.fit_generator(generator,
+        self.model.fit_generator(training_iterator,
                                 epochs=epochs,
                                 steps_per_epoch=1,
                                 validation_data=validation_batch,
@@ -243,7 +243,7 @@ class AICorrNet(AI):
 
 class AISHACPU(AI):
     def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16'):
-        super(AISHACPU, self).__init__(name + '-hw' if hamming else '')
+        super(AISHACPU, self).__init__(name + ('-hw' if hamming else ''))
         assert(K.image_data_format() == 'channels_last')
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 

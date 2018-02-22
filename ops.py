@@ -540,6 +540,26 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
         logger.error("Must provide a list of trace set paths to worker!")
         return None
 
+def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, hamming=False, subtype='custom', request_id=None):
+    num_validation_trace_sets = 1
+    validation_trace_set_paths = trace_set_paths[0:num_validation_trace_sets]
+    training_trace_set_paths = trace_set_paths[num_validation_trace_sets:]
+
+    training_iterator = None
+    validation_iterator = None
+    if model_type == 'corrtrain':
+        training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, request_id=self.request.id)
+        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, request_id=self.request.id)
+    elif model_type == 'shacputrain':
+        training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype=subtype)
+        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype=subtype)
+    else:
+        logger.error("Unknown training procedure specified.")
+        exit(1)
+
+    return training_iterator, validation_iterator
+
+
 @app.task(bind=True)
 def aitrain(self, trace_set_paths, conf):
     logger.debug("Determining post-processed training sample size")
@@ -556,15 +576,9 @@ def aitrain(self, trace_set_paths, conf):
             break
 
     # Select training iterator (gathers data, performs augmentation and preprocessing)
-    iterator = None
-    if model_type == 'corrtrain':
-        iterator = AICorrSignalIterator(trace_set_paths, conf, request_id=self.request.id)
-    elif model_type == 'shacputrain':
-        iterator = AISHACPUSignalIterator(trace_set_paths, conf, batch_size=512, request_id=self.request.id, hamming=hamming, subtype=subtype)
-    else:
-        logger.error("Unknown training procedure specified.")
-        return
-    x, _ = iterator.next()
+    training_iterator, validation_iterator = get_iterators_for_model(model_type, trace_set_paths, conf, hamming=hamming, subtype=subtype, request_id=self.request.id)
+
+    x, _ = training_iterator.next()
     input_shape = x.shape[1:]  # Shape excluding batch
     print("Shape of data to train: %s" % str(input_shape))
 
@@ -576,4 +590,4 @@ def aitrain(self, trace_set_paths, conf):
         model = AISHACPU(input_shape=input_shape, hamming=hamming, subtype=subtype)
 
     logger.debug("Training...")
-    model.train_generator(iterator, epochs=10000, workers=1)
+    model.train_generator(training_iterator, validation_iterator, epochs=10000, workers=1)
