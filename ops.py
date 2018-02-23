@@ -22,7 +22,7 @@ from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
-from ai import AIMemCopyDirect, AICorrNet, AISHACPU
+from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
@@ -92,6 +92,16 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
         trace.signal = np.square(np.abs(np.fft.fft(trace.signal)))
         #if True: # If real signal
         #    trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
+
+@op('norm')
+def normalize_trace_set(trace_set, result, conf, params=None):
+    '''
+    normalize the signals (amplitudes) in a trace set.
+    '''
+    logger.info("norm %s" % (str(params) if not params is None else ""))
+
+    for trace in trace_set.traces:
+        trace.signal = trace.signal - np.mean(trace.signal)
 
 @op('fft')
 def fft_trace_set(trace_set, result, conf, params=None):
@@ -242,7 +252,7 @@ def memtrain_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result.ai is None:
             logger.debug("Initializing Keras")
-            result.ai = AIMemCopyDirect(input_dim=len(trace_set.traces[0].signal), hamming=True)
+            result.ai = AIMemCopyDirect(input_dim=len(trace_set.traces[0].signal), hamming=conf.hamming)
 
         signals = np.array([trace.signal for trace in trace_set.traces])
         values = np.array([hw[trace.plaintext[0]] for trace in trace_set.traces])
@@ -287,7 +297,7 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result._data['state'] is None:
             logger.debug("Loading Keras")
-            result._data['state'] = AICorrNet(input_dim=len(trace_set.traces[0].signal))
+            result._data['state'] = AI("aicorrnet")
             result._data['state'].load()
 
         for trace in trace_set.traces:
@@ -297,6 +307,22 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
         trace_set.windowed = True
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
+
+@op('shacputest')
+def shacputest_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("shacputest %s" % (str(params) if not params is None else ""))
+    if trace_set.windowed:
+        if result._data['state'] is None:
+            logger.debug("Loading Keras")
+            result._data['state'] = AI("aishacpu" + ("-hw" if conf.hamming else ""))
+            result._data['state'].load()
+
+        for trace in trace_set.traces:
+            if conf.hamming:
+                result._data['labels'].append(hw[trace.plaintext[0] ^ 0x36])
+            else:
+                result._data['labels'].append(trace.plaintext[0] ^ 0x36)
+            result._data['predictions'].append(np.argmax(result._data['state'].predict(np.array([trace.signal], dtype=float))))
 
 @app.task(bind=True)
 def merge(self, to_merge, conf):
@@ -347,6 +373,7 @@ class AISignalIteratorBase():
         self.signals_batch = []
         self.request_id = request_id
         self.max_cache = 1000
+        self.augment = True
 
     def __iter__(self):
         return self
@@ -382,6 +409,13 @@ class AISignalIteratorBase():
         else:
             return None
 
+    def _augment(self, signals):  # TODO unit test!
+        logger.debug("Augmenting signals")
+        num_signals, signal_len = signals.shape
+        for i in range(0, num_signals):
+            signals[i,:] = np.roll(signals[i,:], np.random.randint(0, len(signals[i,:])))
+        return signals
+
     def next(self):
         # Bound checking
         if self.index < 0 or self.index >= len(self.trace_set_paths):
@@ -412,6 +446,10 @@ class AISignalIteratorBase():
             if result is None:
                 continue
             signals, values = result
+
+            # Augment if enabled
+            if self.augment:
+                signals = self._augment(signals)
 
             # Concatenate arrays until batch obtained
             self.signals_batch.extend(signals)
@@ -559,24 +597,24 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
 
     return training_iterator, validation_iterator
 
+def get_conf_model_type(conf):
+    for action in conf.actions:
+        if action in ['corrtrain', 'shacputrain']:
+            return action
+    return None
 
 @app.task(bind=True)
 def aitrain(self, trace_set_paths, conf):
     logger.debug("Determining post-processed training sample size")
 
     # Hardcoded stuff
-    hamming = False
     subtype = 'custom'
 
     # Determine type of model to train
-    model_type = None
-    for action in conf.actions:
-        if action in ['corrtrain', 'shacputrain']:
-            model_type = action
-            break
+    model_type = get_conf_model_type(conf)
 
     # Select training iterator (gathers data, performs augmentation and preprocessing)
-    training_iterator, validation_iterator = get_iterators_for_model(model_type, trace_set_paths, conf, hamming=hamming, subtype=subtype, request_id=self.request.id)
+    training_iterator, validation_iterator = get_iterators_for_model(model_type, trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
 
     x, _ = training_iterator.next()
     input_shape = x.shape[1:]  # Shape excluding batch
@@ -587,7 +625,7 @@ def aitrain(self, trace_set_paths, conf):
     if model_type == 'corrtrain':
         model = AICorrNet(input_dim=input_shape[0])
     elif model_type == 'shacputrain':
-        model = AISHACPU(input_shape=input_shape, hamming=hamming, subtype=subtype)
+        model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype)
 
     logger.debug("Training...")
     model.train_generator(training_iterator, validation_iterator, epochs=10000, workers=1)

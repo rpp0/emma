@@ -281,7 +281,7 @@ class EMCap():
                 #np.save(...)
 
                 # Write metadata to sigmf file
-                if len(self.trace_set) >= 256:
+                if len(self.trace_set) >= self.kwargs['traces_per_set']:
                     assert(len(self.trace_set) == len(self.plaintexts))
                     # if sigmf
                     #with open(test_meta_path, 'w') as f:
@@ -321,6 +321,7 @@ def main():
     parser.add_argument('--sample-rate', type=int, default=20000000, help='Sample rate')
     parser.add_argument('--frequency', type=float, default=1.2e9, help='Capture frequency')
     parser.add_argument('--gain', type=int, default=20, help='RX gain')
+    parser.add_argument('--traces-per-set', type=int, default=256, help='Number of traces per set')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
     args, unknown = parser.parse_known_args()
     e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__)

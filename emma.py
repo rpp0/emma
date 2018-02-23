@@ -105,6 +105,33 @@ def perform_actions(conf):
     async_result = parallel_actions(trace_set_paths, conf)
     wait_until_completion(async_result, message="Performing actions")
 
+def perform_classification_attack(conf):
+    async_result = parallel_actions(trace_set_paths, conf)
+    celery_results = wait_until_completion(async_result, message="Classifying")
+
+    if conf.hamming:
+        predict_count = np.zeros(9)
+    else:
+        predict_count = np.zeros(256)
+    accuracy = 0
+    num_samples = 0
+
+    # Get results from all workers and store in prediction dictionary
+    for celery_result in celery_results:
+        em_result = celery_result.get()
+        for i in range(0, len(em_result._data['labels'])):
+            label = em_result._data['labels'][i]
+            prediction = em_result._data['predictions'][i]
+            if label == prediction:
+                accuracy += 1
+            predict_count[prediction] += 1
+            num_samples += 1
+    accuracy /= float(num_samples)
+
+    print(predict_count)
+    print("Best prediction: %d" % np.argmax(predict_count))
+    print("Accuracy: %.4f" % accuracy)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('actions', type=str, help='Action to perform. Choose from %s' % str(ops.keys()), nargs='+')
@@ -119,6 +146,7 @@ if __name__ == "__main__":
     parser.add_argument('--butter-cutoff', type=float, default=0.01, help='Cutoff of Butterworth filter')
     parser.add_argument('--reference-index', type=int, default=0, help='Index of reference signal')
     parser.add_argument('--windowing-method', type=str, default='rectangular', help='Windowing method')
+    parser.add_argument('--hamming', default=False, action='store_true', help='Use Hamming weight instead of true byte values.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -139,6 +167,8 @@ if __name__ == "__main__":
             perform_cpa_attack(conf)
         elif True in [a.find('train') > -1 for a in conf.actions]:
             perform_ml_attack(conf)
+        elif 'classify' in conf.actions:
+            perform_classification_attack(conf)
         else:  # Regular group of tasks
             perform_actions(conf)
     except KeyboardInterrupt:

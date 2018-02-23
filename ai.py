@@ -16,6 +16,7 @@ from keras.callbacks import TensorBoard
 from matplotlib.ticker import FuncFormatter
 from keras.applications.vgg16 import VGG16
 from keras import regularizers
+from keras.engine.topology import Layer
 
 class AI():
     '''
@@ -114,8 +115,8 @@ class AIMemCopyDirect():
 
 def correlation_loss(y_true, y_pred):
     '''
-    Custom loss function that calculates the correlation of the prediction with
-    the true values.
+    Custom loss function that calculates the Pearson correlation of the prediction with
+    the true values over a number of batches.
     '''
     loss = K.variable(0.0)
     for key_col in range(0, 16):  # 0 - 16
@@ -254,8 +255,16 @@ class AISHACPU(AI):
             #reg = regularizers.l2(0.01)
             reg = None
             self.model = Sequential()
+            self.model.add(Dense(1024, input_shape=input_shape, kernel_regularizer=reg))
+            self.model.add(BatchNormalization(momentum=0.1))
+            self.model.add(Activation('relu'))
+            input_shape = (None, 1024)
+            self.model.add(Dense(256, input_shape=input_shape, kernel_regularizer=reg))
+            self.model.add(BatchNormalization(momentum=0.1))
+            self.model.add(Activation('relu'))
+            input_shape = (None, 256)
             self.model.add(Dense(9 if hamming else 256, use_bias=True, input_shape=input_shape, kernel_regularizer=reg))
-            self.model.add(BatchNormalization())
+            self.model.add(BatchNormalization(momentum=0.1))
             self.model.add(Activation('softmax'))
 
             # Extra callbacks

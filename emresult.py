@@ -1,7 +1,7 @@
 class EMResult():
     def __init__(self, data=None, task_id=None):
         self._task_id = task_id
-        self._data = {'correlations': None, 'trace_sets': [], 'state': None}
+        self._data = {'correlations': None, 'trace_sets': [], 'state': None, 'predictions': [], 'labels': []}
         if not data is None:
             self._data.update(data)
 
