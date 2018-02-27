@@ -9,7 +9,7 @@ import io
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Input
+from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape
 from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
 from keras.callbacks import TensorBoard
@@ -83,7 +83,7 @@ class AI():
         return self.model.predict(x, batch_size=999999999, verbose=0)
 
     def load(self):
-        self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss})
+        self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer})
 
 class AIMemCopyDirect():
     '''
@@ -273,3 +273,97 @@ class AISHACPU(AI):
         optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
 
         self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+class AISHACC(AI):
+    def __init__(self, input_shape, name="aishacc", hamming=True):
+        super(AISHACC, self).__init__(name + ('-hw' if hamming else ''))
+        input_tensor = Input(shape=input_shape)  # Does not include batch size
+
+        kernel_initializer = 'glorot_uniform'
+        cc_args = {
+            'filters': 256,
+            'kernel_size': 32,
+            'dilation_rate': 1,
+            'padding': 'valid',
+            'kernel_initializer': kernel_initializer,
+            'use_bias': False,
+        }
+
+        reg = None
+        self.model = Sequential()
+        #self.model.add(Dense(1024, input_shape=input_shape, kernel_regularizer=reg))
+        #self.model.add(BatchNormalization(momentum=0.1))
+        #self.model.add(Activation('relu'))
+        #input_shape = (1024,)
+        self.model.add(Reshape(input_shape + (1,), input_shape=input_shape))
+        self.model.add(CCLayer(**cc_args))
+
+        print(self.model.summary())
+
+        # Extra callbacks
+        #self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
+
+        optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
+
+        self.model.compile(optimizer=optimizer, loss=cc_loss, metrics=[])
+
+def cc_loss(y_true, y_pred):
+    # y_true: [batch, 256]
+    # y_pred: [batch, correlations, filter_nr]
+    loss = K.variable(0.0)
+
+    # A higher correlation for the filter at the true class is good
+    #filter_score = tf.reduce_mean(y_pred, axis=1, keepdims=False) * y_true
+    filter_score = tf.reduce_max(y_pred, axis=1, keep_dims=False) * y_true
+    filter_loss = tf.reduce_sum(-filter_score, axis=1)
+    #loss += tf.reduce_sum(filter_loss, axis=0, keepdims=False)
+    #loss += tf.reduce_max(filter_loss, axis=0, keep_dims=False)
+    loss += tf.reduce_mean(filter_loss, axis=0, keep_dims=False)  # TODO try me
+
+    return loss
+
+
+class CCLayer(Conv1D):
+    def __init__(self, epsilon=1e-7, normalize_inputs=False, **kwargs):
+        self.epsilon = epsilon
+        self.normalize_inputs = normalize_inputs
+        super(CCLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        super(CCLayer, self).build(input_shape)
+        kernel_mean = tf.reduce_mean(self.kernel, axis=0, keep_dims=True)
+        kernel_l2norm = tf.norm(self.kernel, ord=2, axis=0, keep_dims=True)
+
+        self.zn_kernel = tf.divide(tf.subtract(self.kernel, kernel_mean), kernel_l2norm + self.epsilon)
+        # TODO: Tweede mogelijkheid is regularizer maken die in essentie aan de loss function een term toevoegt gebaseerd op mean en variance van de kernel?
+
+    def call(self, inputs):
+        if self.normalize_inputs:
+            '''
+            TODO: This will not result in a true ZN correlation because we cannot set a stride for the reduce_mean operator. Can this behavior be enforced using
+            something like https://www.tensorflow.org/api_docs/python/tf/strided_slice?
+            '''
+            inputs_mean = tf.reduce_mean(inputs, axis=1, keep_dims=True)
+            inputs_l2norm = tf.norm(inputs, ord=2, axis=1, keep_dims=True)
+            inputs = tf.divide(tf.subtract(inputs, inputs_mean), inputs_l2norm + self.epsilon)
+
+        outputs = K.conv1d(
+            inputs,
+            self.zn_kernel,
+            strides=self.strides[0],
+            padding=self.padding,
+            data_format=self.data_format,
+            dilation_rate=self.dilation_rate[0])
+
+        if self.use_bias:
+            outputs = K.bias_add(
+                outputs,
+                self.bias,
+                data_format=self.data_format)
+
+        if self.activation is not None:
+            return self.activation(outputs)
+        return outputs
+
+    def compute_output_shape(self, input_shape):
+        return (None, self.filters)

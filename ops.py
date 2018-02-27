@@ -22,7 +22,7 @@ from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
-from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI
+from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI, AISHACC
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
@@ -324,6 +324,26 @@ def shacputest_trace_set(trace_set, result, conf=None, params=None):
                 result._data['labels'].append(trace.plaintext[0] ^ 0x36)
             result._data['predictions'].append(np.argmax(result._data['state'].predict(np.array([trace.signal], dtype=float))))
 
+@op('shacctest')
+def shacctest_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("shacctest %s" % (str(params) if not params is None else ""))
+    if trace_set.windowed:
+        if result._data['state'] is None:
+            logger.debug("Loading Keras")
+            result._data['state'] = AI("aishacc" + ("-hw" if conf.hamming else ""))
+            result._data['state'].load()
+
+        for trace in trace_set.traces:
+            if conf.hamming:
+                result._data['labels'].append(hw[trace.plaintext[0] ^ 0x36])
+            else:
+                result._data['labels'].append(trace.plaintext[0] ^ 0x36)
+
+            cc_out = result._data['state'].predict(np.array([trace.signal], dtype=float))
+            best_points = np.amax(cc_out, axis=1)
+            predicted_classes = np.argmax(best_points, axis=1)
+            result._data['predictions'].append(predicted_classes[0])
+
 @app.task(bind=True)
 def merge(self, to_merge, conf):
     if type(to_merge) is EMResult:
@@ -373,7 +393,7 @@ class AISignalIteratorBase():
         self.signals_batch = []
         self.request_id = request_id
         self.max_cache = 1000
-        self.augment = True
+        self.augment_roll = not self.conf.no_augment_roll
 
     def __iter__(self):
         return self
@@ -409,11 +429,13 @@ class AISignalIteratorBase():
         else:
             return None
 
-    def _augment(self, signals):  # TODO unit test!
-        logger.debug("Augmenting signals")
+    def _augment_roll(self, signals, roll_limit=None):  # TODO unit test!
+        roll_limit = roll_limit if not roll_limit is None else len(signals[0,:])
+        roll_limit_start = -roll_limit if not roll_limit is None else 0
+        logger.debug("Data augmentation: rolling signals")
         num_signals, signal_len = signals.shape
         for i in range(0, num_signals):
-            signals[i,:] = np.roll(signals[i,:], np.random.randint(0, len(signals[i,:])))
+            signals[i,:] = np.roll(signals[i,:], np.random.randint(roll_limit_start, roll_limit))
         return signals
 
     def next(self):
@@ -448,8 +470,8 @@ class AISignalIteratorBase():
             signals, values = result
 
             # Augment if enabled
-            if self.augment:
-                signals = self._augment(signals)
+            if self.augment_roll:
+                signals = self._augment_roll(signals, roll_limit=1024)
 
             # Concatenate arrays until batch obtained
             self.signals_batch.extend(signals)
@@ -591,6 +613,9 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
     elif model_type == 'shacputrain':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype=subtype)
         validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype=subtype)
+    elif model_type == 'shacctrain':
+        training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype='custom')
+        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype='custom')
     else:
         logger.error("Unknown training procedure specified.")
         exit(1)
@@ -599,7 +624,7 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
 
 def get_conf_model_type(conf):
     for action in conf.actions:
-        if action in ['corrtrain', 'shacputrain']:
+        if action in ['corrtrain', 'shacputrain', 'shacctrain']:
             return action
     return None
 
@@ -626,6 +651,8 @@ def aitrain(self, trace_set_paths, conf):
         model = AICorrNet(input_dim=input_shape[0])
     elif model_type == 'shacputrain':
         model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype)
+    elif model_type == 'shacctrain':
+        model = AISHACC(input_shape=input_shape, hamming=conf.hamming)
 
     logger.debug("Training...")
-    model.train_generator(training_iterator, validation_iterator, epochs=10000, workers=1)
+    model.train_generator(training_iterator, validation_iterator, epochs=5000, workers=1)

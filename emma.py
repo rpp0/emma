@@ -110,9 +110,11 @@ def perform_classification_attack(conf):
     celery_results = wait_until_completion(async_result, message="Classifying")
 
     if conf.hamming:
-        predict_count = np.zeros(9)
+        predict_count = np.zeros(9, dtype=int)
+        label_count = np.zeros(9, dtype=int)
     else:
-        predict_count = np.zeros(256)
+        predict_count = np.zeros(256, dtype=int)
+        label_count = np.zeros(256, dtype=int)
     accuracy = 0
     num_samples = 0
 
@@ -125,9 +127,13 @@ def perform_classification_attack(conf):
             if label == prediction:
                 accuracy += 1
             predict_count[prediction] += 1
+            label_count[label] += 1
             num_samples += 1
     accuracy /= float(num_samples)
 
+    print("Labels")
+    print(label_count)
+    print("Predictions")
     print(predict_count)
     print("Best prediction: %d" % np.argmax(predict_count))
     print("Accuracy: %.4f" % accuracy)
@@ -147,6 +153,7 @@ if __name__ == "__main__":
     parser.add_argument('--reference-index', type=int, default=0, help='Index of reference signal')
     parser.add_argument('--windowing-method', type=str, default='rectangular', help='Windowing method')
     parser.add_argument('--hamming', default=False, action='store_true', help='Use Hamming weight instead of true byte values.')
+    parser.add_argument('--no-augment-roll', default=False, action='store_true', help='Roll signal during data augmentation.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
