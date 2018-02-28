@@ -655,4 +655,4 @@ def aitrain(self, trace_set_paths, conf):
         model = AISHACC(input_shape=input_shape, hamming=conf.hamming)
 
     logger.debug("Training...")
-    model.train_generator(training_iterator, validation_iterator, epochs=5000, workers=1)
+    model.train_generator(training_iterator, validation_iterator, epochs=1000, workers=1)

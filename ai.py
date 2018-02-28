@@ -281,7 +281,7 @@ class AISHACC(AI):
 
         kernel_initializer = 'glorot_uniform'
         cc_args = {
-            'filters': 256,
+            'filters': 9 if hamming else 256,
             'kernel_size': 32,
             'dilation_rate': 1,
             'padding': 'valid',
@@ -360,6 +360,8 @@ class CCLayer(Conv1D):
                 outputs,
                 self.bias,
                 data_format=self.data_format)
+
+        #outputs = K.max(outputs, axis=1, keepdims=False)
 
         if self.activation is not None:
             return self.activation(outputs)

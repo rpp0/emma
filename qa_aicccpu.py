@@ -26,15 +26,13 @@ with CustomObjectScope({'CCLayer': ai.CCLayer}):
         'kernel_size': 3,
         'dilation_rate': 1,
         'padding': 'valid',
-        'kernel_initializer': 'ones',
+        'kernel_initializer': 'glorot_uniform',
         'use_bias': False,
     }
     layer = ai.CCLayer(**kwargs)
     x = Input(batch_shape=input_data.shape)
     y = layer(x)
     model = Model(x, y)
-    cclayer_actual_output = model.predict(input_data)
-    print(cclayer_actual_output)
 
     '''
     with tf.Session() as sess:
@@ -77,6 +75,7 @@ with CustomObjectScope({'CCLayer': ai.CCLayer}):
     print((kernel - np.mean(kernel, axis=0)) / np.std(kernel, axis=0))
     cclayer_actual_output = model.predict(input_data)
     print("OUTPUT")
+    print(cclayer_actual_output.shape)
     print(cclayer_actual_output)
     best_points = np.amax(cclayer_actual_output, axis=1)
     print(best_points)
