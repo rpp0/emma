@@ -340,8 +340,7 @@ def shacctest_trace_set(trace_set, result, conf=None, params=None):
                 result._data['labels'].append(trace.plaintext[0] ^ 0x36)
 
             cc_out = result._data['state'].predict(np.array([trace.signal], dtype=float))
-            best_points = np.amax(cc_out, axis=1)
-            predicted_classes = np.argmax(best_points, axis=1)
+            predicted_classes = np.argmax(cc_out, axis=1)
             result._data['predictions'].append(predicted_classes[0])
 
 @app.task(bind=True)
@@ -655,4 +654,4 @@ def aitrain(self, trace_set_paths, conf):
         model = AISHACC(input_shape=input_shape, hamming=conf.hamming)
 
     logger.debug("Training...")
-    model.train_generator(training_iterator, validation_iterator, epochs=1000, workers=1)
+    model.train_generator(training_iterator, validation_iterator, epochs=900, workers=1)

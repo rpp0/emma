@@ -145,7 +145,7 @@ if __name__ == "__main__":
     parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
-    parser.add_argument('--max-subtasks', type=int, default=4, help='Maximum number of subtasks')
+    parser.add_argument('--max-subtasks', type=int, default=32, help='Maximum number of subtasks')
     parser.add_argument('--num-subkeys', type=int, default=16, help='Number of subkeys to break')
     parser.add_argument('--kill-workers', default=False, action='store_true', help='Kill workers after finishing the tasks.')
     parser.add_argument('--butter-order', type=int, default=1, help='Order of Butterworth filter')

@@ -17,6 +17,7 @@ from matplotlib.ticker import FuncFormatter
 from keras.applications.vgg16 import VGG16
 from keras import regularizers
 from keras.engine.topology import Layer
+from keras.losses import categorical_crossentropy
 
 class AI():
     '''
@@ -83,7 +84,7 @@ class AI():
         return self.model.predict(x, batch_size=999999999, verbose=0)
 
     def load(self):
-        self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer})
+        self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
 
 class AIMemCopyDirect():
     '''
@@ -282,11 +283,12 @@ class AISHACC(AI):
         kernel_initializer = 'glorot_uniform'
         cc_args = {
             'filters': 9 if hamming else 256,
-            'kernel_size': 32,
+            'kernel_size': 15,
             'dilation_rate': 1,
             'padding': 'valid',
             'kernel_initializer': kernel_initializer,
-            'use_bias': False,
+            'use_bias': True,
+            'activation': 'relu',
         }
 
         reg = None
@@ -297,15 +299,21 @@ class AISHACC(AI):
         #input_shape = (1024,)
         self.model.add(Reshape(input_shape + (1,), input_shape=input_shape))
         self.model.add(CCLayer(**cc_args))
+        self.model.add(Dense(9 if hamming else 256))
+        self.model.add(BatchNormalization(momentum=0.1))
+        self.model.add(Activation('relu'))
+        self.model.add(Dense(9 if hamming else 256))
+        self.model.add(BatchNormalization(momentum=0.1))
+        #self.model.add(Activation('softmax'))
 
         print(self.model.summary())
 
         # Extra callbacks
         #self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
 
-        optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
+        optimizer = keras.optimizers.Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.0)
 
-        self.model.compile(optimizer=optimizer, loss=cc_loss, metrics=[])
+        self.model.compile(optimizer=optimizer, loss=cc_catcross_loss, metrics=['accuracy'])
 
 def cc_loss(y_true, y_pred):
     # y_true: [batch, 256]
@@ -314,13 +322,16 @@ def cc_loss(y_true, y_pred):
 
     # A higher correlation for the filter at the true class is good
     #filter_score = tf.reduce_mean(y_pred, axis=1, keepdims=False) * y_true
-    filter_score = tf.reduce_max(y_pred, axis=1, keep_dims=False) * y_true
+    filter_score = y_pred * y_true
     filter_loss = tf.reduce_sum(-filter_score, axis=1)
     #loss += tf.reduce_sum(filter_loss, axis=0, keepdims=False)
     #loss += tf.reduce_max(filter_loss, axis=0, keep_dims=False)
     loss += tf.reduce_mean(filter_loss, axis=0, keep_dims=False)  # TODO try me
 
     return loss
+
+def cc_catcross_loss(y_true, y_pred):
+    return tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
 
 
 class CCLayer(Conv1D):
@@ -361,7 +372,7 @@ class CCLayer(Conv1D):
                 self.bias,
                 data_format=self.data_format)
 
-        #outputs = K.max(outputs, axis=1, keepdims=False)
+        outputs = K.max(outputs, axis=1, keepdims=False)
 
         if self.activation is not None:
             return self.activation(outputs)

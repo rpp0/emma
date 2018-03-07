@@ -23,11 +23,12 @@ with CustomObjectScope({'CCLayer': ai.CCLayer}):
     cclayer_expected_output = []
     kwargs = {
         'filters': 256,
-        'kernel_size': 3,
+        'kernel_size': 6,
         'dilation_rate': 1,
         'padding': 'valid',
         'kernel_initializer': 'glorot_uniform',
         'use_bias': False,
+        'activation': 'softmax'
     }
     layer = ai.CCLayer(**kwargs)
     x = Input(batch_shape=input_data.shape)
@@ -63,7 +64,7 @@ with CustomObjectScope({'CCLayer': ai.CCLayer}):
     '''
 
     optimizer = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, decay=0.0)
-    model.compile(optimizer=optimizer, loss=ai.cc_loss)
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy')
     for i in range(0, 6000):
         loss = model.train_on_batch(input_data, labels)
         if i % 100 == 0:
@@ -77,9 +78,9 @@ with CustomObjectScope({'CCLayer': ai.CCLayer}):
     print("OUTPUT")
     print(cclayer_actual_output.shape)
     print(cclayer_actual_output)
-    best_points = np.amax(cclayer_actual_output, axis=1)
-    print(best_points)
-    predicted_classes = np.argmax(best_points, axis=1)
+    #best_points = np.amax(cclayer_actual_output, axis=1)
+    #print(best_points)
+    predicted_classes = np.argmax(cclayer_actual_output, axis=1)
     print(predicted_classes)
 
 
