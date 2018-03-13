@@ -9,7 +9,7 @@ import io
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape
+from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten
 from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
 from keras.callbacks import TensorBoard
@@ -280,6 +280,7 @@ class AISHACC(AI):
         super(AISHACC, self).__init__(name + ('-hw' if hamming else ''))
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 
+        """
         kernel_initializer = 'glorot_uniform'
         cc_args = {
             'filters': 9 if hamming else 256,
@@ -304,16 +305,57 @@ class AISHACC(AI):
         self.model.add(Activation('relu'))
         self.model.add(Dense(9 if hamming else 256))
         self.model.add(BatchNormalization(momentum=0.1))
-        #self.model.add(Activation('softmax'))
+        self.model.add(Activation('softmax'))
+        """
+
+        """
+        self.model = Sequential()
+        self.model.add(Reshape(input_shape + (1,), input_shape=input_shape))
+        self.model.add(Conv1D(filters=9, kernel_size=1023, activation='relu', padding='same'))
+        self.model.add(Conv1D(filters=9 if hamming else 256, kernel_size=15, activation='relu', padding='same'))
+        self.model.add(MaxPool1D(pool_size=input_shape[0]))
+        #self.model.add(Dropout(0.25))
+        self.model.add(Flatten())
+        self.model.add(Dense(9 if hamming else 256))
+        self.model.add(BatchNormalization(momentum=0.99))
+        self.model.add(Activation('relu'))
+        self.model.add(Dense(9 if hamming else 256))
+        self.model.add(BatchNormalization(momentum=0.99))
+        self.model.add(Activation('softmax'))
+        """
+
+        self.model = Sequential()
+        self.model.add(Reshape(input_shape + (1,), input_shape=input_shape))
+        self.model.add(Conv1D(filters=64, kernel_size=3, activation='tanh', padding='same'))
+        #self.model.add(Conv1D(filters=64, kernel_size=3, activation='relu', padding='same'))
+        self.model.add(MaxPool1D(pool_size=2))
+        self.model.add(Conv1D(filters=128, kernel_size=3, activation='tanh', padding='same'))
+        #self.model.add(Conv1D(filters=128, kernel_size=3, activation='relu', padding='same'))
+        self.model.add(MaxPool1D(pool_size=2))
+        self.model.add(Conv1D(filters=256, kernel_size=3, activation='tanh', padding='same'))
+        #self.model.add(Conv1D(filters=256, kernel_size=3, activation='relu', padding='same'))
+        #self.model.add(Conv1D(filters=256, kernel_size=3, activation='relu', padding='same'))
+        self.model.add(MaxPool1D(pool_size=2))
+        self.model.add(Conv1D(filters=512, kernel_size=3, activation='tanh', padding='same'))
+        self.model.add(Conv1D(filters=512, kernel_size=3, activation='tanh', padding='same'))
+        #self.model.add(Conv1D(filters=512, kernel_size=3, activation='relu', padding='same'))
+        #self.model.add(Dropout(0.25))
+        self.model.add(Flatten())
+        self.model.add(Dense(9 if hamming else 256))
+        self.model.add(BatchNormalization(momentum=0.99))
+        self.model.add(Activation('tanh'))
+        self.model.add(Dense(9 if hamming else 256))
+        self.model.add(BatchNormalization(momentum=0.99))
+        self.model.add(Activation('softmax'))
 
         print(self.model.summary())
 
         # Extra callbacks
         #self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
 
-        optimizer = keras.optimizers.Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.0)
+        optimizer = keras.optimizers.Adam(lr=0.1, beta_1=0.9, beta_2=0.999, decay=0.0)
 
-        self.model.compile(optimizer=optimizer, loss=cc_catcross_loss, metrics=['accuracy'])
+        self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
 def cc_loss(y_true, y_pred):
     # y_true: [batch, 256]
