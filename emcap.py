@@ -23,6 +23,7 @@ import struct
 import binascii
 import osmosdr
 import argparse
+import serial
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -119,6 +120,35 @@ class SDR(gr.top_block):
         self.gain = gain
         self.sdr_source.set_gain(self.gain, 0)
 
+class TTYWrapper(Thread):
+    def __init__(self, port, cb_pkt):
+        Thread.__init__(self)
+        self.setDaemon(True)
+        self.port = port
+        logger.debug("Connecting to %s" % str(port))
+        self.s = serial.Serial(port, 115200)
+        self.cb_pkt = cb_pkt
+        self.data = b""
+
+    def _parse(self, client_socket, client_address):
+        bytes_parsed = self.cb_pkt(client_socket, client_address, self.data)
+        self.data = self.data[bytes_parsed:]
+
+    def recv(self):
+        receiving = True
+        while receiving:
+            if self.s.is_open:
+                chunk = self.s.read(1)
+                self.data += chunk
+            else:
+                receiving = False
+                logger.debug("Serial connection is closed, stopping soon!")
+
+            self._parse(self.s, None)
+
+    def run(self):
+        self.recv()
+
 class SocketWrapper(Thread):
     def __init__(self, s, address, cb_pkt):
         Thread.__init__(self)
@@ -179,19 +209,27 @@ class SocketWrapper(Thread):
         else:
             logger.error("Unrecognized socket type %s" % self.socket.type)
 
+class CtrlType:
+    DOMAIN = 0
+    UDP = 1
+    SERIAL = 2
+
 # EMCap class: wait for signal and start capturing using a SDR
 class EMCap():
-    def __init__(self, cap_kwargs={}, kwargs={}, use_domain_socket=False):
+    def __init__(self, cap_kwargs={}, kwargs={}, ctrl_socket_type=CtrlType.SERIAL):
         # Set up data socket
         self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3884), self.cb_data)
 
         # Set up control socket
-        if use_domain_socket:
+        self.ctrl_socket_type = ctrl_socket_type
+        if ctrl_socket_type == CtrlType.DOMAIN:
             unix_domain_socket = '/tmp/emma.socket'
             self.clear_domain_socket(unix_domain_socket)
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
-        else:
+        elif ctrl_socket_type == CtrlType.UDP:
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.15.48', 3884), self.cb_ctrl)
+        elif ctrl_socket_type == CtrlType.SERIAL:
+            self.ctrl_socket = TTYWrapper("/dev/ttyUSB0", self.cb_ctrl)
 
         self.sdr = SDR(**cap_kwargs)
         self.cap_kwargs = cap_kwargs
@@ -233,7 +271,7 @@ class EMCap():
         return len(data)
 
     def cb_ctrl(self, client_socket, client_address, data):
-        logger.debug("Control packet: %s" % binary_to_hex(data))
+        logger.log(logging.NOTSET, "Control packet: %s" % binary_to_hex(data))
         if len(data) < 5:
             # Not enough for TLV
             return 0
@@ -245,7 +283,10 @@ class EMCap():
             else:
                 self.process_ctrl_packet(pkt_type, payload)
                 # Send ack
-                client_socket.sendall("k")
+                if self.ctrl_socket_type == CtrlType.SERIAL:
+                    client_socket.write(b"k")
+                else:
+                    client_socket.sendall("k")
                 return payload_len + 5
 
     def process_ctrl_packet(self, pkt_type, payload):
@@ -318,9 +359,12 @@ class EMCap():
 def main():
     parser = argparse.ArgumentParser(description='EMCAP')
     parser.add_argument('hw', type=str, choices=['usrp', 'hackrf'], help='SDR capture hardware')
-    parser.add_argument('--sample-rate', type=int, default=20000000, help='Sample rate')
-    parser.add_argument('--frequency', type=float, default=1.2e9, help='Capture frequency')
-    parser.add_argument('--gain', type=int, default=20, help='RX gain')
+    parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
+
+    # 70.719
+    # 64.000
+    parser.add_argument('--frequency', type=float, default=64e6, help='Capture frequency')
+    parser.add_argument('--gain', type=int, default=30, help='RX gain')
     parser.add_argument('--traces-per-set', type=int, default=256, help='Number of traces per set')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
     args, unknown = parser.parse_known_args()

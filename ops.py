@@ -162,6 +162,26 @@ def filter_trace_set(trace_set, result, conf, params=None):
     for trace in trace_set.traces:
         trace.signal = butter_filter(trace.signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
 
+    conf.reference_signal = butter_filter(conf.reference_signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
+
+@op('rmoutliers')
+def rmoutliers_trace_set(trace_set, result, conf, params=None):
+    '''
+    Remove outliers in terms of amplitude.
+    '''
+    logger.info("rmoutliers %s" % (str(params) if not params is None else ""))
+    reference_mean = np.mean(conf.reference_signal)
+    threshold = 0.001
+
+    new_traces = []
+    for trace in trace_set.traces:
+        trace_mean = np.mean(trace.signal)
+        diff = reference_mean - trace_mean
+        if np.abs(diff) <= threshold:
+            new_traces.append(trace)
+
+    trace_set.set_traces(new_traces)
+
 @op('save')
 def save_trace_set(trace_set, result, conf, params=None):
     '''
@@ -191,6 +211,7 @@ def plot_trace_set(trace_set, result, conf=None, params=None):
     logger.info("plot %s" % (str(params) if not params is None else ""))
     for trace in trace_set.traces:
         plt.plot(range(0, len(trace.signal)), trace.signal)
+    plt.plot(range(0, len(conf.reference_signal)), conf.reference_signal, linewidth=2, linestyle='dashed')
 
     plt.title(trace_set.name)
     plt.show()

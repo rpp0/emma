@@ -22,6 +22,8 @@ class TraceSet(object):
         self.window = None
 
     def set_traces(self, traces):
+        if not type(traces) is np.ndarray:
+            traces = np.array(traces)
         self.traces = traces
         self.num_traces = traces.shape[0]
 

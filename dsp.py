@@ -34,8 +34,8 @@ def align(trace, reference):
     '''
     # Preprocess
     try:
-        processed_trace = normalize(butter_filter(trace))
-        processed_reference = normalize(butter_filter(reference))
+        processed_trace = normalize(trace)
+        processed_reference = normalize(reference)
     except ValueError: # Something is wrong with the signal
         return None
 
@@ -46,10 +46,13 @@ def align(trace, reference):
     # Align the original trace based on this calculation
     aligned_trace = trace[lag:]
 
+    # Vertical align as well TODO add as new separate op?
+    #bias = np.mean(aligned_trace)
+    #aligned_trace -= bias
+
     if DEBUG:
-        plt.plot(range(0, len(processed_reference)), processed_reference)
-        plt.plot(range(0, len(aligned_trace)), normalize(butter_filter(aligned_trace)))
-        plt.gca().set_ylim([-2.0,2.0])
+        plt.plot(range(0, len(processed_reference)), processed_reference, label="Reference")
+        plt.plot(range(0, len(aligned_trace)), aligned_trace, label="Trace")
         plt.show()
 
     return aligned_trace

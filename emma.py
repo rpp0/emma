@@ -91,6 +91,8 @@ def perform_cpa_attack(conf):
             for subkey_guess in range(0, 256):
                 max_correlations[conf.subkey, subkey_guess] = np.max(np.abs(corr_result[subkey_guess,:]))
 
+            print("{:02x}".format(np.argmax(max_correlations[conf.subkey])))
+
     # Print results to stdout
     emutils.pretty_print_correlations(max_correlations, limit_rows=20)
     most_likely_bytes = np.argmax(max_correlations, axis=1)
