@@ -41,15 +41,49 @@ def get_trace_set(trace_set_path, format, ignore_malformed=True):
     if format == "cw":
         name = trace_set_path.rpartition('_traces')[0]
         plaintext_set_path = name + '_textin.npy'
+        ciphertext_set_path = name + '_textout.npy'
+        key_set_path = name + '_knownkey.npy'
 
-        traces = np.load(trace_set_path, encoding="bytes")  # TODO make more robust towards non-existing paths
-        plaintexts = np.load(plaintext_set_path, encoding="bytes")
+        existing_properties = []
+        try:
+            traces = np.load(trace_set_path, encoding="bytes")  # TODO make more robust towards non-existing paths
+            existing_properties.append(traces)
+        except FileNotFoundError:
+            traces = None
 
-        if ignore_malformed:
-            if traces.shape[0] == plaintexts.shape[0]:
-                return TraceSet(name=name, traces=traces, plaintexts=plaintexts)
-        else:
-            return TraceSet(name=name, traces=traces[0:len(plaintexts)], plaintexts=plaintexts)
+        try:
+            plaintexts = np.load(plaintext_set_path, encoding="bytes")
+            existing_properties.append(plaintexts)
+        except FileNotFoundError:
+            plaintexts = None
+
+        try:
+            ciphertexts = np.load(ciphertext_set_path, encoding="bytes")
+            existing_properties.append(ciphertexts)
+        except FileNotFoundError:
+            ciphertexts = None
+
+        try:
+            keys = np.load(key_set_path, encoding="bytes")
+            existing_properties.append(keys)
+        except FileNotFoundError:
+            keys = None
+
+        if ignore_malformed:  # Discard malformed traces
+            for property in existing_properties:
+                if traces.shape[0] != property.shape[0]:
+                    return None
+
+            return TraceSet(name=name, traces=traces, plaintexts=plaintexts, ciphertexts=ciphertexts, keys=keys)
+        else:  # Just truncate malformed traces instead of discarding
+            if not traces is None:
+                traces = traces[0:len(plaintexts)]
+            if not ciphertexts is None:
+                ciphertexts = ciphertexts[0:len(plaintexts)]
+            if not keys is None:
+                keys = keys[0:len(plaintexts)]
+
+            return TraceSet(name=name, traces=traces, plaintexts=plaintexts, ciphertexts=ciphertexts, keys=keys)
     elif format == "sigmf":  # .meta
         raise NotImplementedError
     elif format == "gnuradio":  # .cfile

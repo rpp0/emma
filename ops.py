@@ -514,11 +514,10 @@ class AICorrSignalIterator(AISignalIteratorBase):
         signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
 
         # Get model labels (key bytes to correlate)
-        key = [0x0E, 0xEB, 0xA7, 0x43, 0x00, 0x9D, 0x67, 0xD2, 0xE5, 0x63, 0xCF, 0x4C, 0x5C, 0xB0, 0x77, 0xCB]
         values = np.zeros((len(trace_set.traces), len(key)), dtype=float)
         for i in range(len(trace_set.traces)):
             for j in range(len(key)):
-                values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ key[j]]]
+                values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
 
         # Normalize key labels: required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
         values = values - np.mean(values, axis=0)

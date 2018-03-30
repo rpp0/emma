@@ -236,9 +236,11 @@ class EMCap():
         self.kwargs = kwargs
         self.store = False
         self.stored_plaintext = []
+        self.stored_key = []
         self.stored_data = []
         self.trace_set = []
         self.plaintexts = []
+        self.keys = []
 
         self.global_meta = {
             "core:datatype": "cf32_le",
@@ -292,7 +294,8 @@ class EMCap():
     def process_ctrl_packet(self, pkt_type, payload):
         if pkt_type == CtrlPacketType.SIGNAL_START:
             logger.debug("Starting for payload: %s" % binary_to_hex(payload))
-            self.stored_plaintext = [ord(c) for c in payload]
+            self.stored_plaintext = [ord(c) for c in payload[0:16]]
+            self.stored_key = [ord(c) for c in payload[16:32]]
             self.sdr.start()
 
             # Spinlock until data
@@ -319,7 +322,7 @@ class EMCap():
                 np_data = np.fromstring(b"".join(self.stored_data), dtype=np.complex64)
                 self.trace_set.append(np.abs(np_data))
                 self.plaintexts.append(self.stored_plaintext)
-                #np.save(...)
+                self.keys.append(self.stored_key)
 
                 # Write metadata to sigmf file
                 if len(self.trace_set) >= self.kwargs['traces_per_set']:
@@ -333,12 +336,15 @@ class EMCap():
                     logger.info("Dumping %d traces to file" % len(self.trace_set))
                     np_trace_set = np.array(self.trace_set)
                     np_plaintexts = np.array(self.plaintexts, dtype=np.uint8)
+                    np_keys = np.array(self.keys, dtype=np.uint8)
                     filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
                     output_dir = self.kwargs['output_dir']
                     np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
                     np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
+                    np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
                     self.trace_set = []
                     self.plaintexts = []
+                    self.keys = []
 
                 # Clear
                 self.stored_data = []
