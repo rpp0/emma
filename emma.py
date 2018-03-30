@@ -72,14 +72,14 @@ def wait_until_completion(async_result, message="Task"):
     else:
         raise TypeError
 
-def perform_cpa_attack(conf):
+def perform_cpa_attack(dataset, conf):
     max_correlations = np.zeros([conf.num_subkeys, 256])
 
     for subkey in range(0, conf.num_subkeys):
         conf.subkey = subkey
 
         # Execute task
-        async_result = parallel_actions_merge_corr(trace_set_paths, conf)
+        async_result = parallel_actions_merge_corr(dataset.trace_set_paths, conf)
         em_result = wait_until_completion(async_result, message="Attacking subkey %d" % conf.subkey)
 
         # Parse results
@@ -98,17 +98,17 @@ def perform_cpa_attack(conf):
     most_likely_bytes = np.argmax(max_correlations, axis=1)
     print(emutils.numpy_to_hex(most_likely_bytes))
 
-def perform_ml_attack(conf):
+def perform_ml_attack(dataset, conf):
     # Only one task since TF uses multiple cores and is not thread safe
-    async_result = aitrain.si(trace_set_paths, conf).delay()
+    async_result = aitrain.si(dataset.trace_set_paths, conf).delay()
     wait_until_completion(async_result, message="Training neural network")
 
-def perform_actions(conf):
-    async_result = parallel_actions(trace_set_paths, conf)
+def perform_actions(dataset, conf):
+    async_result = parallel_actions(dataset.trace_set_paths, conf)
     wait_until_completion(async_result, message="Performing actions")
 
-def perform_classification_attack(conf):
-    async_result = parallel_actions(trace_set_paths, conf)
+def perform_classification_attack(dataset, conf):
+    async_result = parallel_actions(dataset.trace_set_paths, conf)
     celery_results = wait_until_completion(async_result, message="Classifying")
 
     if conf.hamming:
@@ -143,8 +143,7 @@ def perform_classification_attack(conf):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('actions', type=str, help='Action to perform. Choose from %s' % str(ops.keys()), nargs='+')
-    parser.add_argument('inpath', type=str, help='Input path where the trace sets are located')
-    parser.add_argument('--inform', dest='inform', type=str, choices=['cw','sigmf','gnuradio'], default='cw', help='Input format to use when loading')
+    parser.add_argument('dataset', type=str, help='Identifier of dataset to use')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
     parser.add_argument('--max-subtasks', type=int, default=32, help='Maximum number of subtasks')
@@ -162,24 +161,25 @@ if __name__ == "__main__":
     try:
         clear_redis()
 
-        # Get a list of filenames depending on the format
-        trace_set_paths = emio.remote_get_trace_paths(args.inpath, args.inform)
+        # Get a list of filenames from a dataset
+        dataset = emio.remote_get_dataset(dataset=args.dataset)
 
-        # Worker-specific configuration
+        # Worker-specific configuration. Add properties of the loaded dataset
         conf = argparse.Namespace(
-            reference_signal=emio.remote_get_trace_set(trace_set_paths[0], args.inform, ignore_malformed=False).traces[args.reference_index].signal,
+            format=dataset.format,
+            reference_signal=emio.remote_get_trace_set(join(dataset.prefix, dataset.trace_set_paths[0]), dataset.format, ignore_malformed=False).traces[args.reference_index].signal,
             subkey=0,
             **args.__dict__
         )
 
         if 'attack' in conf.actions:  # Group of tasks and merge correlation results
-            perform_cpa_attack(conf)
+            perform_cpa_attack(dataset, conf)
         elif True in [a.find('train') > -1 for a in conf.actions]:
-            perform_ml_attack(conf)
+            perform_ml_attack(dataset, conf)
         elif 'classify' in conf.actions:
-            perform_classification_attack(conf)
+            perform_classification_attack(dataset, conf)
         else:  # Regular group of tasks
-            perform_actions(conf)
+            perform_actions(dataset, conf)
     except KeyboardInterrupt:
         pass
 

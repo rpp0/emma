@@ -12,6 +12,7 @@ import sys
 import matplotlib.pyplot as plt
 import emio
 import pickle
+import configparser
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
@@ -395,12 +396,12 @@ def merge(self, to_merge, conf):
         return None
 
 @app.task
-def remote_get_trace_paths(input_path, inform):
-    return emio.get_trace_paths(input_path, inform)
+def remote_get_dataset(dataset):
+    return emio.get_dataset(dataset)
 
 @app.task
-def remote_get_trace_set(trace_set_path, inform, ignore_malformed):
-    return emio.get_trace_set(trace_set_path, inform, ignore_malformed)
+def remote_get_trace_set(trace_set_path, format, ignore_malformed):
+    return emio.get_trace_set(trace_set_path, format, ignore_malformed)
 
 class AISignalIteratorBase():
     def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None):
@@ -576,7 +577,7 @@ def process_trace_sets(trace_set_paths, conf, request_id=None, keep_trace_sets=F
         logger.info("Processing '%s' (%d/%d)" % (trace_set_name, num_done, num_todo))
 
         # Load trace
-        trace_set = emio.get_trace_set(trace_set_path, conf.inform, ignore_malformed=False)
+        trace_set = emio.get_trace_set(trace_set_path, conf.format, ignore_malformed=False)
         if trace_set is None:
             logger.warning("Failed to load trace set %s (got None). Skipping..." % trace_set_path)
             continue
@@ -600,11 +601,25 @@ def process_trace_sets(trace_set_paths, conf, request_id=None, keep_trace_sets=F
         num_done += 1
     return result
 
+def resolve_paths(trace_set_paths):
+    '''
+    Determine the path on disk based on the location of the database specified in the
+    worker's settings file.
+    '''
+    settings = configparser.RawConfigParser()
+    settings.read('settings.conf')
+    prefix = settings.get("Datasets", "datasets_path")
+
+    for i in range(0, len(trace_set_paths)):
+            # Add prefix to path
+            trace_set_paths[i] = join(prefix, trace_set_paths[i])
+
 @app.task(bind=True)
 def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=True):
     '''
     Actions to be performed by workers on the trace set given in trace_set_path.
     '''
+    resolve_paths(trace_set_paths)  # Get absolute paths
 
     if type(trace_set_paths) is list:
         result = process_trace_sets(trace_set_paths, conf, request_id=self.request.id, keep_trace_sets=keep_trace_sets)
@@ -650,7 +665,7 @@ def get_conf_model_type(conf):
 
 @app.task(bind=True)
 def aitrain(self, trace_set_paths, conf):
-    logger.debug("Determining post-processed training sample size")
+    resolve_paths(trace_set_paths)  # Get absolute paths
 
     # Hardcoded stuff
     subtype = 'custom'

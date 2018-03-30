@@ -6,37 +6,38 @@
 import numpy as np
 import configparser
 import ops
+import configparser
 from sigmf.sigmffile import SigMFFile
-from os import listdir
-from os.path import isfile, join
 from traceset import TraceSet
+from dataset import Dataset
 
-def remote_get_trace_paths(input_path, inform):
-    return ops.remote_get_trace_paths.si(input_path, inform).apply_async().get()
+def remote_get_dataset(dataset):
+    return ops.remote_get_dataset.si(dataset).apply_async().get()
 
-def remote_get_trace_set(trace_set_path, inform, ignore_malformed=True):
-    return ops.remote_get_trace_set.si(trace_set_path, inform, ignore_malformed).apply_async().get()
+def remote_get_trace_set(trace_set_path, format, ignore_malformed=True):
+    return ops.remote_get_trace_set.si(trace_set_path, format, ignore_malformed).apply_async().get()
 
-def get_trace_paths(input_path, inform):
+def get_dataset(dataset):
     '''
-    Get a list of trace set paths given a specified input format.
+    Get a full list of relative trace set paths given a dataset ID. This is used by the EMMA
+    master node to distribute the trace set paths to EMMA worker nodes.
     '''
-    if inform == "cw":  # .npy
-        return sorted([join(input_path,f) for f in listdir(input_path) if isfile(join(input_path, f)) and '_traces.npy' in f])
-    elif inform == "sigmf":  # .meta
-        raise NotImplementedError
-    elif inform == "gnuradio":  # .cfile
-        raise NotImplementedError
+    datasets_conf = configparser.RawConfigParser()
+    datasets_conf.read('datasets.conf')
+
+    # Does identifier exist?
+    if dataset in datasets_conf.sections():
+        format = datasets_conf[dataset]["format"]
+        return Dataset(dataset, format)
     else:
-        print("Unknown input format '%s'" % inform)
-        exit(1)
+        raise Exception("Dataset %s does not exist in datasets.conf" % dataset)
 
-def get_trace_set(trace_set_path, inform, ignore_malformed=True):
+def get_trace_set(trace_set_path, format, ignore_malformed=True):
     '''
-    Load traces in trace_set_path into a TraceSet object depending on the format.
+    Load traces in from absolute path trace_set_path into a TraceSet object depending on the format.
     '''
 
-    if inform == "cw":
+    if format == "cw":
         name = trace_set_path.rpartition('_traces')[0]
         plaintext_set_path = name + '_textin.npy'
 
@@ -48,12 +49,12 @@ def get_trace_set(trace_set_path, inform, ignore_malformed=True):
                 return TraceSet(name=name, traces=traces, plaintexts=plaintexts)
         else:
             return TraceSet(name=name, traces=traces[0:len(plaintexts)], plaintexts=plaintexts)
-    elif inform == "sigmf":  # .meta
+    elif format == "sigmf":  # .meta
         raise NotImplementedError
-    elif inform == "gnuradio":  # .cfile
+    elif format == "gnuradio":  # .cfile
         raise NotImplementedError
     else:
-        print("Unknown input format '%s'" % inform)
+        print("Unknown input format '%s'" % format)
         exit(1)
 
     return None

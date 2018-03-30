@@ -1,5 +1,6 @@
 *.pyc
 TODO.md
 settings.conf
+datasets.conf
 wpa_supp_leak
 models
