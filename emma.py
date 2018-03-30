@@ -151,7 +151,6 @@ if __name__ == "__main__":
     parser.add_argument('--kill-workers', default=False, action='store_true', help='Kill workers after finishing the tasks.')
     parser.add_argument('--butter-order', type=int, default=1, help='Order of Butterworth filter')
     parser.add_argument('--butter-cutoff', type=float, default=0.01, help='Cutoff of Butterworth filter')
-    parser.add_argument('--reference-index', type=int, default=0, help='Index of reference signal')
     parser.add_argument('--windowing-method', type=str, default='rectangular', help='Windowing method')
     parser.add_argument('--hamming', default=False, action='store_true', help='Use Hamming weight instead of true byte values.')
     parser.add_argument('--no-augment-roll', default=False, action='store_true', help='Roll signal during data augmentation.')
@@ -167,7 +166,7 @@ if __name__ == "__main__":
         # Worker-specific configuration. Add properties of the loaded dataset
         conf = argparse.Namespace(
             format=dataset.format,
-            reference_signal=emio.remote_get_trace_set(join(dataset.prefix, dataset.trace_set_paths[0]), dataset.format, ignore_malformed=False).traces[args.reference_index].signal,
+            reference_signal=dataset.reference_signal,
             subkey=0,
             **args.__dict__
         )

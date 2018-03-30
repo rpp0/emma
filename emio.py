@@ -28,7 +28,8 @@ def get_dataset(dataset):
     # Does identifier exist?
     if dataset in datasets_conf.sections():
         format = datasets_conf[dataset]["format"]
-        return Dataset(dataset, format)
+        reference_index = int(datasets_conf[dataset]["reference_index"])
+        return Dataset(dataset, format, reference_index)
     else:
         raise Exception("Dataset %s does not exist in datasets.conf" % dataset)
 
