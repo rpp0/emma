@@ -713,7 +713,11 @@ def aitrain(self, trace_set_paths, conf):
     # Select model
     model = None
     if model_type == 'corrtrain':
-        model = AICorrNet(input_dim=input_shape[0])
+        if conf.update:  # Load existing model to update
+            model = AI("aicorrnet")
+            model.load()
+        else:
+            model = AICorrNet(input_dim=input_shape[0])
     elif model_type == 'shacputrain':
         model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype)
     elif model_type == 'shacctrain':

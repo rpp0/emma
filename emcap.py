@@ -324,9 +324,11 @@ class EMCap():
                 self.plaintexts.append(self.stored_plaintext)
                 self.keys.append(self.stored_key)
 
-                # Write metadata to sigmf file
                 if len(self.trace_set) >= self.kwargs['traces_per_set']:
                     assert(len(self.trace_set) == len(self.plaintexts))
+                    assert(len(self.trace_set) == len(self.keys))
+
+                    # Write metadata to sigmf file
                     # if sigmf
                     #with open(test_meta_path, 'w') as f:
                     #    test_sigmf = SigMFFile(data_file=test_data_path, global_info=copy.deepcopy(self.global_meta))

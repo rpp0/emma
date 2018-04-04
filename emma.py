@@ -154,6 +154,7 @@ if __name__ == "__main__":
     parser.add_argument('--windowing-method', type=str, default='rectangular', help='Windowing method')
     parser.add_argument('--hamming', default=False, action='store_true', help='Use Hamming weight instead of true byte values.')
     parser.add_argument('--no-augment-roll', default=False, action='store_true', help='Roll signal during data augmentation.')
+    parser.add_argument('--update', default=False, action='store_true', help='Update existing AI model instead of replacing.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
