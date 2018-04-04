@@ -80,6 +80,32 @@ def align_trace_set(trace_set, result, conf, params=None):
 
     trace_set.set_traces(np.array(aligned_trace_set))
 
+@op('filterkey', optargs=['key'])
+def filterkey_trace_set(trace_set, result, conf, params=None):
+    '''
+    Filter traces by key prefix
+    '''
+    logger.info("filterkey %s" % (str(params) if not params is None else ""))
+    if params is None:
+        logger.warning("No argument specified for filterkey. Skipping op.")
+        return
+
+    key_param = params[0]
+
+    filtered_trace_set = []
+    discarded = 0
+    for trace in trace_set.traces:
+        hex_key = ''.join(["%02x" % x for x in list(trace.key.astype(int))])
+        if hex_key.startswith(key_param):
+            filtered_trace_set.append(trace)
+        else:
+            discarded += 1
+
+    if discarded > 0:
+        logger.info("Discarded %d keys not matching %s." % (discarded, key_param))
+
+    trace_set.set_traces(np.array(filtered_trace_set))
+
 @op('spec')
 def spectogram_trace_set(trace_set, result, conf, params=None):
     '''
@@ -224,12 +250,17 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     '''
     logger.info("attack %s" % (str(params) if not params is None else ""))
 
-    if not trace_set.windowed:
-        logger.warning("Trace set not windowed. Skipping attack.")
-        return
     # Init if first time
     if result.correlations is None:
         result.correlations = CorrelationList([256, trace_set.window.size])
+
+    if not trace_set.windowed:
+        logger.warning("Trace set not windowed. Skipping attack.")
+        return
+
+    if trace_set.num_traces <= 0:
+        logger.warning("Skipping empty trace set.")
+        return
 
     hypotheses = np.empty([256, trace_set.num_traces])
 
@@ -322,11 +353,10 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
             result._data['state'] = AI("aicorrnet")
             result._data['state'].load()
 
-        for trace in trace_set.traces:
-            trace.signal = result._data['state'].predict(np.array([trace.signal], dtype=float))
+        trace_set.window = Window(begin=0, end=result._data['state'].model.layers[-1].output_shape[1])
 
-        trace_set.window = Window(begin=0, end=len(trace_set.traces[0].signal))
-        trace_set.windowed = True
+        for trace in trace_set.traces:
+            trace.signal = result._data['state'].predict(np.array([trace.signal], dtype=float))[0]
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
@@ -492,7 +522,7 @@ class AISignalIteratorBase():
 
             # Augment if enabled
             if self.augment_roll:
-                signals = self._augment_roll(signals, roll_limit=1024)
+                signals = self._augment_roll(signals, roll_limit=16)
 
             # Concatenate arrays until batch obtained
             self.signals_batch.extend(signals)
@@ -514,9 +544,9 @@ class AICorrSignalIterator(AISignalIteratorBase):
         signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
 
         # Get model labels (key bytes to correlate)
-        values = np.zeros((len(trace_set.traces), len(key)), dtype=float)
+        values = np.zeros((len(trace_set.traces), 16), dtype=float)
         for i in range(len(trace_set.traces)):
-            for j in range(len(key)):
+            for j in range(16):
                 values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
 
         # Normalize key labels: required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
@@ -592,7 +622,8 @@ def process_trace_sets(trace_set_paths, conf, request_id=None, keep_trace_sets=F
             if op in ops:
                 ops[op](trace_set, result, conf=conf, params=params)
             else:
-                logger.warning("Ignoring unknown op '%s'." % op)
+                if not ('train' in action):
+                    logger.warning("Ignoring unknown op '%s'." % op)
 
         # Store result
         if keep_trace_sets:
@@ -642,8 +673,8 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
     training_iterator = None
     validation_iterator = None
     if model_type == 'corrtrain':
-        training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, request_id=self.request.id)
-        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, request_id=self.request.id)
+        training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, request_id=request_id)
+        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, request_id=request_id)
     elif model_type == 'shacputrain':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype=subtype)
         validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype=subtype)
@@ -689,4 +720,4 @@ def aitrain(self, trace_set_paths, conf):
         model = AISHACC(input_shape=input_shape, hamming=conf.hamming)
 
     logger.debug("Training...")
-    model.train_generator(training_iterator, validation_iterator, epochs=900, workers=1)
+    model.train_generator(training_iterator, validation_iterator, epochs=100000, workers=1)

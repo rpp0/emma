@@ -19,6 +19,8 @@ from keras import regularizers
 from keras.engine.topology import Layer
 from keras.losses import categorical_crossentropy
 
+K.set_epsilon(1e-15)
+
 class AI():
     '''
     Base class for the models.
@@ -35,7 +37,8 @@ class AI():
         # Callbacks during training
         self.callbacks = {
             'lastloss': LastLoss(),
-            'tensorboard': TensorBoard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
+            'tensorboard': TensorBoard(log_dir='/tmp/keras/' + self.name + '-' + self.id),
+            'save': SaveLowestValLoss(self.model_path)
         }
 
     def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
@@ -78,7 +81,8 @@ class AI():
         Do some post-train actions like printing the model weights and saving the model.
         '''
         if save:
-            self.model.save(self.model_path)
+            if not 'save' in self.callbacks.keys():  # Don't save at the end if we want to save according to another criterium
+                self.model.save(self.model_path)
 
     def predict(self, x):
         return self.model.predict(x, batch_size=999999999, verbose=0)
@@ -122,9 +126,10 @@ def correlation_loss(y_true, y_pred):
     loss = K.variable(0.0)
     for key_col in range(0, 16):  # 0 - 16
         y_key = K.expand_dims(y_true[:,key_col], axis=1)  # [?, 16] -> [?, 1]
-        denom = K.sqrt(K.dot(K.transpose(y_pred), y_pred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
+        y_keypred = K.expand_dims(y_pred[:,key_col], axis=1)  # [?, 16] -> [?, 1]
+        denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
         denom = K.maximum(denom, K.epsilon())
-        correlation = K.dot(K.transpose(y_key), y_pred) / denom
+        correlation = K.dot(K.transpose(y_key), y_keypred) / denom
         loss += 1.0 - K.square(correlation)
     return loss
 
@@ -133,7 +138,7 @@ class Clip(keras.constraints.Constraint):
     Custom kernel constraint, limiting their values between a certain range.
     '''
     def __init__(self):
-        self.weight_range = [0.0, 1.0]
+        self.weight_range = [-1.0, 1.0]
 
     def __call__(self, w):
         return K.clip(w, self.weight_range[0], self.weight_range[1])
@@ -148,6 +153,30 @@ class LastLoss(keras.callbacks.Callback):
 
     def on_batch_end(self, batch, logs={}):
         self.value = logs.get('loss')
+
+class SaveLowestValLoss(keras.callbacks.Callback):
+    def __init__(self, path):
+        super(SaveLowestValLoss, self).__init__()
+        self.lowest = None
+        self.path = path
+        self.lowest_epoch = 0
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        val_loss = float(logs.get('val_loss'))
+
+        if self.lowest is None:
+            self.lowest = val_loss
+        else:
+            if val_loss < self.lowest:
+                self.lowest = val_loss
+                self.lowest_epoch = epoch
+                self.model.save(self.path)
+
+    def on_train_end(self, logs=None):
+        print("Found lowest val_loss of %f at epoch %d" % (self.lowest, self.lowest_epoch))
+        print("This model is saved at %s" % self.path)
+
 
 class CustomTensorboard(keras.callbacks.TensorBoard):
     '''
@@ -187,35 +216,43 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
     def on_epoch_end(self, epoch, logs=None):
         super(CustomTensorboard, self).on_epoch_end(epoch, logs)
         if epoch % 100 == 0:
-            self._plot_fft_weights(12500, 20000000)  # TODO: hardcoded stuff
+            try:
+                self._plot_fft_weights(10000, 80000000)  # TODO: hardcoded stuff
 
-            # Generate plot summary
-            images = [self._plt_to_tf(plt, tag='plot'+str(epoch))]
-            summary_images = tf.summary.merge(images, collections=None, name=None)
-            summary_result = K.get_session().run(summary_images)
-            self.writer.add_summary(summary_result)
+                # Generate plot summary
+                images = [self._plt_to_tf(plt, tag='plot'+str(epoch))]
+                summary_images = tf.summary.merge(images, collections=None, name=None)
+                summary_result = K.get_session().run(summary_images)
+                self.writer.add_summary(summary_result)
+            except Exception as e:
+                print("Exception in image generation: %s" % str(e))
+                pass
 
 class AICorrNet(AI):
     def __init__(self, input_dim, name="aicorrnet"):
         super(AICorrNet, self).__init__(name)
         self.model = Sequential()
-        self.use_bias = False
+        self.use_bias = True
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
         #initializer = keras.initializers.Constant(value=1.0)
         #initializer = keras.initializers.RandomUniform(minval=0, maxval=1.0, seed=None)
         initializer = keras.initializers.RandomUniform(minval=0, maxval=0.001, seed=None)
         #initializer = 'glorot_uniform'
-        #constraint = Clip()
-        constraint = None
+        constraint = Clip()
+        #constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-        optimizer = keras.optimizers.Adam(lr=0.01, beta_1=0.9, beta_2=0.999, decay=0.0)
-        activation = None
+        optimizer = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, decay=0.0)
+        #activation = None
         #activation = 'relu'
+        activation = 'tanh'
 
-        #self.model.add(Dense(256, input_dim=input_dim, activation='tanh'))
-        #input_dim=256
-        self.model.add(Dense(1, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim))
+        #hidden_nodes = 256
+        #self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None))
+        #input_dim=hidden_nodes
+        #self.model.add(BatchNormalization())
+        #self.model.add(Activation("tanh"))
+        self.model.add(Dense(16, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim, activation=None))
         self.model.add(BatchNormalization())  # Required for correct correlation calculation
         if not activation is None:
             self.model.add(Activation(activation))

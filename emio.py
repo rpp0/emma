@@ -55,6 +55,7 @@ def get_trace_set(trace_set_path, format, ignore_malformed=True):
             plaintexts = np.load(plaintext_set_path, encoding="bytes")
             existing_properties.append(plaintexts)
         except FileNotFoundError:
+            print("WARNING: No plaintext for trace %s" % name)
             plaintexts = None
 
         try:

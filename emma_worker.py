@@ -8,6 +8,9 @@
 from __future__ import absolute_import
 from celery import Celery
 import configparser
+import os
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Ignore Tensorflow deprecation and performance warnings
 
 settings = configparser.RawConfigParser()  # TODO: error handling, detect first usage of EMMA by presence of settings.conf
 settings.read('settings.conf')

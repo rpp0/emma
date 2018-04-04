@@ -14,7 +14,7 @@ class CorrelationList():
             num = self._sumxy[key] - (self._sumx[key] * self._sumy[key] / self._n[key])
             denom1 = self._sumxsq[key] - (self._sumx[key]**2 / self._n[key])
             denom2 = self._sumysq[key] - (self._sumy[key]**2 / self._n[key])
-            corr = num / np.sqrt(denom1 * denom2)
+            corr = num / np.maximum(np.sqrt(denom1 * denom2), 1e-15)
             return corr
         if isinstance(key, slice):
             raise NotImplementedError
