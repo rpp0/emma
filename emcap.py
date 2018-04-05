@@ -11,6 +11,8 @@ from threading import Thread
 from datetime import datetime
 from sigmf.sigmffile import SigMFFile
 from dsp import butter_filter
+from socketwrapper import SocketWrapper
+from traceset import TraceSet
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -24,6 +26,8 @@ import binascii
 import osmosdr
 import argparse
 import serial
+import pickle
+import zlib
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -149,66 +153,6 @@ class TTYWrapper(Thread):
     def run(self):
         self.recv()
 
-class SocketWrapper(Thread):
-    def __init__(self, s, address, cb_pkt):
-        Thread.__init__(self)
-        self.setDaemon(True)
-        self.socket = s
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        logger.debug("Binding to %s" % str(address))
-        self.socket.bind(address)
-        self.cb_pkt = cb_pkt
-        self.data = b""
-
-    def _parse(self, client_socket, client_address):
-        bytes_parsed = self.cb_pkt(client_socket, client_address, self.data)
-        self.data = self.data[bytes_parsed:]
-
-    def recv_stream(self):
-        self.socket.listen(1)
-
-        # Only accept one connection
-        client_socket, client_address = self.socket.accept()
-        logger.debug("Client %s connected" % str(client_address))
-        try:
-            streaming = True
-            while streaming:
-                # Add chunk to data
-                chunk = client_socket.recv(1024)
-                if chunk:
-                    self.data += chunk
-                else:
-                    streaming = False
-                    logger.debug("Received null, stopping soon!")
-
-                # Parse existing data
-                self._parse(client_socket, client_address)
-        finally:
-            client_socket.close()
-
-    def recv_dgram(self):
-        receiving = True
-        while receiving:
-            chunk, client_address = self.socket.recvfrom(1472)
-            if chunk:
-                self.data += chunk
-            else:
-                receiving = False
-                logger.debug("Received null packet, stopping soon!")
-
-            self._parse(None, client_address)
-
-    def run(self):
-        '''
-        Choose a suitable receiver depending on the type of socket
-        '''
-        if self.socket.type == socket.SOCK_DGRAM:
-            self.recv_dgram()
-        elif self.socket.type == socket.SOCK_STREAM:
-            self.recv_stream()
-        else:
-            logger.error("Unrecognized socket type %s" % self.socket.type)
-
 class CtrlType:
     DOMAIN = 0
     UDP = 1
@@ -219,8 +163,9 @@ class EMCap():
     def __init__(self, cap_kwargs={}, kwargs={}, ctrl_socket_type=CtrlType.SERIAL):
         # Set up data socket
         self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3884), self.cb_data)
+        self.online = kwargs['online']
 
-        # Set up control socket
+        # Set up sockets
         self.ctrl_socket_type = ctrl_socket_type
         if ctrl_socket_type == CtrlType.DOMAIN:
             unix_domain_socket = '/tmp/emma.socket'
@@ -230,6 +175,14 @@ class EMCap():
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.15.48', 3884), self.cb_ctrl)
         elif ctrl_socket_type == CtrlType.SERIAL:
             self.ctrl_socket = TTYWrapper("/dev/ttyUSB0", self.cb_ctrl)
+
+        if self.online:
+            try:
+                self.emma_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.emma_client.connect(('172.18.2.95', 3885))
+            except Exception as e:
+                print(e)
+                exit(1)
 
         self.sdr = SDR(**cap_kwargs)
         self.cap_kwargs = cap_kwargs
@@ -328,22 +281,36 @@ class EMCap():
                     assert(len(self.trace_set) == len(self.plaintexts))
                     assert(len(self.trace_set) == len(self.keys))
 
-                    # Write metadata to sigmf file
-                    # if sigmf
-                    #with open(test_meta_path, 'w') as f:
-                    #    test_sigmf = SigMFFile(data_file=test_data_path, global_info=copy.deepcopy(self.global_meta))
-                    #    test_sigmf.add_capture(0, metadata=capture_meta)
-                    #    test_sigmf.dump(f, pretty=True)
-                    # elif chipwhisperer:
-                    logger.info("Dumping %d traces to file" % len(self.trace_set))
                     np_trace_set = np.array(self.trace_set)
                     np_plaintexts = np.array(self.plaintexts, dtype=np.uint8)
                     np_keys = np.array(self.keys, dtype=np.uint8)
-                    filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
-                    output_dir = self.kwargs['output_dir']
-                    np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
-                    np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
-                    np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
+
+                    if self.online: # Stream online
+                        ts = TraceSet(name="online", traces=np_trace_set, plaintexts=np_plaintexts, ciphertexts=None, keys=np_keys)
+                        logger.info("Pickling")
+                        ts_p = pickle.dumps(ts)
+                        logger.info("Size is %d" % len(ts_p))
+                        stream_payload = ts_p
+                        stream_payload_len = len(stream_payload)
+                        logger.info("Streaming trace set of %d bytes to server" % stream_payload_len)
+                        stream_hdr = struct.pack(">BI", 0, stream_payload_len)
+                        self.emma_client.send(stream_hdr + stream_payload)
+                    else: # Save to disk
+                        # Write metadata to sigmf file
+                        # if sigmf
+                        #with open(test_meta_path, 'w') as f:
+                        #    test_sigmf = SigMFFile(data_file=test_data_path, global_info=copy.deepcopy(self.global_meta))
+                        #    test_sigmf.add_capture(0, metadata=capture_meta)
+                        #    test_sigmf.dump(f, pretty=True)
+                        # elif chipwhisperer:
+                        logger.info("Dumping %d traces to file" % len(self.trace_set))
+                        filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
+                        output_dir = self.kwargs['output_dir']
+                        np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
+                        np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
+                        np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
+
+                    # Clear results
                     self.trace_set = []
                     self.plaintexts = []
                     self.keys = []
@@ -375,6 +342,7 @@ def main():
     parser.add_argument('--gain', type=int, default=30, help='RX gain')
     parser.add_argument('--traces-per-set', type=int, default=256, help='Number of traces per set')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
+    parser.add_argument('--online', default=False, action='store_true', help='Stream samples to remote EMMA instance for online processing.')
     args, unknown = parser.parse_known_args()
     e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__)
     e.capture()

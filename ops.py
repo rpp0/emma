@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import emio
 import pickle
 import configparser
+import socket
+import struct
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
@@ -24,6 +26,8 @@ from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
 from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI, AISHACC
+from socketwrapper import SocketWrapper
+from queue import Queue
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
@@ -433,8 +437,38 @@ def remote_get_dataset(dataset):
 def remote_get_trace_set(trace_set_path, format, ignore_malformed):
     return emio.get_trace_set(trace_set_path, format, ignore_malformed)
 
+class StreamServer():
+    def __init__(self, conf):
+        self.conf = conf
+        self.queue = Queue()
+
+        if self.conf.online:
+            print("Starting server")
+            self.server = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.2.95', 3885), self._cb_server)
+            self.server.start()
+
+    def _cb_server(self, client_socket, client_address, data):
+        if len(data) < 5:
+            # Not enough for TLV
+            return 0
+        else:
+            pkt_type, payload_len = struct.unpack(">BI", data[0:5])
+            payload = data[5:]
+            if len(payload) < payload_len:
+                return 0  # Not enough for payload
+            else:
+                # Depickle and add to queue
+                # TODO: Check for correctness. EMcap is Python2 (because it needs to)
+                # use GNU Radio. Therefore the pickling format is different, which
+                # we need to make sure doesn't cause any differences.
+                trace_set = pickle.loads(payload, encoding='latin1', fix_imports=True)
+                print("Got %d traces" % len(trace_set.traces))
+
+                self.queue.put(trace_set)
+                return payload_len + 5
+
 class AISignalIteratorBase():
-    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None):
+    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None):
         self.trace_set_paths = trace_set_paths
         self.conf = conf
         self.batch_size = batch_size
@@ -445,6 +479,7 @@ class AISignalIteratorBase():
         self.request_id = request_id
         self.max_cache = 1000
         self.augment_roll = not self.conf.no_augment_roll
+        self.stream_server = stream_server
 
     def __iter__(self):
         return self
@@ -467,7 +502,8 @@ class AISignalIteratorBase():
             return self.cache[trace_set_path]
 
         # Apply actions from work()
-        result = process_trace_sets([trace_set_path], self.conf, keep_trace_sets=True, request_id=self.request_id)
+        result = EMResult(task_id=self.request_id)  # Make new collection of results
+        process_trace_set_paths(result, [trace_set_path], self.conf, keep_trace_sets=True, request_id=self.request_id)  # Store processed trace path in result
 
         if len(result.trace_sets) > 0:
             signals, values = self._preprocess_trace_set(result.trace_sets[0])  # Since we iterate per path, there will be only 1 result in trace_sets
@@ -479,6 +515,23 @@ class AISignalIteratorBase():
             return signals, values
         else:
             return None
+
+    def fetch_features_online(self):
+        print("Waiting for packet in queue")
+        # Get from blocking queue
+        trace_set = self.stream_server.queue.get()
+
+        # Apply work()
+        print("Processing")
+        result = EMResult(task_id=self.request_id)
+        process_trace_set(result, trace_set, self.conf, keep_trace_sets=False, request_id=self.request_id)
+
+        # Get signals and values
+        signals, values = self._preprocess_trace_set(trace_set)
+
+        print("Done")
+
+        return signals, values
 
     def _augment_roll(self, signals, roll_limit=None):  # TODO unit test!
         roll_limit = roll_limit if not roll_limit is None else len(signals[0,:])
@@ -514,8 +567,11 @@ class AISignalIteratorBase():
             if self.index >= len(self.trace_set_paths):
                 self.index = 0
 
-            # Fetch features from selected path
-            result = self.fetch_features(trace_set_path)
+            # Fetch features from online stream or from a path
+            if self.conf.online:
+                result = self.fetch_features_online()
+            else:
+                result = self.fetch_features(trace_set_path)
             if result is None:
                 continue
             signals, values = result
@@ -532,8 +588,8 @@ class AISignalIteratorBase():
         return self.next()
 
 class AICorrSignalIterator(AISignalIteratorBase):
-    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None):
-        super(AICorrSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id)
+    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None):
+        super(AICorrSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id, stream_server)
 
     def _preprocess_trace_set(self, trace_set):
         '''
@@ -555,8 +611,8 @@ class AICorrSignalIterator(AISignalIteratorBase):
         return signals, values
 
 class AISHACPUSignalIterator(AISignalIteratorBase):
-    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, hamming=True, subtype='vgg16'):
-        super(AISHACPUSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id)
+    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None, hamming=True, subtype='vgg16'):
+        super(AISHACPUSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id, stream_server=None)
         self.hamming = hamming
         self.subtype = subtype
 
@@ -596,8 +652,26 @@ class AISHACPUSignalIterator(AISignalIteratorBase):
 
         return signals, values
 
-def process_trace_sets(trace_set_paths, conf, request_id=None, keep_trace_sets=False):
-    result = EMResult(task_id=request_id)
+def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=False):
+    # Perform actions
+    for action in conf.actions:
+        params = None
+        if '[' in action:
+            op, _, params = action.rpartition('[')
+            params = params.rstrip(']').split(',')
+        else:
+            op = action
+        if op in ops:
+            ops[op](trace_set, result, conf=conf, params=params)
+        else:
+            if not ('train' in action):
+                logger.warning("Ignoring unknown op '%s'." % op)
+
+    # Store result
+    if keep_trace_sets:
+        result.trace_sets.append(trace_set)
+
+def process_trace_set_paths(result, trace_set_paths, conf, request_id=None, keep_trace_sets=False):
     num_todo = len(trace_set_paths)
     num_done = 0
     for trace_set_path in trace_set_paths:
@@ -611,25 +685,10 @@ def process_trace_sets(trace_set_paths, conf, request_id=None, keep_trace_sets=F
             logger.warning("Failed to load trace set %s (got None). Skipping..." % trace_set_path)
             continue
 
-        # Perform actions
-        for action in conf.actions:
-            params = None
-            if '[' in action:
-                op, _, params = action.rpartition('[')
-                params = params.rstrip(']').split(',')
-            else:
-                op = action
-            if op in ops:
-                ops[op](trace_set, result, conf=conf, params=params)
-            else:
-                if not ('train' in action):
-                    logger.warning("Ignoring unknown op '%s'." % op)
+        # Process trace
+        process_trace_set(result, trace_set, conf, request_id, keep_trace_sets)
 
-        # Store result
-        if keep_trace_sets:
-            result.trace_sets.append(trace_set)
         num_done += 1
-    return result
 
 def resolve_paths(trace_set_paths):
     '''
@@ -652,7 +711,10 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
     resolve_paths(trace_set_paths)  # Get absolute paths
 
     if type(trace_set_paths) is list:
-        result = process_trace_sets(trace_set_paths, conf, request_id=self.request.id, keep_trace_sets=keep_trace_sets)
+        result = EMResult(task_id=self.request.id)  # Keep state and results
+
+        # Process trace set paths and fill in results of analysis
+        process_trace_set_paths(result, trace_set_paths, conf, request_id=self.request.id, keep_trace_sets=keep_trace_sets)
 
         if not keep_trace_sets:  # Do not return processed traces
             result.trace_sets = None
@@ -670,17 +732,25 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
     validation_trace_set_paths = trace_set_paths[0:num_validation_trace_sets]
     training_trace_set_paths = trace_set_paths[num_validation_trace_sets:]
 
+    # Stream samples from other machine?
+    if conf.online:
+        stream_server = StreamServer(conf)
+        batch_size = 32
+    else:
+        stream_server = None
+        batch_size = 512
+
     training_iterator = None
     validation_iterator = None
     if model_type == 'corrtrain':
-        training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, request_id=request_id)
-        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, request_id=request_id)
+        training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
+        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
     elif model_type == 'shacputrain':
-        training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype=subtype)
-        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype=subtype)
+        training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
+        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
     elif model_type == 'shacctrain':
-        training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype='custom')
-        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=512, request_id=request_id, hamming=hamming, subtype='custom')
+        training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
+        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
     else:
         logger.error("Unknown training procedure specified.")
         exit(1)

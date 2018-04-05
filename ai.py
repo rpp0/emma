@@ -232,26 +232,28 @@ class AICorrNet(AI):
     def __init__(self, input_dim, name="aicorrnet"):
         super(AICorrNet, self).__init__(name)
         self.model = Sequential()
-        self.use_bias = True
+        self.use_bias = False
+        #reg = regularizers.l2(0.01)
+        reg = None
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
         #initializer = keras.initializers.Constant(value=1.0)
         #initializer = keras.initializers.RandomUniform(minval=0, maxval=1.0, seed=None)
-        initializer = keras.initializers.RandomUniform(minval=0, maxval=0.001, seed=None)
-        #initializer = 'glorot_uniform'
-        constraint = Clip()
-        #constraint = None
+        #initializer = keras.initializers.RandomUniform(minval=0, maxval=0.001, seed=None)
+        initializer = 'glorot_uniform'
+        #constraint = Clip()
+        constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-        optimizer = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, decay=0.0)
-        #activation = None
+        optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
+        activation = None
         #activation = 'relu'
-        activation = 'tanh'
+        #activation = 'tanh'
 
-        #hidden_nodes = 256
-        #self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None))
-        #input_dim=hidden_nodes
-        #self.model.add(BatchNormalization())
-        #self.model.add(Activation("tanh"))
+        hidden_nodes = 256
+        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None))
+        input_dim=hidden_nodes
+        self.model.add(BatchNormalization())
+        self.model.add(Activation("tanh"))
         self.model.add(Dense(16, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim, activation=None))
         self.model.add(BatchNormalization())  # Required for correct correlation calculation
         if not activation is None:
@@ -265,15 +267,16 @@ class AICorrNet(AI):
         '''
         DEPRECATED
         Train entire training set with model.fit()
-        '''
-        y = y - np.mean(y, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
 
+        Assumes y is already normalized.
+        '''
+        
         # Callbacks
         last_loss = LastLoss()
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
 
         # Fit model
-        self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, tensorboard_callback])
+        self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss])
 
         # Get loss from callback
         self.last_loss = last_loss.value
