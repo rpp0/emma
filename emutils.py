@@ -4,6 +4,9 @@
 # ----------------------------------------------------
 
 import numpy as np
+import socket
+import fcntl
+import struct
 
 BANNER = """  _____ __  __ __  __    _
  | ____|  \/  |  \/  |  / \\
@@ -68,3 +71,12 @@ class Window(object):
             self.size = end - begin
         else:
             self.size = None
+
+# Source: https://stackoverflow.com/questions/24196932/how-can-i-get-the-ip-address-of-eth0-in-python
+def get_ip_address(ifname):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return socket.inet_ntoa(fcntl.ioctl(
+        s.fileno(),
+        0x8915,  # SIOCGIFADDR
+        struct.pack('256s', bytes(ifname[:15], encoding='utf-8'))
+    )[20:24])

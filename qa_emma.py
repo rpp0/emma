@@ -113,9 +113,13 @@ class TestAI(unittest.TestCase):
         result = np.array(result)
 
         print("Learned frequency sums: " + str(result))
+        print("Mean:")
+        print(np.mean(result, axis=0))
+
         calculated_loss = 0
         for i in range(0, 16):
             print("Subkey %d values: %s" %(i, str(y[:,i])))
+            print("Subkey %d correl: %s" %(i, str(result[:,i])))
             y_key_norm = y_norm[:,i].reshape([-1, 1])
             y_pred = result[:,i].reshape([-1, 1])
 

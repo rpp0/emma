@@ -176,10 +176,10 @@ class EMCap():
         elif ctrl_socket_type == CtrlType.SERIAL:
             self.ctrl_socket = TTYWrapper("/dev/ttyUSB0", self.cb_ctrl)
 
-        if self.online:
+        if not self.online is None:
             try:
                 self.emma_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.emma_client.connect(('172.18.2.95', 3885))
+                self.emma_client.connect((self.online, 3885))
             except Exception as e:
                 print(e)
                 exit(1)
@@ -194,6 +194,9 @@ class EMCap():
         self.trace_set = []
         self.plaintexts = []
         self.keys = []
+        self.online_counter = 0
+        self.limit_counter = 0
+        self.limit = kwargs['limit']
 
         self.global_meta = {
             "core:datatype": "cf32_le",
@@ -285,8 +288,8 @@ class EMCap():
                     np_plaintexts = np.array(self.plaintexts, dtype=np.uint8)
                     np_keys = np.array(self.keys, dtype=np.uint8)
 
-                    if self.online: # Stream online
-                        ts = TraceSet(name="online", traces=np_trace_set, plaintexts=np_plaintexts, ciphertexts=None, keys=np_keys)
+                    if not self.online is None: # Stream online
+                        ts = TraceSet(name="online %d" % self.online_counter, traces=np_trace_set, plaintexts=np_plaintexts, ciphertexts=None, keys=np_keys)
                         logger.info("Pickling")
                         ts_p = pickle.dumps(ts)
                         logger.info("Size is %d" % len(ts_p))
@@ -295,6 +298,7 @@ class EMCap():
                         logger.info("Streaming trace set of %d bytes to server" % stream_payload_len)
                         stream_hdr = struct.pack(">BI", 0, stream_payload_len)
                         self.emma_client.send(stream_hdr + stream_payload)
+                        self.online_counter += 1
                     else: # Save to disk
                         # Write metadata to sigmf file
                         # if sigmf
@@ -309,6 +313,10 @@ class EMCap():
                         np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
                         np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
                         np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
+                        self.limit_counter += len(self.trace_set)
+                        if self.limit_counter >= self.limit:
+                            print("Done")
+                            exit(0)
 
                     # Clear results
                     self.trace_set = []
@@ -335,14 +343,12 @@ def main():
     parser = argparse.ArgumentParser(description='EMCAP')
     parser.add_argument('hw', type=str, choices=['usrp', 'hackrf'], help='SDR capture hardware')
     parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
-
-    # 70.719
-    # 64.000
     parser.add_argument('--frequency', type=float, default=64e6, help='Capture frequency')
     parser.add_argument('--gain', type=int, default=30, help='RX gain')
     parser.add_argument('--traces-per-set', type=int, default=256, help='Number of traces per set')
+    parser.add_argument('--limit', type=int, default=51200, help='Limit number of traces')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
-    parser.add_argument('--online', default=False, action='store_true', help='Stream samples to remote EMMA instance for online processing.')
+    parser.add_argument('--online', type=str, default=None, help='Stream samples to remote EMMA instance at <IP address> for online processing.')
     args, unknown = parser.parse_known_args()
     e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__)
     e.capture()

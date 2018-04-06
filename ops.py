@@ -28,6 +28,7 @@ from emresult import EMResult
 from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI, AISHACC
 from socketwrapper import SocketWrapper
 from queue import Queue
+from matplotlib.backends.backend_pdf import PdfPages
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
@@ -234,7 +235,7 @@ def save_trace_set(trace_set, result, conf, params=None):
         print("Unknown format: %s" % conf.outform)
         exit(1)
 
-@op('plot')
+@op('plot', optargs=['save'])
 def plot_trace_set(trace_set, result, conf=None, params=None):
     '''
     Plot each trace in a trace set using Matplotlib
@@ -245,7 +246,14 @@ def plot_trace_set(trace_set, result, conf=None, params=None):
     plt.plot(range(0, len(conf.reference_signal)), conf.reference_signal, linewidth=2, linestyle='dashed')
 
     plt.title(trace_set.name)
-    plt.show()
+
+    if (not params is None) and 'save' in params:
+        pp = PdfPages('/tmp/%s.pdf' % trace_set.name)
+        pp.savefig()
+        pp.close()
+        plt.clf()
+    else:
+        plt.show()
 
 @op('attack')
 def attack_trace_set(trace_set, result, conf=None, params=None):
@@ -443,9 +451,17 @@ class StreamServer():
         self.queue = Queue()
 
         if self.conf.online:
-            print("Starting server")
-            self.server = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.2.95', 3885), self._cb_server)
+            from emutils import get_ip_address
+            settings = configparser.RawConfigParser()
+            settings.read('settings.conf')
+            interface = settings.get("Datasets", "stream_interface")
+            ip_address = get_ip_address(interface)
+            addr_tuple = (ip_address, 3885)
+
+            self.server = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), addr_tuple, self._cb_server)
             self.server.start()
+
+            print("Listening for sample streams at %s" % str(addr_tuple))
 
     def _cb_server(self, client_socket, client_address, data):
         if len(data) < 5:
@@ -462,7 +478,7 @@ class StreamServer():
                 # use GNU Radio. Therefore the pickling format is different, which
                 # we need to make sure doesn't cause any differences.
                 trace_set = pickle.loads(payload, encoding='latin1', fix_imports=True)
-                print("Got %d traces" % len(trace_set.traces))
+                logger.debug("Stream: got %d traces" % len(trace_set.traces))
 
                 self.queue.put(trace_set)
                 return payload_len + 5
@@ -517,19 +533,17 @@ class AISignalIteratorBase():
             return None
 
     def fetch_features_online(self):
-        print("Waiting for packet in queue")
+        logger.debug("Stream: waiting for packet in queue")
         # Get from blocking queue
         trace_set = self.stream_server.queue.get()
 
         # Apply work()
-        print("Processing")
+        logger.debug("Stream: processing trace set")
         result = EMResult(task_id=self.request_id)
         process_trace_set(result, trace_set, self.conf, keep_trace_sets=False, request_id=self.request_id)
 
         # Get signals and values
         signals, values = self._preprocess_trace_set(trace_set)
-
-        print("Done")
 
         return signals, values
 
@@ -738,7 +752,10 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
         batch_size = 32
     else:
         stream_server = None
-        batch_size = 512
+        if model_type == 'corrtrain':
+            batch_size = 10000
+        else:
+            batch_size = 512
 
     training_iterator = None
     validation_iterator = None

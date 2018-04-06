@@ -233,8 +233,14 @@ class AICorrNet(AI):
         super(AICorrNet, self).__init__(name)
         self.model = Sequential()
         self.use_bias = False
-        #reg = regularizers.l2(0.01)
+        #reg_lamb = 0.001  # Good value for l2 regularizer
+        reg_lamb = 0.0001  # Good value for l1 regularizer
+        #reg = regularizers.l2(reg_lamb)
+        #reg = regularizers.l1(reg_lamb)
         reg = None
+        #reg2 = regularizers.l2(reg_lamb)
+        reg2 = regularizers.l1(reg_lamb)
+        #reg2 = None
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
         #initializer = keras.initializers.Constant(value=1.0)
@@ -245,16 +251,26 @@ class AICorrNet(AI):
         constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
-        activation = None
+        #activation = None
         #activation = 'relu'
-        #activation = 'tanh'
+        activation = 'tanh'
 
-        hidden_nodes = 256
-        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None))
+        # First hidden layer
+        hidden_nodes = 128
+        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
         input_dim=hidden_nodes
         self.model.add(BatchNormalization())
         self.model.add(Activation("tanh"))
-        self.model.add(Dense(16, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, input_dim=input_dim, activation=None))
+
+        # Extra hidden layers
+        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
+        self.model.add(BatchNormalization())
+        self.model.add(Activation("tanh"))
+        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
+        self.model.add(BatchNormalization())
+        self.model.add(Activation("tanh"))
+
+        self.model.add(Dense(16, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
         self.model.add(BatchNormalization())  # Required for correct correlation calculation
         if not activation is None:
             self.model.add(Activation(activation))
@@ -270,7 +286,7 @@ class AICorrNet(AI):
 
         Assumes y is already normalized.
         '''
-        
+
         # Callbacks
         last_loss = LastLoss()
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)

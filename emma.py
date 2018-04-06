@@ -156,6 +156,7 @@ if __name__ == "__main__":
     parser.add_argument('--no-augment-roll', default=False, action='store_true', help='Roll signal during data augmentation.')
     parser.add_argument('--update', default=False, action='store_true', help='Update existing AI model instead of replacing.')
     parser.add_argument('--online', default=False, action='store_true', help='Fetch samples from remote EMcap instance online (without storing to disk).')
+    parser.add_argument('--refset', type=str, default=None, help='Dataset to take reference from (default = same as dataset argument)')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -164,11 +165,15 @@ if __name__ == "__main__":
 
         # Get a list of filenames from a dataset
         dataset = emio.remote_get_dataset(dataset=args.dataset)
+        if not args.refset is None:
+            dataset_ref = emio.remote_get_dataset(dataset=args.refset)
+        else:
+            dataset_ref = dataset
 
         # Worker-specific configuration. Add properties of the loaded dataset
         conf = argparse.Namespace(
             format=dataset.format,
-            reference_signal=dataset.reference_signal,
+            reference_signal=dataset_ref.reference_signal,
             subkey=0,
             **args.__dict__
         )
