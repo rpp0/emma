@@ -198,8 +198,8 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
         return tf.summary.image(tag, image, 1)
 
     def _plot_fft_weights(self, samp_rate):
-        # Get weights
-        weights = self.model.layers[-2].get_weights()[0]  # Assumes Dense layer with shape (input, output)
+        # Get weights of first layer
+        weights = self.model.layers[0].get_weights()[0]  # Assumes Dense layer with shape (input, output)
         input_size = weights.shape[0]
         output_size = weights.shape[1]
 
@@ -220,7 +220,7 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
 
     def on_epoch_end(self, epoch, logs=None):
         super(CustomTensorboard, self).on_epoch_end(epoch, logs)
-        if epoch % 1000 == 0:
+        if epoch % 100 == 0:
             try:
                 self._plot_fft_weights(80000000)  # TODO: hardcoded sample rate
 
@@ -239,10 +239,10 @@ class AICorrNet(AI):
         self.model = Sequential()
         self.use_bias = False
         #reg_lamb = 0.001  # Good value for l2 regularizer
-        reg_lamb = 0.0001
+        reg_lamb = 0.001
         #reg = regularizers.l2(reg_lamb)
-        #reg = regularizers.l1(reg_lamb)
-        reg = None
+        reg = regularizers.l1(reg_lamb)
+        #reg = None
         #reg2 = regularizers.l2(reg_lamb)
         #reg2 = regularizers.l1(reg_lamb)
         reg2 = None
@@ -261,15 +261,15 @@ class AICorrNet(AI):
         #activation = 'tanh'
 
         # First hidden layer
-        hidden_nodes = 256
+        hidden_nodes = 16
         self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
         input_dim=hidden_nodes
-        self.model.add(BatchNormalization())
+        #self.model.add(BatchNormalization())
         self.model.add(Activation("tanh"))
 
         # Extra hidden layers
-        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
-        self.model.add(BatchNormalization())
+        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=None))
+        #self.model.add(BatchNormalization())
         self.model.add(Activation("tanh"))
 
         self.model.add(Dense(16, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
