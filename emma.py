@@ -157,6 +157,7 @@ if __name__ == "__main__":
     parser.add_argument('--update', default=False, action='store_true', help='Update existing AI model instead of replacing.')
     parser.add_argument('--online', default=False, action='store_true', help='Fetch samples from remote EMcap instance online (without storing to disk).')
     parser.add_argument('--refset', type=str, default=None, help='Dataset to take reference from (default = same as dataset argument)')
+    parser.add_argument('--model-suffix', type=str, default="", help='Suffix for model name.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 

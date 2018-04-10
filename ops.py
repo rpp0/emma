@@ -362,7 +362,7 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result._data['state'] is None:
             logger.debug("Loading Keras")
-            result._data['state'] = AI("aicorrnet")
+            result._data['state'] = AI("aicorrnet", suffix=conf.model_suffix)
             result._data['state'].load()
 
         trace_set.window = Window(begin=0, end=result._data['state'].model.layers[-1].output_shape[1])
@@ -378,7 +378,7 @@ def shacputest_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result._data['state'] is None:
             logger.debug("Loading Keras")
-            result._data['state'] = AI("aishacpu" + ("-hw" if conf.hamming else ""))
+            result._data['state'] = AI("aishacpu" + ("-hw" if conf.hamming else ""), suffix=conf.model_suffix)
             result._data['state'].load()
 
         for trace in trace_set.traces:
@@ -394,7 +394,7 @@ def shacctest_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result._data['state'] is None:
             logger.debug("Loading Keras")
-            result._data['state'] = AI("aishacc" + ("-hw" if conf.hamming else ""))
+            result._data['state'] = AI("aishacc" + ("-hw" if conf.hamming else ""), suffix=conf.model_suffix)
             result._data['state'].load()
 
         for trace in trace_set.traces:
@@ -801,14 +801,14 @@ def aitrain(self, trace_set_paths, conf):
     model = None
     if model_type == 'corrtrain':
         if conf.update:  # Load existing model to update
-            model = AI("aicorrnet")
+            model = AI("aicorrnet", suffix=conf.model_suffix)
             model.load()
         else:
-            model = AICorrNet(input_dim=input_shape[0])
+            model = AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix)
     elif model_type == 'shacputrain':
-        model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype)
+        model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix)
     elif model_type == 'shacctrain':
-        model = AISHACC(input_shape=input_shape, hamming=conf.hamming)
+        model = AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix)
 
     logger.debug("Training...")
     model.train_generator(training_iterator, validation_iterator, epochs=100000, workers=1)

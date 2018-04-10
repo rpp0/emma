@@ -25,9 +25,9 @@ class AI():
     '''
     Base class for the models.
     '''
-    def __init__(self, name="unknown"):
+    def __init__(self, name="unknown", suffix=""):
         self.id = str(int(time.time()))
-        self.name = name
+        self.name = name + suffix
         self.models_dir = os.path.join(os.getcwd(), 'models')
         if not os.path.isdir(self.models_dir):
             os.makedirs(self.models_dir)
@@ -197,27 +197,32 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
         image = tf.expand_dims(image, 0) # Add the batch dimension
         return tf.summary.image(tag, image, 1)
 
-    def _plot_fft_weights(self, n, samp_rate):
+    def _plot_fft_weights(self, samp_rate):
         # Get weights
-        weights = self.model.get_weights()[0]
-        weights = np.reshape(weights, -1)
+        weights = self.model.layers[-2].get_weights()[0]  # Assumes Dense layer with shape (input, output)
+        input_size = weights.shape[0]
+        output_size = weights.shape[1]
 
         # Plot weights
         fig = plt.figure()
         axis = fig.add_subplot(111)
-        plt.title('FFT magnitude weights')
-        x = np.arange(len(weights))
-        y = weights
-        labels = np.fft.fftfreq(n, d=1.0/samp_rate)
-        axis.xaxis.set_major_formatter(FuncFormatter(lambda val, pos: "%.2f kHz" % (labels[int(val)] / 1000.0) if int(val) in x else ""))
-        axis.plot(x, y)
-        plt.xticks(rotation=15.0)
+        labels = np.fft.fftfreq(input_size, d=1.0/samp_rate)
+        plt.title('Weight values')
+
+        x = np.arange(input_size)
+
+        for i in range(0, output_size):
+            y = weights[:,i]
+            axis.plot(x, y)
+
+        #axis.xaxis.set_major_formatter(FuncFormatter(lambda val, pos: "%.2f kHz" % (labels[int(val)] / 1000.0) if int(val) in x else ""))
+        #plt.xticks(rotation=15.0)
 
     def on_epoch_end(self, epoch, logs=None):
         super(CustomTensorboard, self).on_epoch_end(epoch, logs)
-        if epoch % 100 == 0:
+        if epoch % 1000 == 0:
             try:
-                self._plot_fft_weights(10000, 80000000)  # TODO: hardcoded stuff
+                self._plot_fft_weights(80000000)  # TODO: hardcoded sample rate
 
                 # Generate plot summary
                 images = [self._plt_to_tf(plt, tag='plot'+str(epoch))]
@@ -229,18 +234,18 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
                 pass
 
 class AICorrNet(AI):
-    def __init__(self, input_dim, name="aicorrnet"):
-        super(AICorrNet, self).__init__(name)
+    def __init__(self, input_dim, name="aicorrnet", suffix=""):
+        super(AICorrNet, self).__init__(name, suffix=suffix)
         self.model = Sequential()
         self.use_bias = False
         #reg_lamb = 0.001  # Good value for l2 regularizer
-        reg_lamb = 0.0001  # Good value for l1 regularizer
+        reg_lamb = 0.0001
         #reg = regularizers.l2(reg_lamb)
         #reg = regularizers.l1(reg_lamb)
         reg = None
         #reg2 = regularizers.l2(reg_lamb)
-        reg2 = regularizers.l1(reg_lamb)
-        #reg2 = None
+        #reg2 = regularizers.l1(reg_lamb)
+        reg2 = None
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
         #initializer = keras.initializers.Constant(value=1.0)
@@ -251,21 +256,18 @@ class AICorrNet(AI):
         constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
-        #activation = None
+        activation = None
         #activation = 'relu'
-        activation = 'tanh'
+        #activation = 'tanh'
 
         # First hidden layer
-        hidden_nodes = 128
+        hidden_nodes = 256
         self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
         input_dim=hidden_nodes
         self.model.add(BatchNormalization())
         self.model.add(Activation("tanh"))
 
         # Extra hidden layers
-        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
-        self.model.add(BatchNormalization())
-        self.model.add(Activation("tanh"))
         self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
         self.model.add(BatchNormalization())
         self.model.add(Activation("tanh"))
@@ -300,8 +302,8 @@ class AICorrNet(AI):
         self._post_train(save)
 
 class AISHACPU(AI):
-    def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16'):
-        super(AISHACPU, self).__init__(name + ('-hw' if hamming else ''))
+    def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16', suffix=""):
+        super(AISHACPU, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix)
         assert(K.image_data_format() == 'channels_last')
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 
@@ -332,8 +334,8 @@ class AISHACPU(AI):
         self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
 class AISHACC(AI):
-    def __init__(self, input_shape, name="aishacc", hamming=True):
-        super(AISHACC, self).__init__(name + ('-hw' if hamming else ''))
+    def __init__(self, input_shape, name="aishacc", hamming=True, suffix=""):
+        super(AISHACC, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix)
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 
         """
