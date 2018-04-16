@@ -13,8 +13,7 @@ import matplotlib.pyplot as plt
 import emio
 import pickle
 import configparser
-import socket
-import struct
+import aiiterators
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
@@ -26,8 +25,6 @@ from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
 from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI, AISHACC
-from socketwrapper import SocketWrapper
-from queue import Queue
 from matplotlib.backends.backend_pdf import PdfPages
 
 logger = get_task_logger(__name__)  # Logger
@@ -445,227 +442,6 @@ def remote_get_dataset(dataset):
 def remote_get_trace_set(trace_set_path, format, ignore_malformed):
     return emio.get_trace_set(trace_set_path, format, ignore_malformed)
 
-class StreamServer():
-    def __init__(self, conf):
-        self.conf = conf
-        self.queue = Queue()
-
-        if self.conf.online:
-            from emutils import get_ip_address
-            settings = configparser.RawConfigParser()
-            settings.read('settings.conf')
-            interface = settings.get("Datasets", "stream_interface")
-            ip_address = get_ip_address(interface)
-            addr_tuple = (ip_address, 3885)
-
-            self.server = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), addr_tuple, self._cb_server)
-            self.server.start()
-
-            print("Listening for sample streams at %s" % str(addr_tuple))
-
-    def _cb_server(self, client_socket, client_address, data):
-        if len(data) < 5:
-            # Not enough for TLV
-            return 0
-        else:
-            pkt_type, payload_len = struct.unpack(">BI", data[0:5])
-            payload = data[5:]
-            if len(payload) < payload_len:
-                return 0  # Not enough for payload
-            else:
-                # Depickle and add to queue
-                # TODO: Check for correctness. EMcap is Python2 (because it needs to)
-                # use GNU Radio. Therefore the pickling format is different, which
-                # we need to make sure doesn't cause any differences.
-                trace_set = pickle.loads(payload, encoding='latin1', fix_imports=True)
-                logger.debug("Stream: got %d traces" % len(trace_set.traces))
-
-                self.queue.put(trace_set)
-                return payload_len + 5
-
-class AISignalIteratorBase():
-    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None):
-        self.trace_set_paths = trace_set_paths
-        self.conf = conf
-        self.batch_size = batch_size
-        self.cache = {}
-        self.index = 0
-        self.values_batch = []
-        self.signals_batch = []
-        self.request_id = request_id
-        self.max_cache = 1000
-        self.augment_roll = not self.conf.no_augment_roll
-        self.stream_server = stream_server
-
-    def __iter__(self):
-        return self
-
-    def _preprocess_trace_set(self, trace_set):
-        # X
-        signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
-
-        # Y
-        values = np.array([trace.plaintext for trace in trace_set.traces], dtype=float)
-
-        return signals, values
-
-    def fetch_features(self, trace_set_path):
-        '''
-        Fethes the features (raw trace and y-values) for a single trace path.
-        '''
-        # Memoize
-        if trace_set_path in self.cache:
-            return self.cache[trace_set_path]
-
-        # Apply actions from work()
-        result = EMResult(task_id=self.request_id)  # Make new collection of results
-        process_trace_set_paths(result, [trace_set_path], self.conf, keep_trace_sets=True, request_id=self.request_id)  # Store processed trace path in result
-
-        if len(result.trace_sets) > 0:
-            signals, values = self._preprocess_trace_set(result.trace_sets[0])  # Since we iterate per path, there will be only 1 result in trace_sets
-
-            # Cache
-            if len(self.cache.keys()) < self.max_cache:
-                self.cache[trace_set_path] = (signals, values)
-
-            return signals, values
-        else:
-            return None
-
-    def fetch_features_online(self):
-        logger.debug("Stream: waiting for packet in queue")
-        # Get from blocking queue
-        trace_set = self.stream_server.queue.get()
-
-        # Apply work()
-        logger.debug("Stream: processing trace set")
-        result = EMResult(task_id=self.request_id)
-        process_trace_set(result, trace_set, self.conf, keep_trace_sets=False, request_id=self.request_id)
-
-        # Get signals and values
-        signals, values = self._preprocess_trace_set(trace_set)
-
-        return signals, values
-
-    def _augment_roll(self, signals, roll_limit=None):  # TODO unit test!
-        roll_limit = roll_limit if not roll_limit is None else len(signals[0,:])
-        roll_limit_start = -roll_limit if not roll_limit is None else 0
-        logger.debug("Data augmentation: rolling signals")
-        num_signals, signal_len = signals.shape
-        for i in range(0, num_signals):
-            signals[i,:] = np.roll(signals[i,:], np.random.randint(roll_limit_start, roll_limit))
-        return signals
-
-    def next(self):
-        # Bound checking
-        if self.index < 0 or self.index >= len(self.trace_set_paths):
-            return None
-
-        while True:
-            # Do we have enough samples in buffer already?
-            if len(self.signals_batch) > self.batch_size:
-                # Get exactly batch_size training examples
-                signals_return_batch = np.array(self.signals_batch[0:self.batch_size])
-                values_return_batch = np.array(self.values_batch[0:self.batch_size])
-
-                # Keep the remainder for next iteration
-                self.signals_batch = self.signals_batch[self.batch_size:]
-                self.values_batch = self.values_batch[self.batch_size:]
-
-                # Return
-                return signals_return_batch,values_return_batch
-
-            # Determine next trace set path
-            trace_set_path = self.trace_set_paths[self.index]
-            self.index += 1
-            if self.index >= len(self.trace_set_paths):
-                self.index = 0
-
-            # Fetch features from online stream or from a path
-            if self.conf.online:
-                result = self.fetch_features_online()
-            else:
-                result = self.fetch_features(trace_set_path)
-            if result is None:
-                continue
-            signals, values = result
-
-            # Augment if enabled
-            if self.augment_roll:
-                signals = self._augment_roll(signals, roll_limit=16)
-
-            # Concatenate arrays until batch obtained
-            self.signals_batch.extend(signals)
-            self.values_batch.extend(values)
-
-    def __next__(self):
-        return self.next()
-
-class AICorrSignalIterator(AISignalIteratorBase):
-    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None):
-        super(AICorrSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id, stream_server)
-
-    def _preprocess_trace_set(self, trace_set):
-        '''
-        Preprocessing specifically for AICorrNet
-        '''
-
-        # Get training data
-        signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
-
-        # Get model labels (key bytes to correlate)
-        values = np.zeros((len(trace_set.traces), 16), dtype=float)
-        for i in range(len(trace_set.traces)):
-            for j in range(16):
-                values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
-
-        # Normalize key labels: required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
-        values = values - np.mean(values, axis=0)
-
-        return signals, values
-
-class AISHACPUSignalIterator(AISignalIteratorBase):
-    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None, hamming=True, subtype='vgg16'):
-        super(AISHACPUSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id, stream_server=None)
-        self.hamming = hamming
-        self.subtype = subtype
-
-    def _adapt_input_vgg(self, traces):
-        batch = []
-        for trace in traces:
-            side_len = int(np.sqrt(len(trace.signal) / 3.0))
-            max_len = side_len * side_len * 3
-            image = np.array(trace.signal[0:max_len], dtype=float).reshape(side_len, side_len, 3)
-            batch.append(image)
-        return np.array(batch)
-
-    def _preprocess_trace_set(self, trace_set):
-        '''
-        Preprocessing specifically for AISHACPU
-        '''
-
-        # Get training data
-        if self.subtype == 'vgg16':
-            signals = self._adapt_input_vgg(trace_set.traces)
-        else:
-            signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
-
-        # Get one-hot labels (bytes XORed with 0x36)
-        if self.hamming:
-            values = np.zeros((len(trace_set.traces), 9), dtype=float)
-        else:
-            values = np.zeros((len(trace_set.traces), 256), dtype=float)
-        index_to_find = 0  # Byte index of SHA-1 key
-        for i in range(len(trace_set.traces)):
-            trace = trace_set.traces[i]
-            key_byte = trace.plaintext[index_to_find]
-            if self.hamming:
-                values[i, hw[key_byte ^ 0x36]] = 1.0
-            else:
-                values[i, key_byte ^ 0x36] = 1.0
-
-        return signals, values
-
 def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=False):
     # Perform actions
     for action in conf.actions:
@@ -741,39 +517,6 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
         logger.error("Must provide a list of trace set paths to worker!")
         return None
 
-def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, hamming=False, subtype='custom', request_id=None):
-    num_validation_trace_sets = 1
-    validation_trace_set_paths = trace_set_paths[0:num_validation_trace_sets]
-    training_trace_set_paths = trace_set_paths[num_validation_trace_sets:]
-
-    # Stream samples from other machine?
-    if conf.online:
-        stream_server = StreamServer(conf)
-        batch_size = 32
-    else:
-        stream_server = None
-        if model_type == 'corrtrain':
-            batch_size = 10000
-        else:
-            batch_size = 512
-
-    training_iterator = None
-    validation_iterator = None
-    if model_type == 'corrtrain':
-        training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
-        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
-    elif model_type == 'shacputrain':
-        training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
-        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
-    elif model_type == 'shacctrain':
-        training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
-        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
-    else:
-        logger.error("Unknown training procedure specified.")
-        exit(1)
-
-    return training_iterator, validation_iterator
-
 def get_conf_model_type(conf):
     for action in conf.actions:
         if action in ['corrtrain', 'shacputrain', 'shacctrain']:
@@ -791,7 +534,7 @@ def aitrain(self, trace_set_paths, conf):
     model_type = get_conf_model_type(conf)
 
     # Select training iterator (gathers data, performs augmentation and preprocessing)
-    training_iterator, validation_iterator = get_iterators_for_model(model_type, trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
+    training_iterator, validation_iterator = aiiterators.get_iterators_for_model(model_type, trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
 
     x, _ = training_iterator.next()
     input_shape = x.shape[1:]  # Shape excluding batch
