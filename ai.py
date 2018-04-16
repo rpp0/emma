@@ -264,12 +264,12 @@ class AICorrNet(AI):
         hidden_nodes = 16
         self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
         input_dim=hidden_nodes
-        #self.model.add(BatchNormalization())
+        self.model.add(BatchNormalization())
         self.model.add(Activation("tanh"))
 
         # Extra hidden layers
         self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=None))
-        #self.model.add(BatchNormalization())
+        self.model.add(BatchNormalization())
         self.model.add(Activation("tanh"))
 
         self.model.add(Dense(16, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
