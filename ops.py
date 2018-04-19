@@ -24,7 +24,7 @@ from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
-from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI, AISHACC
+from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI, AISHACC, AIASCAD
 from matplotlib.backends.backend_pdf import PdfPages
 
 logger = get_task_logger(__name__)  # Logger
@@ -519,7 +519,7 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
 
 def get_conf_model_type(conf):
     for action in conf.actions:
-        if action in ['corrtrain', 'shacputrain', 'shacctrain']:
+        if action in ['corrtrain', 'shacputrain', 'shacctrain', 'ascadtrain']:
             return action
     return None
 
@@ -552,6 +552,8 @@ def aitrain(self, trace_set_paths, conf):
         model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix)
     elif model_type == 'shacctrain':
         model = AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix)
+    elif model_type == 'ascadtrain':
+        model = AIASCAD(input_shape=input_shape, suffix=conf.model_suffix)
 
     logger.debug("Training...")
     model.train_generator(training_iterator, validation_iterator, epochs=100000, workers=1)

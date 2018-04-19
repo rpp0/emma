@@ -11,6 +11,8 @@ from emresult import EMResult
 from lut import hw, sbox
 from streamserver import StreamServer
 from celery.utils.log import get_task_logger
+from ASCAD_train_models import load_ascad
+from keras.utils import to_categorical
 
 import numpy as np
 import ops
@@ -30,6 +32,8 @@ class AISignalIteratorBase():
         self.max_cache = 1000
         self.augment_roll = not self.conf.no_augment_roll
         self.stream_server = stream_server
+        self.traces_per_set = conf.traces_per_set
+        self.num_total_examples = len(self.trace_set_paths) * self.traces_per_set
 
     def __iter__(self):
         return self
@@ -200,6 +204,31 @@ class AISHACPUSignalIterator(AISignalIteratorBase):
 
         return signals, values
 
+class ASCADSignalIterator():
+    def __init__(self, set, batch_size=200):
+        self.set_inputs, self.set_labels = set
+        self.batch_size = batch_size
+        self.index = 0
+        self.values_batch = []
+        self.signals_batch = []
+        self.num_total_examples = len(self.set_inputs)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        batch_inputs = np.expand_dims(self.set_inputs[self.index:self.index+self.batch_size], axis=-1)
+        batch_labels = to_categorical(self.set_labels[self.index:self.index+self.batch_size], num_classes=256)
+
+        self.index += self.batch_size
+        if self.index >= len(self.set_inputs):
+            self.index = 0
+
+        return batch_inputs, batch_labels
+
+    def __next__(self):
+        return self.next()
+
 def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, hamming=False, subtype='custom', request_id=None):
     num_validation_trace_sets = 1
     validation_trace_set_paths = trace_set_paths[0:num_validation_trace_sets]
@@ -227,6 +256,10 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
     elif model_type == 'shacctrain':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
         validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
+    elif model_type == 'ascadtrain':
+        train_set, attack_set = load_ascad("/scratch2/ASCAD_data/ASCAD_databases/ASCAD.h5", load_metadata=False)
+        training_iterator = ASCADSignalIterator(train_set)
+        validation_iterator = ASCADSignalIterator(attack_set)
     else:
         logger.error("Unknown training procedure specified.")
         exit(1)

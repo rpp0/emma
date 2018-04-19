@@ -13,6 +13,7 @@ class Dataset():
         self.id = id
         self.format = format
         self.reference_index = reference_index
+        self.traces_per_set = 0
 
         self._setup()
 
@@ -52,4 +53,7 @@ class Dataset():
             raise Exception("Unknown input format '%s'" % inform)
 
         # Assign reference signal
-        self.reference_signal = emio.get_trace_set(join(prefix, self.trace_set_paths[0]), self.format, ignore_malformed=False).traces[self.reference_index].signal
+        reference_trace_set = emio.get_trace_set(join(prefix, self.trace_set_paths[0]), self.format, ignore_malformed=False)
+
+        self.traces_per_set = len(reference_trace_set.traces)
+        self.reference_signal = reference_trace_set.traces[self.reference_index].signal

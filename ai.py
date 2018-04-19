@@ -18,6 +18,7 @@ from keras.applications.vgg16 import VGG16
 from keras import regularizers
 from keras.engine.topology import Layer
 from keras.losses import categorical_crossentropy
+from rank import RankCallback
 
 K.set_epsilon(1e-15)
 
@@ -44,12 +45,14 @@ class AI():
     def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
         validation_batch = validation_iterator.next()
 
+        steps_per_epoch = int(training_iterator.num_total_examples / training_iterator.batch_size)
+
         # Train model
         self.model.fit_generator(training_iterator,
                                 epochs=epochs,
-                                steps_per_epoch=1,
+                                steps_per_epoch=steps_per_epoch,
                                 validation_data=validation_batch,
-                                workers=workers, callbacks=list(self.callbacks.values()), verbose=2)
+                                workers=workers, callbacks=list(self.callbacks.values()), verbose=1)
 
         # Get loss from callback
         self.last_loss = self.callbacks['lastloss'].value
@@ -433,6 +436,13 @@ def cc_loss(y_true, y_pred):
 def cc_catcross_loss(y_true, y_pred):
     return tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
 
+class AIASCAD(AI):
+    def __init__(self, input_shape, name="aiascad", suffix=""):
+        super(AIASCAD, self).__init__(name, suffix=suffix)
+        from ASCAD_train_models import cnn_best
+
+        self.model = cnn_best(input_shape=input_shape)
+        self.callbacks['rank'] = RankCallback()
 
 class CCLayer(Conv1D):
     def __init__(self, epsilon=1e-7, normalize_inputs=False, **kwargs):

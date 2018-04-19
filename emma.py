@@ -175,6 +175,7 @@ if __name__ == "__main__":
         conf = argparse.Namespace(
             format=dataset.format,
             reference_signal=dataset_ref.reference_signal,
+            traces_per_set=dataset.traces_per_set,
             subkey=0,
             **args.__dict__
         )
