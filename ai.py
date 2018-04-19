@@ -43,7 +43,12 @@ class AI():
         }
 
     def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
-        validation_batch = validation_iterator.next()
+        validation_batch = validation_iterator.next()  # Get one mini-batch from validation set to quickly test validation error
+
+        # If we have a RankCallback set, pass our supplied validation set to it
+        if 'rank' in self.callbacks:
+            all_validation_trace_set = validation_iterator.get_all_as_trace_set()
+            self.callbacks['rank'].set_trace_set(all_validation_trace_set)
 
         steps_per_epoch = int(training_iterator.num_total_examples / training_iterator.batch_size)
 
@@ -283,6 +288,7 @@ class AICorrNet(AI):
 
         # Custom callbacks
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
+        #self.callbacks['rank'] = CorrRankCallback()
 
     def train_set(self, x, y, save=True, epochs=1):
         '''
@@ -441,8 +447,8 @@ class AIASCAD(AI):
         super(AIASCAD, self).__init__(name, suffix=suffix)
         from ASCAD_train_models import cnn_best
 
-        self.model = cnn_best(input_shape=input_shape)
         self.callbacks['rank'] = RankCallback()
+        self.model = cnn_best(input_shape=input_shape)
 
 class CCLayer(Conv1D):
     def __init__(self, epsilon=1e-7, normalize_inputs=False, **kwargs):

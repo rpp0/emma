@@ -16,13 +16,13 @@ class TraceSet(object):
     def __init__(self, name=None, traces=None, plaintexts=None, ciphertexts=None, keys=None):
         self.name = name
         self.traces = self._zip_traces(traces, plaintexts, ciphertexts, keys)
-        self.num_traces = traces.shape[0]
+        self.num_traces = 0 if self.traces is None else self.traces.shape[0]
         self.windowed = False
         self.window = None
 
     def _zip_traces(self, traces, plaintexts, ciphertexts, keys):
         if traces is None:
-            raise Exception("Tried to create TraceSet without traces")
+            return None
 
         zipped_traces = [Trace(None, None, None, None) for i in range(0, traces.shape[0])]
 
@@ -61,3 +61,7 @@ class TraceSet(object):
             np.save(self.name + "_p_traces.npy", np.array([t.signal for t in self.traces]))
         elif fmt == 'sigmf':
             raise NotImplementedError
+
+    def __str__(self):
+        result = "TraceSet '%s' containing %d traces." % (self.name, self.num_traces)
+        return result

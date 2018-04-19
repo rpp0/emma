@@ -13,6 +13,7 @@ from streamserver import StreamServer
 from celery.utils.log import get_task_logger
 from ASCAD_train_models import load_ascad
 from keras.utils import to_categorical
+from traceset import TraceSet
 
 import numpy as np
 import ops
@@ -37,6 +38,20 @@ class AISignalIteratorBase():
 
     def __iter__(self):
         return self
+
+    def get_all_as_trace_set(self):
+        result = EMResult(task_id=self.request_id)  # Make new collection of results
+        ops.process_trace_set_paths(result, self.trace_set_paths, self.conf, keep_trace_sets=True, request_id=self.request_id)  # Store processed trace path in result
+
+        all_traces = []
+        for trace_set in result.trace_sets:
+            all_traces.extend(trace_set.traces)
+
+        result = TraceSet(name="all_traces")
+        result.set_traces(all_traces)
+
+        return result
+
 
     def _preprocess_trace_set(self, trace_set):
         # X
@@ -205,8 +220,9 @@ class AISHACPUSignalIterator(AISignalIteratorBase):
         return signals, values
 
 class ASCADSignalIterator():
-    def __init__(self, set, batch_size=200):
+    def __init__(self, set, meta=None, batch_size=200):
         self.set_inputs, self.set_labels = set
+        self.meta = meta
         self.batch_size = batch_size
         self.index = 0
         self.values_batch = []
@@ -215,6 +231,22 @@ class ASCADSignalIterator():
 
     def __iter__(self):
         return self
+
+    def get_all_as_trace_set(self):
+        traces = []
+        plaintexts = []
+        keys = []
+
+        for i in range(0, len(self.set_inputs)):
+            traces.append(self.set_inputs[i])
+            plaintexts.append(self.meta[i]['plaintext'])
+            keys.append(self.meta[i]['key'])
+
+        traces = np.array(traces)
+        plaintexts = np.array(plaintexts)
+        keys = np.array(keys)
+
+        return TraceSet(name='all_traces', traces=traces, plaintexts=plaintexts, ciphertexts=None, keys=keys)
 
     def next(self):
         batch_inputs = np.expand_dims(self.set_inputs[self.index:self.index+self.batch_size], axis=-1)
@@ -249,7 +281,7 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
     validation_iterator = None
     if model_type == 'corrtrain':
         training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
-        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
+        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=256, request_id=request_id, stream_server=stream_server)
     elif model_type == 'shacputrain':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
         validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
@@ -257,9 +289,10 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
         validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
     elif model_type == 'ascadtrain':
-        train_set, attack_set = load_ascad("/scratch2/ASCAD_data/ASCAD_databases/ASCAD.h5", load_metadata=False)
-        training_iterator = ASCADSignalIterator(train_set)
-        validation_iterator = ASCADSignalIterator(attack_set)
+        train_set, attack_set, metadata_set = load_ascad("/scratch2/ASCAD_data/ASCAD_databases/ASCAD.h5", load_metadata=True)
+        metadata_train, metadata_attack = metadata_set
+        training_iterator = ASCADSignalIterator(train_set, meta=metadata_train)
+        validation_iterator = ASCADSignalIterator(attack_set, meta=metadata_attack)
     else:
         logger.error("Unknown training procedure specified.")
         exit(1)
