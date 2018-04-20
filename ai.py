@@ -447,7 +447,7 @@ class AIASCAD(AI):
         super(AIASCAD, self).__init__(name, suffix=suffix)
         from ASCAD_train_models import cnn_best
 
-        self.callbacks['rank'] = RankCallback()
+        self.callbacks['rank'] = RankCallback('/tmp/keras/' + self.name + '-' + self.id + '-rank')
         self.model = cnn_best(input_shape=input_shape)
 
 class CCLayer(Conv1D):
