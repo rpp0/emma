@@ -556,4 +556,4 @@ def aitrain(self, trace_set_paths, conf):
         model = AIASCAD(input_shape=input_shape, suffix=conf.model_suffix)
 
     logger.debug("Training...")
-    model.train_generator(training_iterator, validation_iterator, epochs=100000, workers=1)
+    model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)

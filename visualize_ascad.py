@@ -3,6 +3,7 @@ from ASCAD_train_models import load_ascad
 import matplotlib.pyplot as plt
 import argparse
 import numpy as np
+import code
 
 def plot_signal(signal):
     x = np.arange(len(signal))
@@ -27,3 +28,5 @@ if __name__ == "__main__":
     else:
         for trace in train_x[:args.limit]:
             plot_signal(trace)
+
+    code.interact(banner='', local=locals())

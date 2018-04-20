@@ -10,6 +10,7 @@ import configparser
 from sigmf.sigmffile import SigMFFile
 from traceset import TraceSet
 from dataset import Dataset
+from emutils import Window
 
 def remote_get_dataset(dataset):
     return ops.remote_get_dataset.si(dataset).apply_async().get()
@@ -91,11 +92,42 @@ def get_trace_set(trace_set_path, format, ignore_malformed=True):
         raise NotImplementedError
     elif format == "gnuradio":  # .cfile
         raise NotImplementedError
+    elif format == "ascad":
+        from ASCAD_train_models import load_ascad
+        h5_path = trace_set_path.rpartition('-')[0]
+        train_set, attack_set, metadata_set = load_ascad(h5_path, load_metadata=True)
+        metadata_train, metadata_attack = metadata_set
+
+        if trace_set_path.endswith('-train'):
+            return get_ascad_trace_set('train', train_set, metadata_train)
+        elif trace_set_path.endswith('-val'):
+            return get_ascad_trace_set('validation', attack_set, metadata_attack)
     else:
         print("Unknown input format '%s'" % format)
         exit(1)
 
     return None
+
+def get_ascad_trace_set(name, data, meta):
+    data_x, data_y = data
+    traces = []
+    plaintexts = []
+    keys = []
+
+    for i in range(0, len(data_x)):
+        traces.append(data_x[i])
+        plaintexts.append(meta[i]['plaintext'])
+        keys.append(meta[i]['key'])
+
+    traces = np.array(traces)
+    plaintexts = np.array(plaintexts)
+    keys = np.array(keys)
+
+    trace_set = TraceSet(name='ascad-%s' % name, traces=traces, plaintexts=plaintexts, ciphertexts=None, keys=keys)
+    trace_set.window = Window(begin=0, end=len(trace_set.traces[0].signal))
+    trace_set.windowed = True
+
+    return trace_set
 
 def update_cw_config(path, trace_set, update_dict):
     '''

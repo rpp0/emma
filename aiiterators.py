@@ -6,7 +6,6 @@
 # labels for the models in ai.py.
 # ----------------------------------------------------
 
-#from ops import process_trace_set_paths, process_trace_set
 from emresult import EMResult
 from lut import hw, sbox
 from streamserver import StreamServer
@@ -17,6 +16,7 @@ from traceset import TraceSet
 
 import numpy as np
 import ops
+import emio
 
 logger = get_task_logger(__name__)
 
@@ -221,6 +221,7 @@ class AISHACPUSignalIterator(AISignalIteratorBase):
 
 class ASCADSignalIterator():
     def __init__(self, set, meta=None, batch_size=200):
+        self.set = set
         self.set_inputs, self.set_labels = set
         self.meta = meta
         self.batch_size = batch_size
@@ -233,20 +234,7 @@ class ASCADSignalIterator():
         return self
 
     def get_all_as_trace_set(self):
-        traces = []
-        plaintexts = []
-        keys = []
-
-        for i in range(0, len(self.set_inputs)):
-            traces.append(self.set_inputs[i])
-            plaintexts.append(self.meta[i]['plaintext'])
-            keys.append(self.meta[i]['key'])
-
-        traces = np.array(traces)
-        plaintexts = np.array(plaintexts)
-        keys = np.array(keys)
-
-        return TraceSet(name='all_traces', traces=traces, plaintexts=plaintexts, ciphertexts=None, keys=keys)
+        return emio.get_ascad_trace_set('all_traces', self.set, self.meta)
 
     def next(self):
         batch_inputs = np.expand_dims(self.set_inputs[self.index:self.index+self.batch_size], axis=-1)

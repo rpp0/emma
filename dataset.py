@@ -38,10 +38,10 @@ class Dataset():
         settings = configparser.RawConfigParser()
         settings.read('settings.conf')
         prefix = settings.get("Datasets", "datasets_path")
-        path = join(prefix, self.id)
 
         # Assign trace set paths
         if self.format == "cw":  # .npy
+            path = join(prefix, self.id)
             self.trace_set_paths = sorted([join(self.id, f) for f in listdir(path) if isfile(join(path, f)) and '_traces.npy' in f])
         elif self.format == "sigmf":  # .meta
             self.trace_set_paths = None
@@ -49,8 +49,13 @@ class Dataset():
         elif self.format == "gnuradio":  # .cfile
             self.trace_set_paths = None
             raise NotImplementedError
+        elif self.format == "ascad":  # ASCAD .h5
+            # Hack to force split between validation and training set in ASCAD
+            self.trace_set_paths = [join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id), join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)]
         else:
-            raise Exception("Unknown input format '%s'" % inform)
+            raise Exception("Unknown input format '%s'" % self.format)
+
+        assert(len(self.trace_set_paths) > 0)
 
         # Assign reference signal
         reference_trace_set = emio.get_trace_set(join(prefix, self.trace_set_paths[0]), self.format, ignore_malformed=False)
