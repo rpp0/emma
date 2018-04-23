@@ -39,13 +39,15 @@ class AISignalIteratorBase():
     def __iter__(self):
         return self
 
-    def get_all_as_trace_set(self):
+    def get_all_as_trace_set(self, limit=None):
         result = EMResult(task_id=self.request_id)  # Make new collection of results
         ops.process_trace_set_paths(result, self.trace_set_paths, self.conf, keep_trace_sets=True, request_id=self.request_id)  # Store processed trace path in result
 
         all_traces = []
         for trace_set in result.trace_sets:
             all_traces.extend(trace_set.traces)
+            if not limit is None and len(all_traces) >= limit:
+                break
 
         result = TraceSet(name="all_traces")
         result.set_traces(all_traces)
@@ -260,23 +262,23 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
         batch_size = 32
     else:
         stream_server = None
-        if model_type == 'corrtrain':
+        if model_type == 'aicorrnet':
             batch_size = 10000
         else:
             batch_size = 512
 
     training_iterator = None
     validation_iterator = None
-    if model_type == 'corrtrain':
+    if model_type == 'aicorrnet':
         training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
         validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=256, request_id=request_id, stream_server=stream_server)
-    elif model_type == 'shacputrain':
+    elif model_type == 'aishacpu':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
         validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
-    elif model_type == 'shacctrain':
+    elif model_type == 'aishacc':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
         validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
-    elif model_type == 'ascadtrain':
+    elif model_type == 'aiascad':
         train_set, attack_set, metadata_set = load_ascad("/scratch2/ASCAD_data/ASCAD_databases/ASCAD.h5", load_metadata=True)
         metadata_train, metadata_attack = metadata_set
         training_iterator = ASCADSignalIterator(train_set, meta=metadata_train)

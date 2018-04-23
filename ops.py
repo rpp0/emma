@@ -517,10 +517,23 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
         logger.error("Must provide a list of trace set paths to worker!")
         return None
 
+def action_to_model_type(action):
+    if action == 'corrtrain':
+        return 'aicorrnet'
+    elif action == 'shacputrain':
+        return 'aishacpu'
+    elif action == 'shacctrain':
+        return 'aishacc'
+    elif action == 'ascadtrain':
+        return 'aiascad'
+    else:
+        return None
+
 def get_conf_model_type(conf):
     for action in conf.actions:
-        if action in ['corrtrain', 'shacputrain', 'shacctrain', 'ascadtrain']:
-            return action
+        model_type = action_to_model_type(action)
+        if not model_type is None:
+            return model_type
     return None
 
 @app.task(bind=True)
@@ -542,18 +555,19 @@ def aitrain(self, trace_set_paths, conf):
 
     # Select model
     model = None
-    if model_type == 'corrtrain':
-        if conf.update:  # Load existing model to update
-            model = AI("aicorrnet", suffix=conf.model_suffix)
-            model.load()
-        else:
+    if conf.update:  # Load existing model to update
+        logger.warning("Loading model %s%s" % (model_type, '-' + conf.model_suffix if not conf.model_suffix is None else ''))
+        model = AI(model_type, suffix=conf.model_suffix)
+        model.load()
+    else:  # Create new model
+        if model_type == 'aicorrnet':
             model = AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix)
-    elif model_type == 'shacputrain':
-        model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix)
-    elif model_type == 'shacctrain':
-        model = AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix)
-    elif model_type == 'ascadtrain':
-        model = AIASCAD(input_shape=input_shape, suffix=conf.model_suffix)
+        elif model_type == 'aishacpu':
+            model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix)
+        elif model_type == 'aishacc':
+            model = AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix)
+        elif model_type == 'aiascad':
+            model = AIASCAD(input_shape=input_shape, suffix=conf.model_suffix)
 
     logger.debug("Training...")
     model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)

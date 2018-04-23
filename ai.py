@@ -26,8 +26,9 @@ class AI():
     '''
     Base class for the models.
     '''
-    def __init__(self, name="unknown", suffix=""):
+    def __init__(self, name="unknown", suffix=None):
         self.id = str(int(time.time()))
+        suffix = "" if suffix is None else '-' + suffix
         self.name = name + suffix
         self.models_dir = os.path.join(os.getcwd(), 'models')
         if not os.path.isdir(self.models_dir):
@@ -39,7 +40,8 @@ class AI():
         self.callbacks = {
             'lastloss': LastLoss(),
             'tensorboard': TensorBoard(log_dir='/tmp/keras/' + self.name + '-' + self.id),
-            'save': SaveLowestValLoss(self.model_path)
+            'save': SaveLowestValLoss(self.model_path),
+            'rank': RankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path),
         }
 
     def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
@@ -47,7 +49,7 @@ class AI():
 
         # If we have a RankCallback set, pass our supplied validation set to it
         if 'rank' in self.callbacks:
-            all_validation_trace_set = validation_iterator.get_all_as_trace_set(limit=1000)
+            all_validation_trace_set = validation_iterator.get_all_as_trace_set(limit=10000)
             self.callbacks['rank'].set_trace_set(all_validation_trace_set)
 
         steps_per_epoch = int(training_iterator.num_total_examples / training_iterator.batch_size)
@@ -242,7 +244,7 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
                 pass
 
 class AICorrNet(AI):
-    def __init__(self, input_dim, name="aicorrnet", suffix=""):
+    def __init__(self, input_dim, name="aicorrnet", suffix=None):
         super(AICorrNet, self).__init__(name, suffix=suffix)
         self.model = Sequential()
         self.use_bias = False
@@ -288,7 +290,6 @@ class AICorrNet(AI):
 
         # Custom callbacks
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
-        #self.callbacks['rank'] = CorrRankCallback()
 
     def train_set(self, x, y, save=True, epochs=1):
         '''
@@ -311,7 +312,7 @@ class AICorrNet(AI):
         self._post_train(save)
 
 class AISHACPU(AI):
-    def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16', suffix=""):
+    def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16', suffix=None):
         super(AISHACPU, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix)
         assert(K.image_data_format() == 'channels_last')
         input_tensor = Input(shape=input_shape)  # Does not include batch size
@@ -343,7 +344,7 @@ class AISHACPU(AI):
         self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
 class AISHACC(AI):
-    def __init__(self, input_shape, name="aishacc", hamming=True, suffix=""):
+    def __init__(self, input_shape, name="aishacc", hamming=True, suffix=None):
         super(AISHACC, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix)
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 
@@ -443,11 +444,10 @@ def cc_catcross_loss(y_true, y_pred):
     return tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
 
 class AIASCAD(AI):
-    def __init__(self, input_shape, name="aiascad", suffix=""):
+    def __init__(self, input_shape, name="aiascad", suffix=None):
         super(AIASCAD, self).__init__(name, suffix=suffix)
         from ASCAD_train_models import cnn_best
 
-        self.callbacks['rank'] = RankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
         self.model = cnn_best(input_shape=input_shape)
 
 class CCLayer(Conv1D):
