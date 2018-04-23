@@ -233,8 +233,8 @@ class ASCADSignalIterator():
     def __iter__(self):
         return self
 
-    def get_all_as_trace_set(self):
-        return emio.get_ascad_trace_set('all_traces', self.set, self.meta)
+    def get_all_as_trace_set(self, limit=None):
+        return emio.get_ascad_trace_set('all_traces', self.set, self.meta, limit=limit)
 
     def next(self):
         batch_inputs = np.expand_dims(self.set_inputs[self.index:self.index+self.batch_size], axis=-1)

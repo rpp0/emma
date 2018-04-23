@@ -17,10 +17,13 @@ class RankCallback(keras.callbacks.Callback):
     since to calculate the rank we need metadata about the traces as well (plaintext and key).
     """
 
-    def __init__(self, log_dir):
+    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5'):
         #super(RankCallback, self).__init__()
         self.trace_set = None
         self.writer = tf.summary.FileWriter(log_dir)
+        self.save_best = save_best
+        self.best_rank = 256
+        self.save_path = "%s-bestrank.h5" % save_path.rpartition('.')[0]
 
     def set_trace_set(self, trace_set):
         self.trace_set = trace_set
@@ -47,23 +50,20 @@ class RankCallback(keras.callbacks.Callback):
             best_key = np.argmin(key_ranks)
             print("True key is %02x" % key_true)
             print("Best key is %02x" % best_key)
-            print("Rank is %d" % key_ranks[key_true])
+            rank = key_ranks[key_true]
+            print("Rank is %d" % rank)
 
             # Add to TensorBoard
             summary = tf.Summary()
             summary_value = summary.value.add()
-            summary_value.simple_value = key_ranks[key_true]
+            summary_value.simple_value = rank
             summary_value.tag = 'rank'
             self.writer.add_summary(summary, epoch)
             self.writer.flush()
+
+            # Save
+            if self.save_best and rank < self.best_rank:
+                self.best_rank = rank
+                self.model.save(self.save_path)
         else:
             print("Warning: no trace_set supplied to RankCallback")
-
-def rank(y_true, y_pred):
-    pickle.dump(y_true, open('/tmp/test.p', 'wb'))
-    print(np.argmax(y_true, axis=1))
-    true_key_scores = -np.sum(np.log(y_true + K.epsilon()), axis=0)
-    true_key_scores_rank = np.argsort(true_key_scores)
-    true_key = np.argmin(true_key_scores_rank)
-    print("True key is %02x" % true_key)
-    print("True key score is %f" % true_key_scores[true_key])

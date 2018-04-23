@@ -108,13 +108,14 @@ def get_trace_set(trace_set_path, format, ignore_malformed=True):
 
     return None
 
-def get_ascad_trace_set(name, data, meta):
+def get_ascad_trace_set(name, data, meta, limit=None):
     data_x, data_y = data
     traces = []
     plaintexts = []
     keys = []
+    limit = len(data_x) if limit is None else min(len(data_x), limit)
 
-    for i in range(0, len(data_x)):
+    for i in range(0, limit):
         traces.append(data_x[i])
         plaintexts.append(meta[i]['plaintext'])
         keys.append(meta[i]['key'])

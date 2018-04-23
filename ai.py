@@ -47,7 +47,7 @@ class AI():
 
         # If we have a RankCallback set, pass our supplied validation set to it
         if 'rank' in self.callbacks:
-            all_validation_trace_set = validation_iterator.get_all_as_trace_set()
+            all_validation_trace_set = validation_iterator.get_all_as_trace_set(limit=1000)
             self.callbacks['rank'].set_trace_set(all_validation_trace_set)
 
         steps_per_epoch = int(training_iterator.num_total_examples / training_iterator.batch_size)
@@ -447,7 +447,7 @@ class AIASCAD(AI):
         super(AIASCAD, self).__init__(name, suffix=suffix)
         from ASCAD_train_models import cnn_best
 
-        self.callbacks['rank'] = RankCallback('/tmp/keras/' + self.name + '-' + self.id + '-rank')
+        self.callbacks['rank'] = RankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
         self.model = cnn_best(input_shape=input_shape)
 
 class CCLayer(Conv1D):
