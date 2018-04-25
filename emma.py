@@ -73,9 +73,9 @@ def wait_until_completion(async_result, message="Task"):
         raise TypeError
 
 def perform_cpa_attack(dataset, conf):
-    max_correlations = np.zeros([conf.num_subkeys, 256])
+    max_correlations = np.zeros([conf.skip_subkeys + conf.num_subkeys, 256])
 
-    for subkey in range(0, conf.num_subkeys):
+    for subkey in range(conf.skip_subkeys, min(conf.skip_subkeys + conf.num_subkeys, 16)):
         conf.subkey = subkey
 
         # Execute task
@@ -147,6 +147,7 @@ if __name__ == "__main__":
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
     parser.add_argument('--max-subtasks', type=int, default=32, help='Maximum number of subtasks')
+    parser.add_argument('--skip-subkeys', type=int, default=0, help='Number of subkeys to skip')
     parser.add_argument('--num-subkeys', type=int, default=16, help='Number of subkeys to break')
     parser.add_argument('--kill-workers', default=False, action='store_true', help='Kill workers after finishing the tasks.')
     parser.add_argument('--butter-order', type=int, default=1, help='Order of Butterworth filter')
@@ -177,6 +178,7 @@ if __name__ == "__main__":
             format=dataset.format,
             reference_signal=dataset_ref.reference_signal,
             traces_per_set=dataset.traces_per_set,
+            datasets_path=dataset.prefix,
             subkey=0,
             **args.__dict__
         )

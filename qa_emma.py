@@ -6,7 +6,7 @@
 # ----------------------------------------------------
 
 from correlationlist import CorrelationList
-from ai import AICorrNet
+import ops
 import unittest
 import numpy as np
 import emutils
@@ -85,7 +85,7 @@ class TestUtils(unittest.TestCase):
 
 class TestAI(unittest.TestCase):
     def test_corrtrain(self):
-        ai = AICorrNet(4, name="test")
+        model = ops.AICorrNet(4, name="test")
         x = [ # Contains abs(trace). Shape = [trace, point]
             [1, 1, 1, -15],
             [2, 1, -4, -12],
@@ -104,12 +104,12 @@ class TestAI(unittest.TestCase):
         y_norm = y - np.mean(y, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
 
         # Find optimal weights
-        ai.train_set(x, y_norm, save=False, epochs=150)
+        model.train_set(x, y_norm, save=False, epochs=150)
         result = []
 
         # Simulate same approach used in ops.py corrtest (iterate over rows)
         for i in range(0, 3):
-            result.append(ai.predict(np.array([x[i,:]], dtype=float))[0])  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 16]
+            result.append(model.predict(np.array([x[i,:]], dtype=float))[0])  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 16]
         result = np.array(result)
 
         print("Learned frequency sums: " + str(result))
@@ -139,9 +139,9 @@ class TestAI(unittest.TestCase):
 
             calculated_loss += 1.0 - corr_key_i
 
-        print("Last loss: %s" % str(ai.last_loss))
+        print("Last loss: %s" % str(model.last_loss))
         print("Calculated loss: %s" % str(calculated_loss))
-        #self.assertAlmostEqual(ai.last_loss, calculated_loss, places=3)
+        #self.assertAlmostEqual(model.last_loss, calculated_loss, places=3)
 
 if __name__ == '__main__':
     unittest.main()

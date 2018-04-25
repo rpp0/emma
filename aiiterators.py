@@ -13,6 +13,7 @@ from celery.utils.log import get_task_logger
 from ASCAD_train_models import load_ascad
 from keras.utils import to_categorical
 from traceset import TraceSet
+from os.path import join
 
 import numpy as np
 import ops
@@ -279,7 +280,7 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
         validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
     elif model_type == 'aiascad':
-        train_set, attack_set, metadata_set = load_ascad("/scratch2/ASCAD_data/ASCAD_databases/ASCAD.h5", load_metadata=True)
+        train_set, attack_set, metadata_set = load_ascad(join(conf.datasets_path, "ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"), load_metadata=True)
         metadata_train, metadata_attack = metadata_set
         training_iterator = ASCADSignalIterator(train_set, meta=metadata_train)
         validation_iterator = ASCADSignalIterator(attack_set, meta=metadata_attack)

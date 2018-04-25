@@ -38,6 +38,7 @@ class Dataset():
         settings = configparser.RawConfigParser()
         settings.read('settings.conf')
         prefix = settings.get("Datasets", "datasets_path")
+        self.prefix = prefix
 
         # Assign trace set paths
         if self.format == "cw":  # .npy

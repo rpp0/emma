@@ -6,25 +6,26 @@
 import numpy as np
 
 class Trace(object):
-    def __init__(self, signal, plaintext, ciphertext, key):
+    def __init__(self, signal, plaintext, ciphertext, key, mask):
         self.signal = signal
         self.plaintext = plaintext
         self.ciphertext = ciphertext
         self.key = key
+        self.mask = mask
 
 class TraceSet(object):
-    def __init__(self, name=None, traces=None, plaintexts=None, ciphertexts=None, keys=None):
+    def __init__(self, name=None, traces=None, plaintexts=None, ciphertexts=None, keys=None, masks=None):
         self.name = name
-        self.traces = self._zip_traces(traces, plaintexts, ciphertexts, keys)
+        self.traces = self._zip_traces(traces, plaintexts, ciphertexts, keys, masks)
         self.num_traces = 0 if self.traces is None else self.traces.shape[0]
         self.windowed = False
         self.window = None
 
-    def _zip_traces(self, traces, plaintexts, ciphertexts, keys):
+    def _zip_traces(self, traces, plaintexts, ciphertexts, keys, masks):
         if traces is None:
             return None
 
-        zipped_traces = [Trace(None, None, None, None) for i in range(0, traces.shape[0])]
+        zipped_traces = [Trace(None, None, None, None, None) for i in range(0, traces.shape[0])]
 
         # Signals
         for i in range(0, traces.shape[0]):
@@ -47,6 +48,12 @@ class TraceSet(object):
             assert(traces.shape[0] == keys.shape[0])
             for i in range(0, keys.shape[0]):
                 zipped_traces[i].key = keys[i]
+
+        # Masks
+        if not masks is None:
+            assert(traces.shape[0] == masks.shape[0])
+            for i in range(0, masks.shape[0]):
+                zipped_traces[i].mask = masks[i]
 
         return np.array(zipped_traces)
 

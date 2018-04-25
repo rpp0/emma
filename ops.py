@@ -276,7 +276,8 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     # 1. Build hypotheses for all 256 possibilities of the key and all traces
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]]  # Model of the power consumption
+            mask = trace_set.traces[i].mask[conf.subkey] if not trace_set.traces[i].mask is None else 0
+            hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess] ^ mask]  # Model of the power consumption
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for j in range(0, trace_set.window.size):
