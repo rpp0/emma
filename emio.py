@@ -113,6 +113,9 @@ def get_trace_set(trace_set_path, format, ignore_malformed=True):
     return None
 
 def get_ascad_trace_set(name, data, meta, limit=None):
+    """
+    Convert ASCAD data to a TraceSet object.
+    """
     data_x, data_y = data
     traces = []
     plaintexts = []

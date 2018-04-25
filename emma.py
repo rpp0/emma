@@ -98,9 +98,21 @@ def perform_cpa_attack(dataset, conf):
     most_likely_bytes = np.argmax(max_correlations, axis=1)
     print(emutils.numpy_to_hex(most_likely_bytes))
 
-def perform_ml_attack(dataset, conf):
-    # Only one task since TF uses multiple cores and is not thread safe
-    async_result = aitrain.si(dataset.trace_set_paths, conf).delay()
+def perform_ml_attack(dataset, dataset_val, conf):
+    """
+    Train ML algorithm. Use only one core because Tensorflow is not thread-safe.
+    """
+    if dataset_val is None:  # No validation dataset provided, so split training data
+        split_size = 1  # Number of trace sets to use for validation
+        validation_split = dataset.trace_set_paths[0:split_size]
+        training_split = dataset.trace_set_paths[split_size:]
+    else:
+        validation_split = dataset_val.trace_set_paths[0:64]
+        training_split = dataset.trace_set_paths
+
+    logger.info("Training set: %s" % str(training_split))
+    logger.info("Validation set: %s" % str(validation_split))
+    async_result = aitrain.si(training_split, validation_split, conf).delay()
     wait_until_completion(async_result, message="Training neural network")
 
 def perform_actions(dataset, conf):
@@ -157,7 +169,8 @@ if __name__ == "__main__":
     parser.add_argument('--no-augment-roll', default=False, action='store_true', help='Roll signal during data augmentation.')
     parser.add_argument('--update', default=False, action='store_true', help='Update existing AI model instead of replacing.')
     parser.add_argument('--online', default=False, action='store_true', help='Fetch samples from remote EMcap instance online (without storing to disk).')
-    parser.add_argument('--refset', type=str, default=None, help='Dataset to take reference from (default = same as dataset argument)')
+    parser.add_argument('--refset', type=str, default=None, help='Dataset to take reference signal from for alignment (default = same as dataset argument)')
+    parser.add_argument('--valset', type=str, default=None, help='Dataset to take validation set traces from (default = same as dataset argument)')
     parser.add_argument('--model-suffix', type=str, default=None, help='Suffix for model name.')
     parser.add_argument('--epochs', type=int, default=100000, help='Number of epochs to train')
     args, unknown = parser.parse_known_args()
@@ -172,6 +185,10 @@ if __name__ == "__main__":
             dataset_ref = emio.remote_get_dataset(dataset=args.refset)
         else:
             dataset_ref = dataset
+        if not args.valset is None:
+            dataset_val = emio.remote_get_dataset(dataset=args.valset)
+        else:
+            dataset_val = None
 
         # Worker-specific configuration. Add properties of the loaded dataset
         conf = argparse.Namespace(
@@ -186,7 +203,7 @@ if __name__ == "__main__":
         if 'attack' in conf.actions:  # Group of tasks and merge correlation results
             perform_cpa_attack(dataset, conf)
         elif True in [a.find('train') > -1 for a in conf.actions]:
-            perform_ml_attack(dataset, conf)
+            perform_ml_attack(dataset, dataset_val, conf)
         elif 'classify' in conf.actions:
             perform_classification_attack(dataset, conf)
         else:  # Regular group of tasks

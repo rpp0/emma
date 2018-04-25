@@ -84,7 +84,7 @@ class CorrRankCallback(RankCallbackBase):
         super(CorrRankCallback, self).__init__(log_dir, save_best, save_path)
 
     def on_epoch_begin(self, epoch, logs=None):
-        if epoch % 1000 != 0 or epoch == 0:
+        if epoch % 50 != 0:
             return
         if not self.trace_set is None:
             x = np.array([trace.signal for trace in self.trace_set.traces])

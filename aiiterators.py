@@ -252,11 +252,7 @@ class ASCADSignalIterator():
     def __next__(self):
         return self.next()
 
-def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, hamming=False, subtype='custom', request_id=None):
-    num_validation_trace_sets = 1
-    validation_trace_set_paths = trace_set_paths[0:num_validation_trace_sets]
-    training_trace_set_paths = trace_set_paths[num_validation_trace_sets:]
-
+def get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, batch_size=512, hamming=False, subtype='custom', request_id=None):
     # Stream samples from other machine?
     if conf.online:
         stream_server = StreamServer(conf)
@@ -275,10 +271,10 @@ def get_iterators_for_model(model_type, trace_set_paths, conf, batch_size=512, h
         validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=256, request_id=request_id, stream_server=stream_server)
     elif model_type == 'aishacpu':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
-        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
+        validation_iterator = AISHACPUSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
     elif model_type == 'aishacc':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
-        validation_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
+        validation_iterator = AISHACPUSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
     elif model_type == 'aiascad':
         train_set, attack_set, metadata_set = load_ascad(join(conf.datasets_path, "ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"), load_metadata=True)
         metadata_train, metadata_attack = metadata_set

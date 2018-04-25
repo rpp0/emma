@@ -538,8 +538,9 @@ def get_conf_model_type(conf):
     return None
 
 @app.task(bind=True)
-def aitrain(self, trace_set_paths, conf):
-    resolve_paths(trace_set_paths)  # Get absolute paths
+def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
+    resolve_paths(training_trace_set_paths)  # Get absolute paths for training set
+    resolve_paths(validation_trace_set_paths)  # Get absolute paths for validation set
 
     # Hardcoded stuff
     subtype = 'custom'
@@ -548,7 +549,7 @@ def aitrain(self, trace_set_paths, conf):
     model_type = get_conf_model_type(conf)
 
     # Select training iterator (gathers data, performs augmentation and preprocessing)
-    training_iterator, validation_iterator = aiiterators.get_iterators_for_model(model_type, trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
+    training_iterator, validation_iterator = aiiterators.get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
 
     x, _ = training_iterator.next()
     input_shape = x.shape[1:]  # Shape excluding batch
