@@ -91,8 +91,7 @@ class AI():
         Do some post-train actions like printing the model weights and saving the model.
         '''
         if save:
-            if not 'save' in self.callbacks.keys():  # Don't save at the end if we want to save according to another criterium
-                self.model.save(self.model_path)
+            self.model.save("%s-last.h5" % self.model_path.rpartition('.')[0])
 
     def predict(self, x):
         return self.model.predict(x, batch_size=999999999, verbose=0)
@@ -140,7 +139,7 @@ def correlation_loss(y_true, y_pred):
         denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
         denom = K.maximum(denom, K.epsilon())
         correlation = K.dot(K.transpose(y_key), y_keypred) / denom
-        loss += 1.0 - K.square(correlation)
+        loss += 1.0 - correlation
     return loss
 
 class Clip(keras.constraints.Constraint):
@@ -249,13 +248,13 @@ class AICorrNet(AI):
         self.model = Sequential()
         self.use_bias = False
         #reg_lamb = 0.001  # Good value for l2 regularizer
-        reg_lamb = 0.001
+        reg_lamb = 0.01
         #reg = regularizers.l2(reg_lamb)
-        reg = regularizers.l1(reg_lamb)
-        #reg = None
-        #reg2 = regularizers.l2(reg_lamb)
+        #reg = regularizers.l1(reg_lamb)
+        reg = None
+        reg2 = regularizers.l2(reg_lamb)
         #reg2 = regularizers.l1(reg_lamb)
-        reg2 = None
+        #reg2 = None
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
         #initializer = keras.initializers.Constant(value=1.0)
@@ -265,22 +264,24 @@ class AICorrNet(AI):
         #constraint = Clip()
         constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-        optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
+        #optimizer = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, decay=0.0)
+        optimizer = keras.optimizers.Nadam()
+        #optimizer = keras.optimizers.Adadelta()
         activation = None
         #activation = 'relu'
         #activation = 'tanh'
 
         # First hidden layer
         hidden_nodes = 16
-        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
-        input_dim=hidden_nodes
-        self.model.add(BatchNormalization())
-        self.model.add(Activation("tanh"))
+        #self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
+        #input_dim=hidden_nodes
+        #self.model.add(BatchNormalization())
+        #self.model.add(Activation("tanh"))
 
         # Extra hidden layers
-        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=None))
-        self.model.add(BatchNormalization())
-        self.model.add(Activation("tanh"))
+        #self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=None))
+        #self.model.add(BatchNormalization())
+        #self.model.add(Activation("tanh"))
 
         self.model.add(Dense(16, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
         self.model.add(BatchNormalization())  # Required for correct correlation calculation

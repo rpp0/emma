@@ -31,8 +31,9 @@ class AISignalIteratorBase():
         self.values_batch = []
         self.signals_batch = []
         self.request_id = request_id
-        self.max_cache = 1000
-        self.augment_roll = not self.conf.no_augment_roll
+        self.max_cache = conf.max_cache
+        self.augment_roll = conf.augment_roll
+        self.augment_noise = conf.augment_noise
         self.stream_server = stream_server
         self.traces_per_set = conf.traces_per_set
         self.num_total_examples = len(self.trace_set_paths) * self.traces_per_set
@@ -112,9 +113,17 @@ class AISignalIteratorBase():
             signals[i,:] = np.roll(signals[i,:], np.random.randint(roll_limit_start, roll_limit))
         return signals
 
+    def _augment_noise(self, signals, mean=1.0, std=1.0):
+        logger.debug("Data augmentation: adding noise to signals")
+        num_signals, signal_len = signals.shape
+        for i in range(0, num_signals):
+            signals[i,:] = signals[i,:] + np.random.normal(loc=mean, scale=std, size=signal_len)
+        return signals
+
     def next(self):
         # Bound checking
         if self.index < 0 or self.index >= len(self.trace_set_paths):
+            print("ERROR: index is %d but length is %d" % (self.index, len(self.trace_set_paths)))
             return None
 
         while True:
@@ -149,6 +158,8 @@ class AISignalIteratorBase():
             # Augment if enabled
             if self.augment_roll:
                 signals = self._augment_roll(signals, roll_limit=16)
+            if self.augment_noise:
+                signals = self._augment_noise(signals, mean=0, std=0.01)
 
             # Concatenate arrays until batch obtained
             self.signals_batch.extend(signals)
@@ -268,7 +279,7 @@ def get_iterators_for_model(model_type, training_trace_set_paths, validation_tra
     validation_iterator = None
     if model_type == 'aicorrnet':
         training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
-        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=256, request_id=request_id, stream_server=stream_server)
+        validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
     elif model_type == 'aishacpu':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)
         validation_iterator = AISHACPUSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype=subtype)

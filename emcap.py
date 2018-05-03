@@ -48,6 +48,12 @@ class CtrlPacketType:
     SIGNAL_START = 0
     SIGNAL_END = 1
 
+class InformationElementType:
+    PLAINTEXT = 0
+    KEY = 1
+    CIPHERTEXT = 2
+    MASK = 3
+
 # SDR capture device
 class SDR(gr.top_block):
     def __init__(self, hw="usrp", samp_rate=100000, freq=3.2e9, gain=0):
@@ -160,7 +166,7 @@ class CtrlType:
 
 # EMCap class: wait for signal and start capturing using a SDR
 class EMCap():
-    def __init__(self, cap_kwargs={}, kwargs={}, ctrl_socket_type=CtrlType.SERIAL):
+    def __init__(self, cap_kwargs={}, kwargs={}, ctrl_socket_type=None):
         # Set up data socket
         self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3884), self.cb_data)
         self.online = kwargs['online']
@@ -175,6 +181,9 @@ class EMCap():
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.15.48', 3884), self.cb_ctrl)
         elif ctrl_socket_type == CtrlType.SERIAL:
             self.ctrl_socket = TTYWrapper("/dev/ttyUSB0", self.cb_ctrl)
+        else:
+            logger.error("Unknown ctrl_socket_type")
+            exit(1)
 
         if not self.online is None:
             try:
@@ -247,11 +256,30 @@ class EMCap():
                     client_socket.sendall("k")
                 return payload_len + 5
 
+    def parse_ies(self, payload):
+        while len(payload) >= 5:
+            # Extract IE header
+            ie_type, ie_len = struct.unpack(">BI", payload[0:5])
+            payload = payload[5:]
+
+            # Extract IE data
+            ie = payload[0:ie_len]
+            payload = payload[ie_len:]
+            logger.debug("IE type %d of len %d: %s" % (ie_type, ie_len, binary_to_hex(ie)))
+
+            # Determine what to do with IE
+            if ie_type == InformationElementType.PLAINTEXT:
+                self.stored_plaintext = [ord(c) for c in ie]
+            elif ie_type == InformationElementType.KEY:
+                self.stored_key = [ord(c) for c in ie]
+            else:
+                logger.warning("Unknown IE type: %d" % ie_type)
+
+
     def process_ctrl_packet(self, pkt_type, payload):
         if pkt_type == CtrlPacketType.SIGNAL_START:
             logger.debug("Starting for payload: %s" % binary_to_hex(payload))
-            self.stored_plaintext = [ord(c) for c in payload[0:16]]
-            self.stored_key = [ord(c) for c in payload[16:32]]
+            self.parse_ies(payload)
             self.sdr.start()
 
             # Spinlock until data
@@ -307,12 +335,14 @@ class EMCap():
                         #    test_sigmf.add_capture(0, metadata=capture_meta)
                         #    test_sigmf.dump(f, pretty=True)
                         # elif chipwhisperer:
-                        logger.info("Dumping %d traces to file" % len(self.trace_set))
-                        filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
-                        output_dir = self.kwargs['output_dir']
-                        np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
-                        np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
-                        np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
+                        if not self.kwargs['dry']:
+                            logger.info("Dumping %d traces to file" % len(self.trace_set))
+                            filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
+                            output_dir = self.kwargs['output_dir']
+                            np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
+                            np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
+                            np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
+
                         self.limit_counter += len(self.trace_set)
                         if self.limit_counter >= self.limit:
                             print("Done")
@@ -349,8 +379,9 @@ def main():
     parser.add_argument('--limit', type=int, default=51200, help='Limit number of traces')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
     parser.add_argument('--online', type=str, default=None, help='Stream samples to remote EMMA instance at <IP address> for online processing.')
+    parser.add_argument('--dry', default=False, action='store_true', help='Do not save to disk.')
     args, unknown = parser.parse_known_args()
-    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__)
+    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__, ctrl_socket_type=CtrlType.UDP)
     e.capture()
 
 if __name__ == '__main__':

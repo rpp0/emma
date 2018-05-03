@@ -36,7 +36,7 @@ class RankCallbackBase(keras.callbacks.Callback):
         summary = tf.Summary()
         summary_value = summary.value.add()
         summary_value.simple_value = rank
-        summary_value.tag = 'rank'
+        summary_value.tag = tag
         self.writer.add_summary(summary, epoch)
         self.writer.flush()
 
@@ -64,7 +64,7 @@ class ProbRankCallback(RankCallbackBase):
             for i in range(0, len(self.trace_set.traces)):
                 trace = self.trace_set.traces[i]
                 plaintext_byte = trace.plaintext[2]  # ASCAD chosen plaintext byte
-                key_true = trace.key[2]
+                key_true = trace.key[2] # TODO show for all keys
                 for key_guess in range(0, 256):
                     key_prob = predictions[i][sbox[plaintext_byte ^ key_guess]]
                     key_scores[key_guess] += -np.log(key_prob + K.epsilon())  # Lower = better # TODO reverse argsort instead of doing this
@@ -84,7 +84,7 @@ class CorrRankCallback(RankCallbackBase):
         super(CorrRankCallback, self).__init__(log_dir, save_best, save_path)
 
     def on_epoch_begin(self, epoch, logs=None):
-        if epoch % 50 != 0:
+        if epoch % 100 != 0:
             return
         if not self.trace_set is None:
             x = np.array([trace.signal for trace in self.trace_set.traces])
@@ -112,6 +112,7 @@ class CorrRankCallback(RankCallbackBase):
 
                 rank = calculate_rank(key_scores, keys[0][i])  # TODO: Is is assumed that all keys of the set are the same here
                 self._write_rank(epoch, rank, 'rank %d' % i)
+                self._save_best_rank_model(rank)
             #self._save_best_rank_model(np.mean(ranks))
         else:
             print("Warning: no trace_set supplied to RankCallback")
