@@ -59,7 +59,16 @@ class Dataset():
         assert(len(self.trace_set_paths) > 0)
 
         # Assign reference signal
-        reference_trace_set = emio.get_trace_set(join(prefix, self.trace_set_paths[0]), self.format, ignore_malformed=False)
+        reference_trace_set = emio.get_trace_set(join(self.prefix, self.trace_set_paths[0]), self.format, ignore_malformed=False)
 
         self.traces_per_set = len(reference_trace_set.traces)
         self.reference_signal = reference_trace_set.traces[self.reference_index].signal
+
+# Statistics precomputed with get_dataset_statistics.py
+def get_dataset_normalization_mean_std(name):
+    if name == 'em-corr-arduino' or name == 'em-cpa-arduino':
+        mean = 0.014595353784991782
+        std = 0.006548281541447703
+        return mean, std
+    else:
+        return 0.0, 1.0

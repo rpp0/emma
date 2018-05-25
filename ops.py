@@ -155,10 +155,13 @@ def window_trace_set(trace_set, result, conf, params=None):
     Params: (window start, window end)
     '''
     logger.info("window %s" % (str(params) if not params is None else ""))
+    windowing_method = conf.windowing_method  # Default windowing
     if params is None:  # If no parameters provided, window according to reference signal
         window = Window(begin=0, end=len(conf.reference_signal))
     else:
         window = Window(begin=int(params[0]), end=int(params[1]))
+        if len(params) > 2:  # Override windowing
+            windowing_method = params[2]
 
     for trace in trace_set.traces:
         length_diff = len(trace.signal[window.begin:]) - window.size
@@ -170,14 +173,14 @@ def window_trace_set(trace_set, result, conf, params=None):
         assert(len(trace.signal) == window.size)
 
         # Apply window
-        if conf.windowing_method == 'rectangular':
+        if windowing_method == 'rectangular':
             continue # Already cut rectangularly
-        elif conf.windowing_method == 'kaiser':
+        elif windowing_method == 'kaiser':
             trace.signal = trace.signal * np.kaiser(window.size, 14)
-        elif conf.windowing_method == 'blackman':
+        elif windowing_method == 'blackman':
             trace.signal = trace.signal * np.blackman(window.size)
         else:
-            logger.warning("Requested unknown windowing method '%d'. Skipping." % conf.windowing_method)
+            logger.warning("Requested unknown windowing method '%d'. Skipping." % windowing_method)
             return
     trace_set.windowed = True
     trace_set.window = window

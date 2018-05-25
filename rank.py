@@ -42,7 +42,7 @@ class RankCallbackBase(keras.callbacks.Callback):
 
     def _save_best_rank_model(self, rank):
         # Save
-        if self.save_best and rank < self.best_rank:
+        if self.save_best and rank <= self.best_rank:
             self.best_rank = rank
             self.model.save(self.save_path)
 

@@ -14,6 +14,7 @@ from ASCAD_train_models import load_ascad
 from keras.utils import to_categorical
 from traceset import TraceSet
 from os.path import join
+from dataset import get_dataset_normalization_mean_std
 
 import numpy as np
 import ops
@@ -34,6 +35,7 @@ class AISignalIteratorBase():
         self.max_cache = conf.max_cache
         self.augment_roll = conf.augment_roll
         self.augment_noise = conf.augment_noise
+        self.normalize = conf.normalize
         self.stream_server = stream_server
         self.traces_per_set = conf.traces_per_set
         self.num_total_examples = len(self.trace_set_paths) * self.traces_per_set
@@ -113,11 +115,19 @@ class AISignalIteratorBase():
             signals[i,:] = np.roll(signals[i,:], np.random.randint(roll_limit_start, roll_limit))
         return signals
 
-    def _augment_noise(self, signals, mean=1.0, std=1.0):
+    def _augment_noise(self, signals, mean=0.0, std=1.0):
         logger.debug("Data augmentation: adding noise to signals")
         num_signals, signal_len = signals.shape
         for i in range(0, num_signals):
             signals[i,:] = signals[i,:] + np.random.normal(loc=mean, scale=std, size=signal_len)
+        return signals
+
+    def _normalize(self, signals):
+        logger.debug("Normalizing data")
+        mean, std = get_dataset_normalization_mean_std(self.conf.dataset_id)
+        num_signals, signal_len = signals.shape
+        for i in range(0, num_signals):
+            signals[i,:] = (signals[i,:] - mean) / std
         return signals
 
     def next(self):
@@ -155,11 +165,15 @@ class AISignalIteratorBase():
                 continue
             signals, values = result
 
+            # Normalize
+            if self.normalize:
+                signals = self._normalize(signals)
+
             # Augment if enabled
             if self.augment_roll:
                 signals = self._augment_roll(signals, roll_limit=16)
             if self.augment_noise:
-                signals = self._augment_noise(signals, mean=0, std=0.01)
+                signals = self._augment_noise(signals, mean=0, std=0.1)
 
             # Concatenate arrays until batch obtained
             self.signals_batch.extend(signals)
@@ -186,7 +200,7 @@ class AICorrSignalIterator(AISignalIteratorBase):
             for j in range(16):
                 values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
 
-        # Normalize key labels: required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
+        # Normalize key labels: required for correct correlation calculation! Note that x is already normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
         values = values - np.mean(values, axis=0)
 
         return signals, values

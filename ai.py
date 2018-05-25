@@ -21,6 +21,9 @@ from keras.losses import categorical_crossentropy
 from rank import ProbRankCallback, CorrRankCallback
 
 K.set_epsilon(1e-15)
+# Some temporary globals for testing purposes
+AICORRNET_KEY_LOW = 2  # 0
+AICORRNET_KEY_HIGH = 3  # 16
 
 class AI():
     '''
@@ -133,9 +136,9 @@ def correlation_loss(y_true, y_pred):
     the true values over a number of batches.
     '''
     loss = K.variable(0.0)
-    for key_col in range(0, 16):  # 0 - 16
+    for key_col in range(AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH):  # 0 - 16
         y_key = K.expand_dims(y_true[:,key_col], axis=1)  # [?, 16] -> [?, 1]
-        y_keypred = K.expand_dims(y_pred[:,key_col], axis=1)  # [?, 16] -> [?, 1]
+        y_keypred = K.expand_dims(y_pred[:,key_col-AICORRNET_KEY_LOW], axis=1)  # [?, 16] -> [?, 1]
         denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
         denom = K.maximum(denom, K.epsilon())
         correlation = K.dot(K.transpose(y_key), y_keypred) / denom
@@ -248,11 +251,13 @@ class AICorrNet(AI):
         self.model = Sequential()
         self.use_bias = False
         #reg_lamb = 0.001  # Good value for l2 regularizer
-        reg_lamb = 0.01
+        #reg_lamb = 0.01
+        reg_lamb = 0.1
         #reg = regularizers.l2(reg_lamb)
         #reg = regularizers.l1(reg_lamb)
         reg = None
         reg2 = regularizers.l2(reg_lamb)
+        #reg2 = regularizers.l1_l2(l1=reg_lamb, l2=reg_lamb)
         #reg2 = regularizers.l1(reg_lamb)
         #reg2 = None
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
@@ -272,18 +277,18 @@ class AICorrNet(AI):
         #activation = 'tanh'
 
         # First hidden layer
-        hidden_nodes = 16
-        #self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
-        #input_dim=hidden_nodes
-        #self.model.add(BatchNormalization())
-        #self.model.add(Activation("tanh"))
+        hidden_nodes = 256
+        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
+        input_dim=hidden_nodes
+        self.model.add(BatchNormalization())
+        self.model.add(Activation("tanh"))
 
         # Extra hidden layers
         #self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=None))
         #self.model.add(BatchNormalization())
         #self.model.add(Activation("tanh"))
 
-        self.model.add(Dense(16, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
+        self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
         self.model.add(BatchNormalization())  # Required for correct correlation calculation
         if not activation is None:
             self.model.add(Activation(activation))
