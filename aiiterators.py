@@ -200,9 +200,6 @@ class AICorrSignalIterator(AISignalIteratorBase):
             for j in range(16):
                 values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
 
-        # Normalize key labels: required for correct correlation calculation! Note that x is already normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
-        values = values - np.mean(values, axis=0)
-
         return signals, values
 
 class AISHACPUSignalIterator(AISignalIteratorBase):

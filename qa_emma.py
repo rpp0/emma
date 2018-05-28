@@ -10,6 +10,7 @@ import ops
 import unittest
 import numpy as np
 import emutils
+from ai import AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH
 
 class TestCorrelationList(unittest.TestCase):
     def test_update(self):
@@ -101,10 +102,8 @@ class TestAI(unittest.TestCase):
         x = np.array(x)
         y = np.array(y)
 
-        y_norm = y - np.mean(y, axis=0) # Required for correct correlation calculation! Note that x is normalized using batch normalization. In Keras, this function also remembers the mean and variance from the training set batches. Therefore, there's no need to normalize before calling model.predict
-
         # Find optimal weights
-        model.train_set(x, y_norm, save=False, epochs=150)
+        model.train_set(x, y, save=False, epochs=150)
         result = []
 
         # Simulate same approach used in ops.py corrtest (iterate over rows)
@@ -117,14 +116,14 @@ class TestAI(unittest.TestCase):
         print(np.mean(result, axis=0))
 
         calculated_loss = 0
-        for i in range(0, 16):
-            print("Subkey %d values: %s" %(i, str(y[:,i])))
-            print("Subkey %d correl: %s" %(i, str(result[:,i])))
-            y_key_norm = y_norm[:,i].reshape([-1, 1])
-            y_pred = result[:,i].reshape([-1, 1])
+        for i in range(AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH):
+            print("Subkey %d values   : %s" %(i, str(y[:,i])))
+            print("Subkey %d encodings: %s" %(i, str(result[:,i-AICORRNET_KEY_LOW])))
+            y_key = y[:,i].reshape([-1, 1])
+            y_pred = result[:,i-AICORRNET_KEY_LOW].reshape([-1, 1])
 
             # Normalize labels
-            y_key_norm = y_key_norm - np.mean(y_key_norm, axis=0)
+            y_key_norm = y_key - np.mean(y_key, axis=0)
             y_pred_norm = y_pred - np.mean(y_pred, axis=0)
 
             # Calculate correlation (vector approach)
@@ -139,9 +138,10 @@ class TestAI(unittest.TestCase):
 
             calculated_loss += 1.0 - corr_key_i
 
+        print("These values should be close:")
         print("Last loss: %s" % str(model.last_loss))
         print("Calculated loss: %s" % str(calculated_loss))
-        #self.assertAlmostEqual(model.last_loss, calculated_loss, places=3)
+        self.assertAlmostEqual(model.last_loss, calculated_loss, places=5)
 
 if __name__ == '__main__':
     unittest.main()
