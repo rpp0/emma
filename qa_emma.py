@@ -10,7 +10,12 @@ import ops
 import unittest
 import numpy as np
 import emutils
+import tensorflow as tf
+import keras.backend as K
 from ai import AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH
+from traceset import TraceSet
+from aiiterators import AICorrSignalIterator
+from argparse import Namespace
 
 class TestCorrelationList(unittest.TestCase):
     def test_update(self):
@@ -86,38 +91,80 @@ class TestUtils(unittest.TestCase):
 
 class TestAI(unittest.TestCase):
     def test_corrtrain(self):
-        model = ops.AICorrNet(4, name="test")
-        x = [ # Contains abs(trace). Shape = [trace, point]
+        '''
+        Artificial example to test AICorrNet and trace processing
+        '''
+
+        # ------------------------------
+        # Generate data
+        # ------------------------------
+        traces = [ # Contains abs(trace). Shape = [trace, point]
             [1, 1, 1, -15],
-            [2, 1, -4, -12],
-            [3, 1, 10, 8],
+            [-4, 1, 2, -12],
+            [10, 1, 3, 8],
         ]
 
-        y = [  # Contains hw[sbox[plaintext[trace] ^ key[key_index]]]. Shape = [trace, key_index]
-            [6, 16, 5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
-            [7, -17, 9, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
-            [8, 7, 23, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+        plaintexts = [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ]
 
-        x = np.array(x)
-        y = np.array(y)
+        keys = [
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ]
+
+        # Convert to numpy
+        traces = np.array(traces)
+        plaintexts = np.array(plaintexts)
+        keys = np.array(keys)
+
+        trace_set = TraceSet(name='test', traces=traces, plaintexts=plaintexts, keys=keys)
+
+        # ------------------------------
+        # Preprocess data
+        # ------------------------------
+        it_dummy = AICorrSignalIterator([], Namespace(max_cache=0, augment_roll=False, augment_noise=False, normalize=False, traces_per_set=4), batch_size=10000, request_id=None, stream_server=None)
+        x, y = it_dummy._preprocess_trace_set(trace_set)
+
+        # ------------------------------
+        # Train and obtain encodings
+        # ------------------------------
+        model = ops.AICorrNet(4, name="test")
+
+        if model.using_regularization:
+            print("Warning: cant do correlation loss test because regularizer will influence loss function")
+            return
 
         # Find optimal weights
-        model.train_set(x, y, save=False, epochs=150)
-        result = []
+        print("The x (EM samples) and y (HW[sbox[p xor k]]) are:")
+        print(x)
+        print(y)
+        print("When feeding x through the model without training, the encodings become:")
+        print(model.predict(x))
+        print("Training now")
+        model.train_set(x, y, save=False, epochs=100)
+        print("Done training")
 
-        # Simulate same approach used in ops.py corrtest (iterate over rows)
+        # Get the encodings of the input data using the same approach used in ops.py corrtest (iterate over rows)
+        result = []
         for i in range(0, 3):
             result.append(model.predict(np.array([x[i,:]], dtype=float))[0])  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 16]
         result = np.array(result)
+        print("When feeding x through the model after training, the encodings for key bytes %d to %d become:\n %s" % (AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH, str(result)))
 
-        print("Learned frequency sums: " + str(result))
-        print("Mean:")
-        print(np.mean(result, axis=0))
+        # ------------------------------
+        # Check loss function
+        # ------------------------------
+        # Evaluate the model to get the loss for the encodings
+        predicted_loss = model.model.evaluate(x, y, verbose=0)
 
+        # Manually calculate the loss using numpy to verify that we are learning a correct correlation
         calculated_loss = 0
         for i in range(AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH):
-            print("Subkey %d values   : %s" %(i, str(y[:,i])))
+            print("Subkey %d HWs   : %s" %(i, str(y[:,i])))
             print("Subkey %d encodings: %s" %(i, str(result[:,i-AICORRNET_KEY_LOW])))
             y_key = y[:,i].reshape([-1, 1])
             y_pred = result[:,i-AICORRNET_KEY_LOW].reshape([-1, 1])
@@ -127,21 +174,21 @@ class TestAI(unittest.TestCase):
             y_pred_norm = y_pred - np.mean(y_pred, axis=0)
 
             # Calculate correlation (vector approach)
-            denom = np.sqrt(np.dot(y_pred_norm.T, y_pred_norm)) * np.sqrt(np.dot(y_key_norm.T, y_key_norm))
-            denom = np.maximum(denom, 1e-15)
-            corr_key_i = np.square(np.dot(y_key_norm.T, y_pred_norm) / denom)[0,0]
-            print("corr_vec: %s" % corr_key_i)
+            #denom = np.sqrt(np.dot(y_pred_norm.T, y_pred_norm)) * np.sqrt(np.dot(y_key_norm.T, y_key_norm))
+            #denom = np.maximum(denom, 1e-15)
+            #corr_key_i = (np.dot(y_key_norm.T, y_pred_norm) / denom)[0,0]
+            #print("corr_vec: %s" % corr_key_i)
 
             # Calculate correlation (numpy approach)
-            #corr_key_i = np.square(np.corrcoef(y_pred[:,0], y_key[:,0], rowvar=False)[1,0])
-            #print("corr_num: %s" % corr_key_i)
+            corr_key_i = np.corrcoef(y_pred[:,0], y_key[:,0], rowvar=False)[1,0]
+            print("corr_num: %s" % corr_key_i)
 
             calculated_loss += 1.0 - corr_key_i
 
         print("These values should be close:")
-        print("Last loss: %s" % str(model.last_loss))
+        print("Predicted loss: %s" % str(predicted_loss))
         print("Calculated loss: %s" % str(calculated_loss))
-        self.assertAlmostEqual(model.last_loss, calculated_loss, places=5)
+        self.assertAlmostEqual(predicted_loss, calculated_loss, places=5)
 
 if __name__ == '__main__':
     unittest.main()

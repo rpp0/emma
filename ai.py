@@ -135,7 +135,9 @@ def correlation_loss(y_true_raw, y_pred_raw):
     Custom loss function that calculates the Pearson correlation of the prediction with
     the true values over a number of batches.
     '''
-    y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))
+    # y_true_raw = K.print_tensor(y_true_raw, message='y_true_raw = ')  # Note: print truncating is incorrect in the print_tensor function
+    # y_pred_raw = K.print_tensor(y_pred_raw, message='y_pred_raw = ')
+    y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
     y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
 
     loss = K.variable(0.0)
@@ -147,6 +149,13 @@ def correlation_loss(y_true_raw, y_pred_raw):
         correlation = K.dot(K.transpose(y_key), y_keypred) / denom
         loss += 1.0 - correlation
     return loss
+
+class LossHistory(keras.callbacks.Callback):
+    def on_train_begin(self, logs={}):
+        self.losses = []
+
+    def on_batch_end(self, batch, logs={}):
+        self.losses.append(logs.get('loss'))
 
 class Clip(keras.constraints.Constraint):
     '''
@@ -257,12 +266,13 @@ class AICorrNet(AI):
         #reg_lamb = 0.01
         reg_lamb = 0.01
         #reg = regularizers.l2(reg_lamb)
-        reg = regularizers.l1(reg_lamb)
-        #reg = None
+        #reg = regularizers.l1(reg_lamb)
+        reg = None
         #reg2 = regularizers.l2(reg_lamb)
         #reg2 = regularizers.l1_l2(l1=reg_lamb, l2=reg_lamb)
-        reg2 = regularizers.l1(reg_lamb)
-        #reg2 = None
+        #reg2 = regularizers.l1(reg_lamb)
+        reg2 = None
+        self.using_regularization = (not reg is None) or (not reg2 is None)
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
         #initializer = keras.initializers.Constant(value=1.0)
@@ -292,7 +302,7 @@ class AICorrNet(AI):
         #self.model.add(Activation("tanh"))
 
         self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
-        self.model.add(BatchNormalization())  # Required for correct correlation calculation
+        self.model.add(BatchNormalization())
         self.model.add(Activation(activation))
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
@@ -300,20 +310,20 @@ class AICorrNet(AI):
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
         self.callbacks['rank'] = CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
 
-    def train_set(self, x, y, save=True, epochs=1):
+    def train_set(self, x, y, save=False, epochs=1):
         '''
-        DEPRECATED
         Train entire training set with model.fit()
 
-        Assumes y is already normalized.
+        Used in qa_emma
         '''
 
         # Callbacks
         last_loss = LastLoss()
         tensorboard_callback = TensorBoard(log_dir='/tmp/keras/' + self.id)
+        history = LossHistory()
 
         # Fit model
-        self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss])
+        self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, history])
 
         # Get loss from callback
         self.last_loss = last_loss.value

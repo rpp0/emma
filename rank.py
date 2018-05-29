@@ -110,7 +110,7 @@ class CorrRankCallback(RankCallbackBase):
                 for key_guess in range(0, 256):
                     key_scores[key_guess] = -np.max(np.abs(corr_result[key_guess,:]))  # TODO reverse argsort instead of doing this negation
 
-                rank = calculate_rank(key_scores, keys[0][i])  # TODO: Is is assumed that all keys of the set are the same here
+                rank = calculate_rank(key_scores, keys[0][i])  # TODO: Is is assumed here that all keys of the set are the same here
                 self._write_rank(epoch, rank, 'rank %d' % i)
                 self._save_best_rank_model(rank)
             #self._save_best_rank_model(np.mean(ranks))
