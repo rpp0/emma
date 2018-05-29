@@ -310,7 +310,7 @@ class AICorrNet(AI):
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
         self.callbacks['rank'] = CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
 
-    def train_set(self, x, y, save=False, epochs=1):
+    def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
         '''
         Train entire training set with model.fit()
 
@@ -323,7 +323,7 @@ class AICorrNet(AI):
         history = LossHistory()
 
         # Fit model
-        self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, history])
+        self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[last_loss, history] + extra_callbacks)
 
         # Get loss from callback
         self.last_loss = last_loss.value

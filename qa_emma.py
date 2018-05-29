@@ -16,6 +16,7 @@ from ai import AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH
 from traceset import TraceSet
 from aiiterators import AICorrSignalIterator
 from argparse import Namespace
+from rank import CorrRankCallback
 
 class TestCorrelationList(unittest.TestCase):
     def test_update(self):
@@ -102,15 +103,21 @@ class TestAI(unittest.TestCase):
             [1, 1, 1, -15],
             [-4, 1, 2, -12],
             [10, 1, 3, 8],
+            [8, 1, 1, -14],
+            [9, 1, -3, 8],
         ]
 
         plaintexts = [
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ]
 
         keys = [
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -133,6 +140,8 @@ class TestAI(unittest.TestCase):
         # Train and obtain encodings
         # ------------------------------
         model = ops.AICorrNet(4, name="test")
+        rank = CorrRankCallback('/tmp/deleteme/', save_best=False, save_path=None, freq=100)
+        rank.set_trace_set(trace_set)
 
         if model.using_regularization:
             print("Warning: cant do correlation loss test because regularizer will influence loss function")
@@ -145,12 +154,12 @@ class TestAI(unittest.TestCase):
         print("When feeding x through the model without training, the encodings become:")
         print(model.predict(x))
         print("Training now")
-        model.train_set(x, y, save=False, epochs=100)
+        model.train_set(x, y, save=False, epochs=101, extra_callbacks=[rank])
         print("Done training")
 
         # Get the encodings of the input data using the same approach used in ops.py corrtest (iterate over rows)
         result = []
-        for i in range(0, 3):
+        for i in range(0, x.shape[0]):
             result.append(model.predict(np.array([x[i,:]], dtype=float))[0])  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 16]
         result = np.array(result)
         print("When feeding x through the model after training, the encodings for key bytes %d to %d become:\n %s" % (AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH, str(result)))

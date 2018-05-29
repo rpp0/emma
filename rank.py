@@ -21,12 +21,15 @@ class RankCallbackBase(keras.callbacks.Callback):
     Calculate the rank after passing a trace set through the model. A trace_set must be supplied
     since to calculate the rank we need metadata about the traces as well (plaintext and key).
     """
-    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5'):
+    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=100):
         self.trace_set = None
         self.writer = tf.summary.FileWriter(log_dir)
         self.save_best = save_best
         self.best_rank = 256
-        self.save_path = "%s-bestrank.h5" % save_path.rpartition('.')[0]
+        self.freq = freq
+
+        if not save_path is None:
+            self.save_path = "%s-bestrank.h5" % save_path.rpartition('.')[0]
 
     def set_trace_set(self, trace_set):
         self.trace_set = trace_set
@@ -80,11 +83,11 @@ class CorrRankCallback(RankCallbackBase):
     RankCallback that assumes the model an encoding that is highly correlated with the true key bytes.
     """
 
-    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5'):
-        super(CorrRankCallback, self).__init__(log_dir, save_best, save_path)
+    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=100):
+        super(CorrRankCallback, self).__init__(log_dir, save_best, save_path, freq)
 
     def on_epoch_begin(self, epoch, logs=None):
-        if epoch % 100 != 0:
+        if epoch % self.freq != 0 or epoch == 0:
             return
         if not self.trace_set is None:
             x = np.array([trace.signal for trace in self.trace_set.traces])
@@ -125,10 +128,23 @@ def calculate_rank(key_scores, true_key):
     for i in range(0, 256):
         key_ranks[sorted_score_indices[i]] = i
 
-    best_key = np.argmin(key_ranks)
+    print_rank_top_x(key_ranks, x=5, scores=key_scores)
+    #best_key = np.argmin(key_ranks)
     print("True key is %02x" % true_key)
-    print("Best key is %02x" % best_key)
     rank = key_ranks[true_key]
-    print("Rank is %d" % rank)
+    print("==> Rank is %d" % rank)
 
     return rank
+
+def print_rank_top_x(key_ranks, x=5, scores=None):
+    key_indices = range(0, 256)
+    zipped = list(zip(key_ranks, key_indices))
+    top = sorted(zipped, key=lambda x: x[0])
+    print("-----------------------------")
+    for i in range(0, x):
+        key = top[i][1]
+        if not scores is None:
+            print("Rank %d: %02x (score: %f)" % (i, key, scores[key]))
+        else:
+            print("Rank %d: %02x" % (i, key))
+    print("-----------------------------")
