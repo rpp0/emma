@@ -175,7 +175,7 @@ if __name__ == "__main__":
     parser.add_argument('--model-suffix', type=str, default=None, help='Suffix for model name.')
     parser.add_argument('--epochs', type=int, default=1000000, help='Number of epochs to train')
     parser.add_argument('--max-cache', type=int, default=1000, help='Max trace sets in cache')
-    parser.add_argument('--num-valsets', type=int, default=64, help='Number of validation trace sets to use')
+    parser.add_argument('--num-valsets', type=int, default=128, help='Number of validation trace sets to use')
     parser.add_argument('--normalize', default=False, action='store_true', help='Normalize input data before feeding to NN')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
