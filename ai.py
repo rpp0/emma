@@ -9,7 +9,7 @@ import io
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten
+from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU
 from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
 from keras.callbacks import TensorBoard
@@ -130,15 +130,15 @@ class AIMemCopyDirect():
     def test(self, x):
         pass
 
-def correlation_loss(y_true_raw, y_pred_raw):
+def correlation_loss(y_true, y_pred):
     '''
     Custom loss function that calculates the Pearson correlation of the prediction with
     the true values over a number of batches.
     '''
     # y_true_raw = K.print_tensor(y_true_raw, message='y_true_raw = ')  # Note: print truncating is incorrect in the print_tensor function
     # y_pred_raw = K.print_tensor(y_pred_raw, message='y_pred_raw = ')
-    y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
-    y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
+    #y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
+    #y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
 
     loss = K.variable(0.0)
     for key_col in range(AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH):  # 0 - 16
@@ -148,6 +148,7 @@ def correlation_loss(y_true_raw, y_pred_raw):
         denom = K.maximum(denom, K.epsilon())
         correlation = K.dot(K.transpose(y_key), y_keypred) / denom
         loss += 1.0 - correlation
+
     return loss
 
 class LossHistory(keras.callbacks.Callback):
@@ -257,20 +258,24 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
                 print("Exception in image generation: %s" % str(e))
                 pass
 
+def spec_reg(weight_matrix):
+    return 0.001 * K.sum(K.abs(1.0 - weight_matrix))
+
 class AICorrNet(AI):
     def __init__(self, input_dim, name="aicorrnet", suffix=None):
         super(AICorrNet, self).__init__(name, suffix=suffix)
         self.model = Sequential()
-        self.use_bias = False
+        self.use_bias = True
         #reg_lamb = 0.001  # Good value for l2 regularizer
         #reg_lamb = 0.01
-        reg_lamb = 0.01
+        reg_lamb = 0.001
         #reg = regularizers.l2(reg_lamb)
         #reg = regularizers.l1(reg_lamb)
         reg = None
         #reg2 = regularizers.l2(reg_lamb)
         #reg2 = regularizers.l1_l2(l1=reg_lamb, l2=reg_lamb)
         #reg2 = regularizers.l1(reg_lamb)
+        #reg2 = spec_reg
         reg2 = None
         self.using_regularization = (not reg is None) or (not reg2 is None)
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
@@ -283,18 +288,20 @@ class AICorrNet(AI):
         constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         #optimizer = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, decay=0.0)
-        optimizer = keras.optimizers.Nadam()
+        optimizer = keras.optimizers.Nadam(lr=0.001)
         #optimizer = keras.optimizers.Adadelta()
         #activation = None
         #activation = 'relu'
-        activation = 'tanh'
+        #activation = 'tanh'
+
 
         # First hidden layer
         hidden_nodes = 256
         self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
         input_dim=hidden_nodes
         self.model.add(BatchNormalization())
-        self.model.add(Activation(activation))
+        #self.model.add(Activation(activation))
+        self.model.add(LeakyReLU())
 
         # Extra hidden layers
         #self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=None))
@@ -303,7 +310,8 @@ class AICorrNet(AI):
 
         self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
         self.model.add(BatchNormalization())
-        self.model.add(Activation(activation))
+        #self.model.add(Activation(activation))
+        self.model.add(LeakyReLU())
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
         # Custom callbacks

@@ -362,7 +362,7 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result._data['state'] is None:
-            logger.debug("Loading Keras")
+            logger.warning("Loading model aicorrnet-%s" % conf.model_suffix)
             result._data['state'] = AI("aicorrnet", suffix=conf.model_suffix)
             result._data['state'].load()
 

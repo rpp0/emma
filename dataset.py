@@ -69,6 +69,16 @@ def get_dataset_normalization_mean_std(name):
     if name == 'em-corr-arduino' or name == 'em-cpa-arduino':
         mean = 0.014595353784991782
         std = 0.006548281541447703
-        return mean, std
+    elif name == 'ASCAD':
+        mean = -11.587280595238095
+        std = 25.75363459386104
+    elif name == 'ASCAD_desync50':
+        mean = -11.195121833333333
+        std = 25.89963055607876
+    elif name == 'ASCAD_desync100':
+        mean = -11.093145738095238
+        std = 26.11483790582092
     else:
         return 0.0, 1.0
+
+    return mean, std

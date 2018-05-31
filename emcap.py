@@ -381,7 +381,7 @@ def main():
     parser.add_argument('--online', type=str, default=None, help='Stream samples to remote EMMA instance at <IP address> for online processing.')
     parser.add_argument('--dry', default=False, action='store_true', help='Do not save to disk.')
     args, unknown = parser.parse_known_args()
-    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__, ctrl_socket_type=CtrlType.UDP)
+    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__, ctrl_socket_type=CtrlType.SERIAL)
     e.capture()
 
 if __name__ == '__main__':

@@ -154,7 +154,7 @@ class TestAI(unittest.TestCase):
         print("When feeding x through the model without training, the encodings become:")
         print(model.predict(x))
         print("Training now")
-        model.train_set(x, y, save=False, epochs=101, extra_callbacks=[rank])
+        model.train_set(x, y, save=False, epochs=1010, extra_callbacks=[rank])
         print("Done training")
 
         # Get the encodings of the input data using the same approach used in ops.py corrtest (iterate over rows)

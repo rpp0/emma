@@ -38,7 +38,10 @@ class AISignalIteratorBase():
         self.normalize = conf.normalize
         self.stream_server = stream_server
         self.traces_per_set = conf.traces_per_set
-        self.num_total_examples = len(self.trace_set_paths) * self.traces_per_set
+        if conf.online:
+            self.num_total_examples = batch_size
+        else:
+            self.num_total_examples = len(self.trace_set_paths) * self.traces_per_set
 
     def __iter__(self):
         return self
