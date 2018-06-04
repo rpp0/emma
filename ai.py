@@ -261,23 +261,45 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
 def spec_reg(weight_matrix):
     return 0.001 * K.sum(K.abs(1.0 - weight_matrix))
 
+def str_to_reg(string, reg_lambda):
+    if string == 'l1':
+        return regularizers.l1(reg_lambda)
+    elif string == 'l2':
+        return regularizers.l2(reg_lambda)
+    elif string == 'l1l2':
+        return regularizers.l1_l2(l1=reg_lambda, l2=reg_lambda)
+    else:
+        return None
+
+def str_to_activation(string):
+    if string == 'leakyrelu':
+        return LeakyReLU()
+    else:
+        if string is None:
+            return None
+        else:
+            return Activation(string)
+
 class AICorrNet(AI):
-    def __init__(self, input_dim, name="aicorrnet", suffix=None):
+    def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, suffix=None):
+        # Get name based on config
+        name += "-h" + str(n_hidden_layers)
+        if not use_bias:
+            name += "-bias"
+        if not activation is None:
+            name += "-" + str(activation)
+        if batch_norm:
+            name += "-bn"
+        if not reg is None:
+            name += "-reg" + str(reg)
+        if not regfinal is None:
+            name += "-regfinal" + str(regfinal)
         super(AICorrNet, self).__init__(name, suffix=suffix)
+
+        # Configure regularizer
+        self.using_regularization = (not reg is None) or (not regfinal is None)
+
         self.model = Sequential()
-        self.use_bias = True
-        #reg_lamb = 0.001  # Good value for l2 regularizer
-        #reg_lamb = 0.01
-        reg_lamb = 0.001
-        #reg = regularizers.l2(reg_lamb)
-        #reg = regularizers.l1(reg_lamb)
-        reg = None
-        #reg2 = regularizers.l2(reg_lamb)
-        #reg2 = regularizers.l1_l2(l1=reg_lamb, l2=reg_lamb)
-        #reg2 = regularizers.l1(reg_lamb)
-        #reg2 = spec_reg
-        reg2 = None
-        self.using_regularization = (not reg is None) or (not reg2 is None)
         #initializer = keras.initializers.Constant(value=1.0/input_dim)
         #initializer = keras.initializers.Constant(value=0.5)
         #initializer = keras.initializers.Constant(value=1.0)
@@ -290,28 +312,23 @@ class AICorrNet(AI):
         #optimizer = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, decay=0.0)
         optimizer = keras.optimizers.Nadam(lr=0.001)
         #optimizer = keras.optimizers.Adadelta()
-        #activation = None
-        #activation = 'relu'
-        #activation = 'tanh'
 
+        # Hidden layers
+        for i in range(0, n_hidden_layers):
+            hidden_nodes = 256
+            self.model.add(Dense(hidden_nodes, input_dim=input_dim, use_bias=use_bias, activation=None, kernel_initializer=initializer, kernel_regularizer=str_to_reg(reg, reg_lambda)))
+            input_dim=hidden_nodes
+            if batch_norm:
+                self.model.add(BatchNormalization(momentum=momentum))
+            self.model.add(str_to_activation(activation))
 
-        # First hidden layer
-        hidden_nodes = 256
-        self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
-        input_dim=hidden_nodes
-        self.model.add(BatchNormalization(momentum=0.1))
-        #self.model.add(Activation(activation))
-        self.model.add(LeakyReLU())
+        # Output layer
+        self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, input_dim=input_dim, use_bias=use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(regfinal, reg_lambda)))
+        if batch_norm:
+            self.model.add(BatchNormalization(momentum=0.1))
+        self.model.add(str_to_activation(activation))
 
-        # Extra hidden layers
-        #self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=None))
-        #self.model.add(BatchNormalization())
-        #self.model.add(Activation("tanh"))
-
-        self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
-        self.model.add(BatchNormalization(momentum=0.1))
-        #self.model.add(Activation(activation))
-        self.model.add(LeakyReLU())
+        # Compile model
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
         # Custom callbacks
