@@ -35,13 +35,24 @@ class RankCallbackBase(keras.callbacks.Callback):
     def set_trace_set(self, trace_set):
         self.trace_set = trace_set
 
-    def _write_rank(self, epoch, rank, tag='rank'):
+    def _write_rank(self, epoch, rank, confidence, tag='unknown'):
+        """
+        DEPRECATED. Is now added to log and added to Tensorboard automatically
+        """
         # Add to TensorBoard
-        summary = tf.Summary()
-        summary_value = summary.value.add()
-        summary_value.simple_value = rank
-        summary_value.tag = tag
-        self.writer.add_summary(summary, epoch)
+        summary_rank = tf.Summary()
+        summary_conf = tf.Summary()
+
+        summary_rank_value = summary_rank.value.add()
+        summary_rank_value.simple_value = rank
+        summary_rank_value.tag = 'rank ' + tag
+
+        summary_conf_value = summary_conf.value.add()
+        summary_conf_value.simple_value = confidence
+        summary_conf_value.tag = 'confidence ' + tag
+
+        self.writer.add_summary(summary_rank, epoch)
+        self.writer.add_summary(summary_conf, epoch)
         self.writer.flush()
 
     def _save_best_rank_model(self, rank):
@@ -75,8 +86,10 @@ class ProbRankCallback(RankCallbackBase):
                     key_prob = predictions[i][sbox[plaintext_byte ^ key_guess]]
                     key_scores[key_guess] += -np.log(key_prob + K.epsilon())  # Lower = better # TODO reverse argsort instead of doing this
 
-            rank = calculate_rank(key_scores, key_true)
-            self._write_rank(epoch, rank, 'rank')
+            # TODO UNTESTED
+            ranks = calculate_ranks(key_scores)
+            rank, confidence = get_rank_and_confidence(ranks, key_scores, key_true)
+            #self._write_rank(epoch, rank, confidence, '%d' % (i-1))
             self._save_best_rank_model(rank)
         else:
             print("Warning: no trace_set supplied to RankCallback")
@@ -118,37 +131,40 @@ class CorrRankCallback(RankCallbackBase):
                 for key_guess in range(0, 256):
                     key_scores[key_guess] = -np.max(np.abs(corr_result[key_guess,:]))  # TODO reverse argsort instead of doing this negation
 
-                rank = calculate_rank(key_scores, keys[0][i])  # TODO: Is is assumed here that all keys of the set are the same here
-                self._write_rank(epoch, rank, 'rank %d' % i)
+                ranks = calculate_ranks(key_scores)
+                rank, confidence = get_rank_and_confidence(ranks, key_scores, keys[0][i]) # TODO: It is assumed here that all true keys of the test set are the same
+                #self._write_rank(epoch, rank, confidence, '%d' % i)
                 self._save_best_rank_model(rank)
                 logs['rank'] = rank
+                logs['confidence'] = confidence
             #self._save_best_rank_model(np.mean(ranks))
         else:
             print("Warning: no trace_set supplied to RankCallback")
 
-def calculate_rank(key_scores, true_key):
+def calculate_ranks(key_scores):
     assert(key_scores.shape == (256,))
     key_ranks = np.zeros(256, dtype=int)
 
     sorted_score_indices = np.argsort(key_scores)
     for i in range(0, 256):
-        key_ranks[sorted_score_indices[i]] = i
+        key_ranks[i] = sorted_score_indices[i]
 
+    return key_ranks
+
+def get_rank_and_confidence(key_ranks, key_scores, true_key):
     print_rank_top_x(key_ranks, x=5, scores=key_scores)
-    #best_key = np.argmin(key_ranks)
     print("True key is %02x" % true_key)
-    rank = key_ranks[true_key]
+    rank = np.int32(list(key_ranks).index(true_key))
     print("==> Rank is %d" % rank)
 
-    return rank
+    confidence = np.float32(key_scores[key_ranks[0]] - key_scores[key_ranks[1]])
+
+    return rank, confidence
 
 def print_rank_top_x(key_ranks, x=5, scores=None):
-    key_indices = range(0, 256)
-    zipped = list(zip(key_ranks, key_indices))
-    top = sorted(zipped, key=lambda x: x[0])
     print("-----------------------------")
     for i in range(0, x):
-        key = top[i][1]
+        key = key_ranks[i]
         if not scores is None:
             print("Rank %d: %02x (score: %f)" % (i, key, scores[key]))
         else:
