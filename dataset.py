@@ -9,15 +9,15 @@ from os import listdir
 from os.path import isfile, join
 
 class Dataset():
-    def __init__(self, id, format, reference_index=0):
+    def __init__(self, id, format, reference_index=0, conf=None):
         self.id = id
         self.format = format
         self.reference_index = reference_index
         self.traces_per_set = 0
 
-        self._setup()
+        self._setup(conf)
 
-    def _setup(self):
+    def _setup(self, conf):
         '''
         Get a list of relative trace set paths for the dataset identifier and retrieve
         a reference signal for the entire dataset.
@@ -52,8 +52,14 @@ class Dataset():
             raise NotImplementedError
         elif self.format == "ascad":  # ASCAD .h5
             # Hack to force split between validation and training set in ASCAD
-            self.trace_set_paths = [join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id), join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)]
-            #self.trace_set_paths = [join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id)]  # For testing only the validation set
+            validation_set = join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id)
+            training_set = join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)
+
+            # Make sure we never use training set when attacking or classifying
+            if not conf is None and ('attack' in conf.actions or 'classify' in conf.actions):
+                self.trace_set_paths = [validation_set]
+            else:
+                self.trace_set_paths = [validation_set, training_set]
         else:
             raise Exception("Unknown input format '%s'" % self.format)
 

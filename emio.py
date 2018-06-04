@@ -12,13 +12,13 @@ from traceset import TraceSet
 from dataset import Dataset
 from emutils import Window
 
-def remote_get_dataset(dataset):
-    return ops.remote_get_dataset.si(dataset).apply_async().get()
+def remote_get_dataset(dataset, conf=None):
+    return ops.remote_get_dataset.si(dataset, conf=conf).apply_async().get()
 
 def remote_get_trace_set(trace_set_path, format, ignore_malformed=True):
     return ops.remote_get_trace_set.si(trace_set_path, format, ignore_malformed).apply_async().get()
 
-def get_dataset(dataset):
+def get_dataset(dataset, conf=None):
     '''
     Get a full list of relative trace set paths given a dataset ID. This is used by the EMMA
     master node to distribute the trace set paths to EMMA worker nodes.
@@ -30,7 +30,7 @@ def get_dataset(dataset):
     if dataset in datasets_conf.sections():
         format = datasets_conf[dataset]["format"]
         reference_index = int(datasets_conf[dataset]["reference_index"])
-        return Dataset(dataset, format, reference_index)
+        return Dataset(dataset, format, reference_index, conf=conf)
     else:
         raise Exception("Dataset %s does not exist in datasets.conf" % dataset)
 

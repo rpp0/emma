@@ -464,8 +464,8 @@ def merge(self, to_merge, conf):
         return None
 
 @app.task
-def remote_get_dataset(dataset):
-    return emio.get_dataset(dataset)
+def remote_get_dataset(dataset, conf=None):
+    return emio.get_dataset(dataset, conf=conf)
 
 @app.task
 def remote_get_trace_set(trace_set_path, format, ignore_malformed):

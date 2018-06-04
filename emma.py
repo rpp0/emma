@@ -73,6 +73,7 @@ def wait_until_completion(async_result, message="Task"):
         raise TypeError
 
 def perform_cpa_attack(dataset, conf):
+    logger.info("Attacking traces: %s" % str(dataset.trace_set_paths))
     max_correlations = np.zeros([conf.skip_subkeys + conf.num_subkeys, 256])
 
     for subkey in range(conf.skip_subkeys, min(conf.skip_subkeys + conf.num_subkeys, 16)):
@@ -184,13 +185,13 @@ if __name__ == "__main__":
         clear_redis()
 
         # Get a list of filenames from a dataset
-        dataset = emio.remote_get_dataset(dataset=args.dataset)
+        dataset = emio.remote_get_dataset(dataset=args.dataset, conf=args)
         if not args.refset is None:
-            dataset_ref = emio.remote_get_dataset(dataset=args.refset)
+            dataset_ref = emio.remote_get_dataset(dataset=args.refset, conf=args)
         else:
             dataset_ref = dataset
         if not args.valset is None:
-            dataset_val = emio.remote_get_dataset(dataset=args.valset)
+            dataset_val = emio.remote_get_dataset(dataset=args.valset, conf=args)
         else:
             dataset_val = None
 
