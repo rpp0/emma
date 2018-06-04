@@ -97,7 +97,7 @@ class AI():
             self.model.save("%s-last.h5" % self.model_path.rpartition('.')[0])
 
     def predict(self, x):
-        return self.model.predict(x, batch_size=999999999, verbose=0)
+        return self.model.predict(x, batch_size=10000, verbose=0)
 
     def load(self):
         self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
@@ -299,7 +299,7 @@ class AICorrNet(AI):
         hidden_nodes = 256
         self.model.add(Dense(hidden_nodes, input_dim=input_dim, activation=None, kernel_regularizer=reg))
         input_dim=hidden_nodes
-        self.model.add(BatchNormalization())
+        self.model.add(BatchNormalization(momentum=0.1))
         #self.model.add(Activation(activation))
         self.model.add(LeakyReLU())
 
@@ -309,7 +309,7 @@ class AICorrNet(AI):
         #self.model.add(Activation("tanh"))
 
         self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, use_bias=self.use_bias, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=reg2, input_dim=input_dim, activation=None))
-        self.model.add(BatchNormalization())
+        self.model.add(BatchNormalization(momentum=0.1))
         #self.model.add(Activation(activation))
         self.model.add(LeakyReLU())
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])

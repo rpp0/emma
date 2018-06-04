@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 
 class CorrelationList():
     def __init__(self, shape):
@@ -39,3 +40,6 @@ class CorrelationList():
             self._n += correlation_array._n
         else:
             raise TypeError
+
+    def save(self):
+        pickle.dump(self, open("/tmp/correlations.p", "wb"))

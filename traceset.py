@@ -65,9 +65,15 @@ class TraceSet(object):
 
     def save(self, path, fmt='cw'):
         if fmt == 'cw':
-            np.save(self.name + "_p_traces.npy", np.array([t.signal for t in self.traces]))
+            # Largely untested / debug feature
+            np.save(path + self.name + "_p_traces.npy", np.array([t.signal for t in self.traces]))
+            np.save(path + self.name + "_p_keys.npy", np.array([t.key for t in self.traces]))
+            np.save(path + self.name + "_p_plaintexts.npy", np.array([t.plaintext for t in self.traces]))
         elif fmt == 'sigmf':
             raise NotImplementedError
+        elif fmt == 'pickle':
+            import pickle
+            pickle.dump(self, open(path + self.name + "_trace_set.p", "wb"))
 
     def __str__(self):
         result = "TraceSet '%s' containing %d traces." % (self.name, self.num_traces)

@@ -9,6 +9,7 @@ import keras.backend as K
 import pickle
 import tensorflow as tf
 import ops
+import ai
 
 from lut import sbox
 from traceset import TraceSet
@@ -48,6 +49,8 @@ class RankCallbackBase(keras.callbacks.Callback):
         if self.save_best and rank <= self.best_rank:
             self.best_rank = rank
             self.model.save(self.save_path)
+            return True
+        return False
 
 class ProbRankCallback(RankCallbackBase):
     """
@@ -96,7 +99,7 @@ class CorrRankCallback(RankCallbackBase):
             # Store encodings as fake traceset
             keys = np.array([trace.key for trace in self.trace_set.traces])
             plaintexts = np.array([trace.plaintext for trace in self.trace_set.traces])
-            fake_ts = TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys)
+            fake_ts = TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
             fake_ts.window = Window(begin=0, end=encodings.shape[1])
             fake_ts.windowed = True
 

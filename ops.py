@@ -262,6 +262,13 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     '''
     logger.info("attack %s" % (str(params) if not params is None else ""))
 
+    # Use mask?
+    usemask = False
+    if not params is None:
+        if len(params) == 1:
+            if params[0] == 'usemask':
+                usemask = True
+
     # Init if first time
     if result.correlations is None:
         result.correlations = CorrelationList([256, trace_set.window.size])
@@ -279,7 +286,10 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     # 1. Build hypotheses for all 256 possibilities of the key and all traces
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            mask = trace_set.traces[i].mask[conf.subkey] if not trace_set.traces[i].mask is None else 0
+            if usemask:
+                mask = trace_set.traces[i].mask[conf.subkey] if not trace_set.traces[i].mask is None else 0
+            else:
+                mask = 0
             hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess] ^ mask]  # Model of the power consumption
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
@@ -366,10 +376,25 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
             result._data['state'] = AI("aicorrnet", suffix=conf.model_suffix)
             result._data['state'].load()
 
-        trace_set.window = Window(begin=0, end=result._data['state'].model.layers[-1].output_shape[1])
+        # Fetch signals from traces
+        x = np.array([trace.signal for trace in trace_set.traces])
+        #import keras.backend as K
+        #get_output = K.function([result._data['state'].model.layers[0].input, K.learning_phase()], [result._data['state'].model.layers[-1].output])
+        #encodings = get_output([x, 1])[0]
+        #encoding_dimensions = result._data['state'].model.layers[-1].output_shape[1]
 
-        for trace in trace_set.traces:
-            trace.signal = result._data['state'].predict(np.array([trace.signal], dtype=float))[0]
+        # Get encodings of signals
+        encodings = result._data['state'].predict(x)
+
+        # Replace original signal with encoding
+        assert(encodings.shape[0] == len(trace_set.traces))
+        for i in range(0, len(trace_set.traces)):
+            trace_set.traces[i].signal = encodings[i]
+            #trace_set.traces[i].signal = result._data['state'].predict(np.array([trace_set.traces[i].signal]))  # Without copy, but somewhat slower
+
+        # Adjust window size
+        trace_set.window = Window(begin=0, end=encodings.shape[1])
+        trace_set.windowed = True
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 

@@ -53,6 +53,7 @@ class Dataset():
         elif self.format == "ascad":  # ASCAD .h5
             # Hack to force split between validation and training set in ASCAD
             self.trace_set_paths = [join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id), join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)]
+            #self.trace_set_paths = [join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id)]  # For testing only the validation set
         else:
             raise Exception("Unknown input format '%s'" % self.format)
 
