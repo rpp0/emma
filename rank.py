@@ -60,7 +60,7 @@ class ProbRankCallback(RankCallbackBase):
     def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5'):
         super(ProbRankCallback, self).__init__(log_dir, save_best, save_path)
 
-    def on_epoch_begin(self, epoch, logs=None):
+    def on_epoch_end(self, epoch, logs=None):
         if not self.trace_set is None:
             x = np.expand_dims(np.array([trace.signal for trace in self.trace_set.traces]), axis=-1)
             predictions = self.model.predict(x) # Output: [?, 256]
@@ -86,11 +86,13 @@ class CorrRankCallback(RankCallbackBase):
     RankCallback that assumes the model an encoding that is highly correlated with the true key bytes.
     """
 
-    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=100):
+    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=10):
         super(CorrRankCallback, self).__init__(log_dir, save_best, save_path, freq)
 
-    def on_epoch_begin(self, epoch, logs=None):
-        if epoch % self.freq != 0 or epoch == 0:
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+
+        if epoch % self.freq != 0:
             return
         if not self.trace_set is None:
             x = np.array([trace.signal for trace in self.trace_set.traces])
@@ -119,6 +121,7 @@ class CorrRankCallback(RankCallbackBase):
                 rank = calculate_rank(key_scores, keys[0][i])  # TODO: Is is assumed here that all keys of the set are the same here
                 self._write_rank(epoch, rank, 'rank %d' % i)
                 self._save_best_rank_model(rank)
+                logs['rank'] = rank
             #self._save_best_rank_model(np.mean(ranks))
         else:
             print("Warning: no trace_set supplied to RankCallback")

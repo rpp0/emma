@@ -12,7 +12,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU
 from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
-from keras.callbacks import TensorBoard
+from keras.callbacks import TensorBoard, History
 from matplotlib.ticker import FuncFormatter
 from keras.applications.vgg16 import VGG16
 from keras import regularizers
@@ -37,6 +37,7 @@ class AI():
         if not os.path.isdir(self.models_dir):
             os.makedirs(self.models_dir)
         self.model_path = os.path.join(self.models_dir, "%s.h5" % self.name)
+        self.base_path = self.model_path.rpartition('.')[0]
         self.model = None
 
         # Callbacks during training
@@ -62,7 +63,7 @@ class AI():
                                 epochs=epochs,
                                 steps_per_epoch=steps_per_epoch,
                                 validation_data=validation_batch,
-                                workers=workers, callbacks=list(self.callbacks.values()), verbose=1)
+                                workers=workers, callbacks=list(self.callbacks.values()) + [SavingHistory(self.base_path)], verbose=1)
 
         # Get loss from callback
         self.last_loss = self.callbacks['lastloss'].value
@@ -94,7 +95,7 @@ class AI():
         Do some post-train actions like printing the model weights and saving the model.
         '''
         if save:
-            self.model.save("%s-last.h5" % self.model_path.rpartition('.')[0])
+            self.model.save("%s-last.h5" % self.base_path)
 
     def predict(self, x):
         return self.model.predict(x, batch_size=10000, verbose=0)
@@ -157,6 +158,14 @@ class LossHistory(keras.callbacks.Callback):
 
     def on_batch_end(self, batch, logs={}):
         self.losses.append(logs.get('loss'))
+
+class SavingHistory(History):
+    def __init__(self, path):
+        self.path = path
+        super(SavingHistory, self).__init__()
+
+    def on_train_end(self, logs={}):
+        pickle.dump(self.history, open("%s-history.p" % self.path, "wb"))
 
 class Clip(keras.constraints.Constraint):
     '''

@@ -43,6 +43,13 @@ class AISignalIteratorBase():
         else:
             self.num_total_examples = len(self.trace_set_paths) * self.traces_per_set
 
+            # TODO fixme, hack for getting ASCAD to report correct number of samples
+            if 'ASCAD' in conf.dataset_id:
+                if '-val' in self.trace_set_paths[0]:
+                    self.num_total_examples = 10000
+                else:
+                    self.num_total_examples = 50000
+
     def __iter__(self):
         return self
 
