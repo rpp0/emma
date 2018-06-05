@@ -131,15 +131,15 @@ class AIMemCopyDirect():
     def test(self, x):
         pass
 
-def correlation_loss(y_true, y_pred):
+def correlation_loss(y_true_raw, y_pred_raw):
     '''
     Custom loss function that calculates the Pearson correlation of the prediction with
     the true values over a number of batches.
     '''
     # y_true_raw = K.print_tensor(y_true_raw, message='y_true_raw = ')  # Note: print truncating is incorrect in the print_tensor function
     # y_pred_raw = K.print_tensor(y_pred_raw, message='y_pred_raw = ')
-    #y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
-    #y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
+    y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
+    y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
 
     loss = K.variable(0.0)
     for key_col in range(AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH):  # 0 - 16
