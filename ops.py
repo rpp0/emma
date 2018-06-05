@@ -14,6 +14,7 @@ import emio
 import pickle
 import configparser
 import aiiterators
+import ai
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
@@ -24,7 +25,6 @@ from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from celery import Task
 from emresult import EMResult
-from ai import AIMemCopyDirect, AICorrNet, AISHACPU, AI, AISHACC, AIASCAD
 from matplotlib.backends.backend_pdf import PdfPages
 
 logger = get_task_logger(__name__)  # Logger
@@ -328,7 +328,7 @@ def memtrain_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result.ai is None:
             logger.debug("Initializing Keras")
-            result.ai = AIMemCopyDirect(input_dim=len(trace_set.traces[0].signal), hamming=conf.hamming)
+            result.ai = ai.AIMemCopyDirect(input_dim=len(trace_set.traces[0].signal), hamming=conf.hamming)
 
         signals = np.array([trace.signal for trace in trace_set.traces])
         values = np.array([hw[trace.plaintext[0]] for trace in trace_set.traces])
@@ -373,7 +373,7 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result._data['state'] is None:
             logger.warning("Loading model aicorrnet-%s" % conf.model_suffix)
-            result._data['state'] = AI("aicorrnet", suffix=conf.model_suffix)
+            result._data['state'] = ai.AI("aicorrnet", suffix=conf.model_suffix)
             result._data['state'].load()
 
         # Fetch signals from traces
@@ -404,7 +404,7 @@ def shacputest_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result._data['state'] is None:
             logger.debug("Loading Keras")
-            result._data['state'] = AI("aishacpu" + ("-hw" if conf.hamming else ""), suffix=conf.model_suffix)
+            result._data['state'] = ai.AI("aishacpu" + ("-hw" if conf.hamming else ""), suffix=conf.model_suffix)
             result._data['state'].load()
 
         for trace in trace_set.traces:
@@ -420,7 +420,7 @@ def shacctest_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result._data['state'] is None:
             logger.debug("Loading Keras")
-            result._data['state'] = AI("aishacc" + ("-hw" if conf.hamming else ""), suffix=conf.model_suffix)
+            result._data['state'] = ai.AI("aishacc" + ("-hw" if conf.hamming else ""), suffix=conf.model_suffix)
             result._data['state'].load()
 
         for trace in trace_set.traces:
@@ -587,17 +587,17 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     model = None
     if conf.update:  # Load existing model to update
         logger.warning("Loading model %s%s" % (model_type, '-' + conf.model_suffix if not conf.model_suffix is None else ''))
-        model = AI(model_type, suffix=conf.model_suffix)
+        model = ai.AI(model_type, suffix=conf.model_suffix)
         model.load()
     else:  # Create new model
         if model_type == 'aicorrnet':
-            model = AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix)
+            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix)
         elif model_type == 'aishacpu':
-            model = AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix)
+            model = ai.AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix)
         elif model_type == 'aishacc':
-            model = AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix)
+            model = ai.AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix)
         elif model_type == 'aiascad':
-            model = AIASCAD(input_shape=input_shape, suffix=conf.model_suffix)
+            model = ai.AIASCAD(input_shape=input_shape, suffix=conf.model_suffix)
 
     logger.debug("Training...")
     model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)

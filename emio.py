@@ -7,7 +7,6 @@ import numpy as np
 import configparser
 import ops
 import configparser
-from sigmf.sigmffile import SigMFFile
 from traceset import TraceSet
 from dataset import Dataset
 from emutils import Window

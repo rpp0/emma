@@ -254,7 +254,7 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
 
     def on_epoch_end(self, epoch, logs=None):
         super(CustomTensorboard, self).on_epoch_end(epoch, logs)
-        if epoch % 100 == 0:
+        if epoch % 20 == 0:
             try:
                 self._plot_fft_weights(80000000)  # TODO: hardcoded sample rate
 

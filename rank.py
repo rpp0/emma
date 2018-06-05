@@ -27,6 +27,7 @@ class RankCallbackBase(keras.callbacks.Callback):
         self.writer = tf.summary.FileWriter(log_dir)
         self.save_best = save_best
         self.best_rank = 256
+        self.best_confidence = 0
         self.freq = freq
 
         if not save_path is None:
@@ -55,11 +56,14 @@ class RankCallbackBase(keras.callbacks.Callback):
         self.writer.add_summary(summary_conf, epoch)
         self.writer.flush()
 
-    def _save_best_rank_model(self, rank):
+    def _save_best_rank_model(self, rank, confidence):
         # Save
         if self.save_best and rank <= self.best_rank:
             self.best_rank = rank
-            self.model.save(self.save_path)
+            if confidence >= self.best_confidence:
+                self.best_confidence = confidence
+
+                self.model.save(self.save_path)
             return True
         return False
 
@@ -84,13 +88,13 @@ class ProbRankCallback(RankCallbackBase):
                 key_true = trace.key[2] # TODO show for all keys
                 for key_guess in range(0, 256):
                     key_prob = predictions[i][sbox[plaintext_byte ^ key_guess]]
-                    key_scores[key_guess] += -np.log(key_prob + K.epsilon())  # Lower = better # TODO reverse argsort instead of doing this
+                    key_scores[key_guess] += np.log(key_prob + K.epsilon())
 
             # TODO UNTESTED
             ranks = calculate_ranks(key_scores)
             rank, confidence = get_rank_and_confidence(ranks, key_scores, key_true)
             #self._write_rank(epoch, rank, confidence, '%d' % (i-1))
-            self._save_best_rank_model(rank)
+            self._save_best_rank_model(rank, confidence)
         else:
             print("Warning: no trace_set supplied to RankCallback")
 
@@ -129,12 +133,12 @@ class CorrRankCallback(RankCallbackBase):
                 # Get maximum correlations over all points and interpret as score
                 key_scores = np.zeros(256)
                 for key_guess in range(0, 256):
-                    key_scores[key_guess] = -np.max(np.abs(corr_result[key_guess,:]))  # TODO reverse argsort instead of doing this negation
+                    key_scores[key_guess] = np.max(np.abs(corr_result[key_guess,:]))  # TODO reverse argsort instead of doing this negation
 
                 ranks = calculate_ranks(key_scores)
                 rank, confidence = get_rank_and_confidence(ranks, key_scores, keys[0][i]) # TODO: It is assumed here that all true keys of the test set are the same
                 #self._write_rank(epoch, rank, confidence, '%d' % i)
-                self._save_best_rank_model(rank)
+                self._save_best_rank_model(rank, confidence)
                 logs['rank'] = rank
                 logs['confidence'] = confidence
             #self._save_best_rank_model(np.mean(ranks))
@@ -145,7 +149,7 @@ def calculate_ranks(key_scores):
     assert(key_scores.shape == (256,))
     key_ranks = np.zeros(256, dtype=int)
 
-    sorted_score_indices = np.argsort(key_scores)
+    sorted_score_indices = np.argsort(key_scores)[::-1]
     for i in range(0, 256):
         key_ranks[i] = sorted_score_indices[i]
 
