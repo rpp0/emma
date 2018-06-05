@@ -5,6 +5,8 @@ import os
 import pickle
 import ai
 import subprocess
+import matplotlib.pyplot as plt
+import numpy as np
 
 def download_files(remote_file_paths, destination):
     dest_path = os.path.abspath(destination)
@@ -52,8 +54,12 @@ def get_remote_model(model_id, suffix, remote):
         # Download model
         download_files([remote_model_path,remote_model_history_path], "./models/")
 
-def generate_history_graphs(history):
-    print(history)
+def generate_history_graphs(model_id, suffix, history):
+    for key, values in history.items():
+        print("Generating %s graph" % key)
+        fig = plt.figure()
+        plt.plot(np.arange(len(values)), values)
+        fig.savefig("./paper_data/%s-%s-%s.pdf" % (model_id, suffix, key), bbox_inches='tight')
 
 def generate_model_graphs(model):
     print(model.get_weights())
@@ -69,7 +75,7 @@ def generate_stats(model_id, suffix="last", remote=None):
 
         # History graphs
         history = pickle.load(open(os.path.join("./models", model_id + "-history.p"), "rb"))
-        generate_history_graphs(history)
+        generate_history_graphs(model_id, suffix, history)
 
         # Model graphs
         model = ai.AI(name=model_id, suffix=suffix)
