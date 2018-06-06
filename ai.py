@@ -70,6 +70,45 @@ class AI():
 
         self._post_train(save)
 
+    def train_t_fold(self, training_iterator, batch_size=10000, epochs=100, num_train_traces=45000, t=10):
+        '''
+        t-fold cross-validation according to paper by Prouff et al.
+        '''
+
+        # Get all traces in memory to speed up the process
+        # First, process all ops and apply them to the traces set
+        all_traces = training_iterator.get_all_as_trace_set()
+
+        # Use the preprocessing function of the iterator to convert to Keras features
+        inputs, labels = training_iterator._preprocess_trace_set(all_traces)
+
+        num_validation_traces = training_iterator.num_total_examples - num_train_traces
+        model_initial_state = self.model.get_weights()
+        for i in range(0, t):
+            print("Fold %d" % i)
+            # Reset model to untrained state
+            self.model.set_weights(model_initial_state)
+
+            # Randomize inputs and labels in the same order
+            assert(len(inputs) == len(labels) == len(all_traces.traces))
+            random_indices = np.arange(len(inputs))
+            np.random.shuffle(random_indices)
+            shuffled_inputs = np.take(inputs, random_indices, axis=0)  # Take random input examples
+            shuffled_labels = np.take(labels, random_indices, axis=0)  # Take random label examples
+            shuffled_traces = np.take(all_traces.traces, random_indices, axis=0)
+            assert(labels[random_indices[0]][0] == shuffled_labels[0][0])
+
+            shuffled_inputs_train = shuffled_inputs[0:num_train_traces]
+            shuffled_inputs_val = shuffled_inputs[num_train_traces:]
+            shuffled_labels_train = shuffled_labels[0:num_train_traces]
+            shuffled_labels_val = shuffled_labels[num_train_traces:]
+
+            self.model.fit(shuffled_inputs_train, shuffled_labels_train, epochs=epochs, batch_size=batch_size, shuffle=False, verbose=2, callbacks=None, validation_data=(shuffled_inputs_val, shuffled_labels_val))
+
+            # Now, evaluate the rank for increasing number of traces from the validation set (steps of 10)
+            validation_set = shuffled_traces[num_train_traces:]
+            
+
     def _old_post_train(self):
         '''
         DEPRECATED

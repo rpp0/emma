@@ -94,7 +94,7 @@ class AISignalIteratorBase():
             signals, values = self._preprocess_trace_set(result.trace_sets[0])  # Since we iterate per path, there will be only 1 result in trace_sets
 
             # Cache
-            if len(self.cache.keys()) < self.max_cache:
+            if (self.max_cache is None) or len(self.cache.keys()) < self.max_cache:
                 self.cache[trace_set_path] = (signals, values)
 
             return signals, values

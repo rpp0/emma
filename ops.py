@@ -214,6 +214,17 @@ def rmoutliers_trace_set(trace_set, result, conf, params=None):
 
     trace_set.set_traces(new_traces)
 
+@op('roll')
+def roll_trace_set(trace_set, result, conf, params=None):
+    logger.info("roll %s" % (str(params) if not params is None else ""))
+    if params is None:  # If no parameters provided, window according to reference signal
+        roll_window = Window(begin=0, end=len(conf.reference_signal))
+    else:
+        roll_window = Window(begin=int(params[0]), end=int(params[1]))
+
+    for trace in trace_set.traces:
+        trace.signal = np.roll(trace.signal, np.random.randint(roll_window.begin, roll_window.end))
+
 @op('save')
 def save_trace_set(trace_set, result, conf, params=None):
     '''
@@ -579,6 +590,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     # Select training iterator (gathers data, performs augmentation and preprocessing)
     training_iterator, validation_iterator = aiiterators.get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
 
+    print("Getting shape of data...")
     x, _ = training_iterator.next()
     input_shape = x.shape[1:]  # Shape excluding batch
     print("Shape of data to train: %s" % str(input_shape))
@@ -600,4 +612,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
             model = ai.AIASCAD(input_shape=input_shape, suffix=conf.model_suffix)
 
     logger.debug("Training...")
-    model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)
+    if conf.tfold:
+        model.train_t_fold(training_iterator, batch_size=10000, epochs=100, num_train_traces=45000, t=10)
+    else:
+        model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)
