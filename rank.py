@@ -123,27 +123,31 @@ class CorrRankCallback(RankCallbackBase):
             fake_ts.windowed = True
 
             for i in range(2, 3):  # TODO show for all keys
-                conf = Namespace(subkey=i)
-                result = EMResult(task_id=None)
-                ops.attack_trace_set(fake_ts, result, conf, params=None)
-
-                corr_result = result.correlations
-                print("Num entries: %d" % corr_result._n[0][0])
-
-                # Get maximum correlations over all points and interpret as score
-                key_scores = np.zeros(256)
-                for key_guess in range(0, 256):
-                    key_scores[key_guess] = np.max(np.abs(corr_result[key_guess,:]))  # TODO reverse argsort instead of doing this negation
-
-                ranks = calculate_ranks(key_scores)
-                rank, confidence = get_rank_and_confidence(ranks, key_scores, keys[0][i]) # TODO: It is assumed here that all true keys of the test set are the same
-                #self._write_rank(epoch, rank, confidence, '%d' % i)
+                rank, confidence = calculate_traceset_rank(fake_ts, i, keys[0][i])  # TODO: It is assumed here that all true keys of the test set are the same
                 self._save_best_rank_model(rank, confidence)
-                logs['rank'] = rank
-                logs['confidence'] = confidence
+                logs['rank %d' % i] = rank
+                logs['confidence %d' % i] = confidence
             #self._save_best_rank_model(np.mean(ranks))
         else:
             print("Warning: no trace_set supplied to RankCallback")
+
+def calculate_traceset_rank(trace_set, key_index, true_key):
+    conf = Namespace(subkey=key_index)
+    result = EMResult(task_id=None)
+    ops.attack_trace_set(trace_set, result, conf, params=None)
+
+    corr_result = result.correlations
+    print("Num entries: %d" % corr_result._n[0][0])
+
+    # Get maximum correlations over all points and interpret as score
+    key_scores = np.zeros(256)
+    for key_guess in range(0, 256):
+        key_scores[key_guess] = np.max(np.abs(corr_result[key_guess,:]))
+
+    ranks = calculate_ranks(key_scores)
+    rank, confidence = get_rank_and_confidence(ranks, key_scores, true_key)
+
+    return rank, confidence
 
 def calculate_ranks(key_scores):
     assert(key_scores.shape == (256,))

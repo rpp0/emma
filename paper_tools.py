@@ -35,8 +35,10 @@ def get_remote_model(model_id, suffix, remote):
     # Check if model already exists
     remote_model_path = os.path.join(remote, "models", model_id + "-" + suffix + ".h5")
     remote_model_history_path = os.path.join(remote, "models", model_id + "-history.p")
+    remote_model_ranks_path = os.path.join(remote, "models", model_id + "-t-ranks.p")
     local_model_path =  os.path.abspath("./models/%s-%s.h5" % (model_id, suffix))
     local_model_history_path =  os.path.abspath("./models/%s-history.p" % model_id)
+    local_model_ranks_path =  os.path.abspath("./models/%s-t-ranks.p" % model_id)
 
     if os.path.exists(local_model_path):
         # Is there a newer model?
@@ -50,9 +52,15 @@ def get_remote_model(model_id, suffix, remote):
         remote_model_history_hash = get_hash(remote_model_history_path, is_remote=True)
         if local_model_history_hash != remote_model_history_hash:
             download_files([remote_model_history_path], "./models/")
+
+        # Is there a newer ranks file?
+        local_model_ranks_hash = get_hash(local_model_ranks_path, is_remote=False)
+        remote_model_ranks_hash = get_hash(remote_model_ranks_path, is_remote=True)
+        if local_model_ranks_hash != remote_model_ranks_hash:
+            download_files([remote_model_ranks_path], "./models/")
     else:
         # Download model
-        download_files([remote_model_path,remote_model_history_path], "./models/")
+        download_files([remote_model_path,remote_model_history_path,remote_model_ranks_path], "./models/")
 
 def generate_history_graphs(model_id, suffix, history):
     for key, values in history.items():
@@ -76,6 +84,10 @@ def generate_stats(model_id, suffix="last", remote=None):
         # History graphs
         history = pickle.load(open(os.path.join("./models", model_id + "-history.p"), "rb"))
         generate_history_graphs(model_id, suffix, history)
+
+        # Rank graphs
+        ranks_confidences = pickle.load(open(os.path.join("./models", model_id + "-t-ranks.p"), "rb"))
+        print(ranks_confidences)
 
         # Model graphs
         model = ai.AI(name=model_id, suffix=suffix)

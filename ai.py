@@ -8,6 +8,9 @@ import os
 import io
 import matplotlib.pyplot as plt
 import tensorflow as tf
+import traceset
+import emutils
+import rank
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU
 from keras.layers.normalization import BatchNormalization
@@ -70,7 +73,7 @@ class AI():
 
         self._post_train(save)
 
-    def train_t_fold(self, training_iterator, batch_size=10000, epochs=100, num_train_traces=45000, t=10):
+    def train_t_fold(self, training_iterator, batch_size=10000, epochs=100, num_train_traces=45000, t=10, rank_trace_step=1000):
         '''
         t-fold cross-validation according to paper by Prouff et al.
         '''
@@ -84,6 +87,9 @@ class AI():
 
         num_validation_traces = training_iterator.num_total_examples - num_train_traces
         model_initial_state = self.model.get_weights()
+
+        ranks = np.zeros(shape=(10, int(num_validation_traces / rank_trace_step))) + 256
+        confidences = np.zeros(shape=(10, int(num_validation_traces / rank_trace_step)))
         for i in range(0, t):
             print("Fold %d" % i)
             # Reset model to untrained state
@@ -103,11 +109,32 @@ class AI():
             shuffled_labels_train = shuffled_labels[0:num_train_traces]
             shuffled_labels_val = shuffled_labels[num_train_traces:]
 
+            # Train the model
             self.model.fit(shuffled_inputs_train, shuffled_labels_train, epochs=epochs, batch_size=batch_size, shuffle=False, verbose=2, callbacks=None, validation_data=(shuffled_inputs_val, shuffled_labels_val))
 
             # Now, evaluate the rank for increasing number of traces from the validation set (steps of 10)
-            validation_set = shuffled_traces[num_train_traces:]
-            
+            validation_traces = shuffled_traces[num_train_traces:]
+            for j in range(0, int(num_validation_traces / rank_trace_step)):
+                validation_traces_subset = validation_traces[0:(j+1)*rank_trace_step]
+                x = np.array([trace.signal for trace in validation_traces_subset])
+                encodings = self.model.predict(x) # Output: [?, 16]
+                keys = np.array([trace.key for trace in validation_traces_subset])
+                plaintexts = np.array([trace.plaintext for trace in validation_traces_subset])
+                fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
+                fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
+                fake_ts.windowed = True
+                r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2])
+                ranks[i][j] = r
+                confidences[i][j] = c
+                print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
+
+        print(ranks)
+        print(confidences)
+        data_to_save = {
+            'ranks': ranks,
+            'confidences': confidences
+        }
+        pickle.dump(data_to_save, open("%s-t-ranks.p" % self.base_path, "wb"))
 
     def _old_post_train(self):
         '''
