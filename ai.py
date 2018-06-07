@@ -133,7 +133,13 @@ class AI():
         print(confidences)
         data_to_save = {
             'ranks': ranks,
-            'confidences': confidences
+            'confidences': confidences,
+            'rank_trace_step': rank_trace_step,
+            'folds': t,
+            'num_train_traces': num_train_traces,
+            'batch_size': batch_size,
+            'epochs': epochs,
+            'num_validation_traces': num_validation_traces,
         }
         pickle.dump(data_to_save, open("%s-t-ranks.p" % self.base_path, "wb"))
 

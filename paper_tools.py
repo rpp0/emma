@@ -69,6 +69,37 @@ def generate_history_graphs(model_id, suffix, history):
         plt.plot(np.arange(len(values)), values)
         fig.savefig("./paper_data/%s-%s-%s.pdf" % (model_id, suffix, key), bbox_inches='tight')
 
+def normalize(values):
+    return (values - np.min(values)) / np.ptp(values)
+
+def generate_ranks_graphs(model_id, suffix, ranks_confidences):
+    ranks = ranks_confidences['ranks']
+    confidences = ranks_confidences['confidences']
+    #step = ranks_confidences['rank_trace_step']
+    #num_validation_traces = ranks_confidences['num_validation_traces']
+    step = 1000
+    num_validation_traces = 5000
+
+    x = range(0, num_validation_traces + step, step)
+    ranks_y = np.array([256] + list(np.mean(ranks, axis=0)), dtype=np.float32)
+    confidences_y = np.array([0] + list(np.mean(confidences, axis=0)), dtype=np.float32)
+    fig, ax1 = plt.subplots()
+    rank_series, = ax1.plot(x, ranks_y, color='tab:blue', label="rank")
+    ax1.set_xlabel('validation set size')
+    ax1.set_ylabel('mean rank')
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('normalized confidence')
+    confidence_series, = ax2.plot(x, normalize(confidences_y), color='tab:orange', label="norm. confidence")
+
+    legend = plt.legend(handles=[rank_series, confidence_series], loc=5)
+    plt.gca().add_artist(legend)
+
+    fig.savefig("./paper_data/%s-%s-tfold.pdf" % (model_id, suffix), bbox_inches='tight')
+
+    print(ranks_y)
+    print(confidences_y)
+
+
 def generate_model_graphs(model):
     print(model.get_weights())
     print(model.summary())
@@ -87,7 +118,7 @@ def generate_stats(model_id, suffix="last", remote=None):
 
         # Rank graphs
         ranks_confidences = pickle.load(open(os.path.join("./models", model_id + "-t-ranks.p"), "rb"))
-        print(ranks_confidences)
+        generate_ranks_graphs(model_id, suffix, ranks_confidences)
 
         # Model graphs
         model = ai.AI(name=model_id, suffix=suffix)
