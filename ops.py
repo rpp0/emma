@@ -613,6 +613,6 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
 
     logger.debug("Training...")
     if conf.tfold:
-        model.train_t_fold(training_iterator, batch_size=10000, epochs=100, num_train_traces=45000, t=10)
+        model.train_t_fold(training_iterator, batch_size=512, epochs=conf.epochs, num_train_traces=45000, t=10)
     else:
         model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)

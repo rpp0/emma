@@ -103,6 +103,7 @@ class AI():
             shuffled_labels = np.take(labels, random_indices, axis=0)  # Take random label examples
             shuffled_traces = np.take(all_traces.traces, random_indices, axis=0)
             assert(labels[random_indices[0]][0] == shuffled_labels[0][0])
+            assert(shuffled_traces[0].signal[0] == shuffled_inputs[0][0])
 
             shuffled_inputs_train = shuffled_inputs[0:num_train_traces]
             shuffled_inputs_val = shuffled_inputs[num_train_traces:]
@@ -385,7 +386,7 @@ class AICorrNet(AI):
         constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         #optimizer = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, decay=0.0)
-        optimizer = keras.optimizers.Nadam(lr=0.001)
+        optimizer = keras.optimizers.Nadam(lr=0.0001)
         #optimizer = keras.optimizers.Adadelta()
 
         # Hidden layers
