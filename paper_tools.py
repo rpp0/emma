@@ -40,6 +40,29 @@ def normalize(values):
 def is_remote(path):
     return ':' in path
 
+class RankConfidencePlot():
+    def __init__(self):
+        self.fig, self.ax1 = plt.subplots()
+        self.ax1.set_xlabel('validation set size')
+        self.ax1.set_ylabel('mean rank')
+        self.ax1.set_ylim([0,256])
+        self.ax2 = self.ax1.twinx()
+        self.ax2.set_ylabel('confidence')
+        self.handles = []
+
+    def add_series(self, x, ranks_y, confidences_y, rank_color='tab:blue', confidence_color='tab:orange'):
+        rank_series, = self.ax1.plot(x, ranks_y, color=rank_color, label="mean rank")
+        confidence_series, = self.ax2.plot(x, confidences_y, color=confidence_color, label="confidence")
+        self.handles.extend([rank_series, confidence_series])
+
+    def set_title(self, title):
+        plt.title(title)
+
+    def save(self, path):
+        legend = plt.legend(handles=self.handles, loc=9)
+        plt.gca().add_artist(legend)
+        self.fig.savefig(path, bbox_inches='tight')
+
 class FigureGenerator():
     def __init__(self, input_path, model_id, model_suffix="last"):
         if not 'models' in input_path:
@@ -136,20 +159,11 @@ class FigureGenerator():
         x = range(0, num_validation_traces + step, step)
         ranks_y = np.array([256] + list(np.mean(ranks, axis=0)), dtype=np.float32)
         confidences_y = np.array([0] + list(np.mean(confidences, axis=0)), dtype=np.float32)
-        fig, ax1 = plt.subplots()
-        rank_series, = ax1.plot(x, ranks_y, color='tab:blue', label="mean rank")
-        ax1.set_xlabel('validation set size')
-        ax1.set_ylabel('mean rank')
-        ax1.set_ylim([0,256])
-        ax2 = ax1.twinx()
-        ax2.set_ylabel('confidence')
-        confidence_series, = ax2.plot(x, confidences_y, color='tab:orange', label="confidence")
 
-        legend = plt.legend(handles=[rank_series, confidence_series], loc=9)
-        plt.gca().add_artist(legend)
-        plt.title("%d-fold cross-validation of dataset '%s'" % (t, conf.dataset_id))
-
-        fig.savefig(os.path.join(self.output_path, "%s-%s-tfold.pdf" % (self.model_id, self.model_suffix)), bbox_inches='tight')
+        plot = RankConfidencePlot()
+        plot.set_title("%d-fold cross-validation of dataset '%s'" % (t, conf.dataset_id))
+        plot.add_series(x, ranks_y, confidences_y)
+        plot.save(os.path.join(self.output_path, "%s-%s-tfold.pdf" % (self.model_id, self.model_suffix)))
 
     def generate_model_graphs(self, model):
         print(model.get_weights())
