@@ -63,6 +63,18 @@ class RankConfidencePlot():
         plt.gca().add_artist(legend)
         self.fig.savefig(path, bbox_inches='tight')
 
+def get_series_from_tfold_blob(tfold_blob):
+    ranks = tfold_blob['ranks']
+    confidences = tfold_blob['confidences']
+    step = tfold_blob['rank_trace_step']
+    num_validation_traces = tfold_blob['num_validation_traces']
+
+    x = range(0, num_validation_traces + step, step)
+    ranks_y = np.array([256] + list(np.mean(ranks, axis=0)), dtype=np.float32)
+    confidences_y = np.array([0] + list(np.mean(confidences, axis=0)), dtype=np.float32)
+
+    return x, ranks_y, confidences_y
+
 class FigureGenerator():
     def __init__(self, input_path, model_id, model_suffix="last"):
         if not 'models' in input_path:
@@ -128,8 +140,8 @@ class FigureGenerator():
 
         # Rank graphs
         try:
-            ranks_confidences = pickle.load(open(os.path.join(self.input_path, self.model_id + "-t-ranks.p"),   "rb"))
-            self.generate_ranks_graphs(ranks_confidences)
+            tfold_blob = pickle.load(open(os.path.join(self.input_path, self.model_id + "-t-ranks.p"),   "rb"))
+            self.generate_ranks_graphs(tfold_blob)
         except FileNotFoundError:
             print("File not found; skipping rank graphs")
 
@@ -148,17 +160,11 @@ class FigureGenerator():
             plt.plot(np.arange(len(values)), values)
             fig.savefig(os.path.join(self.output_path, "%s-%s-%s.pdf" % (self.model_id, self.model_suffix, key)), bbox_inches='tight')
 
-    def generate_ranks_graphs(self, ranks_confidences):
-        ranks = ranks_confidences['ranks']
-        confidences = ranks_confidences['confidences']
-        step = ranks_confidences['rank_trace_step']
-        num_validation_traces = ranks_confidences['num_validation_traces']
-        conf = ranks_confidences['conf']
-        t = ranks_confidences['folds']
+    def generate_ranks_graphs(self, tfold_blob):
+        conf = tfold_blob['conf']
+        t = tfold_blob['folds']
 
-        x = range(0, num_validation_traces + step, step)
-        ranks_y = np.array([256] + list(np.mean(ranks, axis=0)), dtype=np.float32)
-        confidences_y = np.array([0] + list(np.mean(confidences, axis=0)), dtype=np.float32)
+        x, ranks_y, confidences_y = get_series_from_tfold_blob(tfold_blob)
 
         plot = RankConfidencePlot()
         plot.set_title("%d-fold cross-validation of dataset '%s'" % (t, conf.dataset_id))
