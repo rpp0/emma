@@ -385,8 +385,9 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result._data['state'] is None:
-            logger.warning("Loading model aicorrnet-%s" % conf.model_suffix)
-            result._data['state'] = ai.AI("aicorrnet", suffix=conf.model_suffix)
+            models_dir = os.path.join(os.getcwd(), 'models', conf_to_id(conf)).replace("corrtest-attack", "corrtrain")
+            result._data['state'] = ai.AI("aicorrnet", suffix=conf.model_suffix, path=models_dir)
+            logger.warning("Loading model %s" % result._data['state'].model_path)
             result._data['state'].load()
 
         # Fetch signals from traces
@@ -657,19 +658,20 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
 
     # Select model
     model = None
+    models_dir = os.path.join(os.getcwd(), 'models', conf_to_id(conf))
     if conf.update:  # Load existing model to update
         logger.warning("Loading model %s%s" % (model_type, '-' + conf.model_suffix if not conf.model_suffix is None else ''))
-        model = ai.AI(model_type, suffix=conf.model_suffix)
+        model = ai.AI(model_type, suffix=conf.model_suffix, path=models_dir)
         model.load()
     else:  # Create new model
         if model_type == 'aicorrnet':
-            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix, n_hidden_layers=conf.n_hidden_layers, activation=conf.activation)
+            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix, n_hidden_layers=conf.n_hidden_layers, activation=conf.activation, path=models_dir)
         elif model_type == 'aishacpu':
-            model = ai.AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix)
+            model = ai.AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix, path=models_dir)
         elif model_type == 'aishacc':
-            model = ai.AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix)
+            model = ai.AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix, path=models_dir)
         elif model_type == 'aiascad':
-            model = ai.AIASCAD(input_shape=input_shape, suffix=conf.model_suffix)
+            model = ai.AIASCAD(input_shape=input_shape, suffix=conf.model_suffix, path=models_dir)
 
     logger.debug("Training...")
     if conf.tfold:

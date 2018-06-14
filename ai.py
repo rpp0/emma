@@ -41,7 +41,7 @@ class AI():
         else:
             self.models_dir = os.path.abspath(path)
         if not os.path.isdir(self.models_dir):
-            os.makedirs(self.models_dir)
+            os.makedirs(self.models_dir, exist_ok=True)
         self.model_path = os.path.join(self.models_dir, "%s.h5" % self.name)
         self.base_path = self.model_path.rpartition('.')[0]
         self.model = None
@@ -367,7 +367,7 @@ def str_to_activation(string):
             return Activation(string)
 
 class AICorrNet(AI):
-    def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, suffix=None):
+    def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, suffix=None, path=None):
         # Get name based on config
         name += "-h" + str(n_hidden_layers)
         if not use_bias:
@@ -380,7 +380,7 @@ class AICorrNet(AI):
             name += "-reg" + str(reg)
         if not regfinal is None:
             name += "-regfinal" + str(regfinal)
-        super(AICorrNet, self).__init__(name, suffix=suffix)
+        super(AICorrNet, self).__init__(name, suffix=suffix, path=path)
 
         # Configure regularizer
         self.using_regularization = (not reg is None) or (not regfinal is None)
@@ -442,8 +442,8 @@ class AICorrNet(AI):
         self._post_train(save)
 
 class AISHACPU(AI):
-    def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16', suffix=None):
-        super(AISHACPU, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix)
+    def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16', suffix=None, path=None):
+        super(AISHACPU, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix, path=path)
         assert(K.image_data_format() == 'channels_last')
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 
@@ -474,8 +474,8 @@ class AISHACPU(AI):
         self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
 class AISHACC(AI):
-    def __init__(self, input_shape, name="aishacc", hamming=True, suffix=None):
-        super(AISHACC, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix)
+    def __init__(self, input_shape, name="aishacc", hamming=True, suffix=None, path=None):
+        super(AISHACC, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix, path=path)
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 
         """
@@ -574,8 +574,8 @@ def cc_catcross_loss(y_true, y_pred):
     return tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
 
 class AIASCAD(AI):
-    def __init__(self, input_shape, name="aiascad", suffix=None):
-        super(AIASCAD, self).__init__(name, suffix=suffix)
+    def __init__(self, input_shape, name="aiascad", suffix=None, path=None):
+        super(AIASCAD, self).__init__(name, suffix=suffix, path=path)
         from ASCAD_train_models import cnn_best
 
         self.model = cnn_best(input_shape=input_shape)
