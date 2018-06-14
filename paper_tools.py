@@ -10,6 +10,8 @@ import numpy as np
 
 def download_files(remote_file_paths, destination):
     dest_path = os.path.abspath(destination)
+    print("Creating directory %s" % dest_path)
+    os.makedirs(dest_path, exist_ok=True)
     for source_path in remote_file_paths:
         print("Downloading %s..." % source_path)
         command = ["/usr/bin/scp", source_path, dest_path]
@@ -31,102 +33,123 @@ def get_hash(file_path, is_remote=False):
 
     return hash
 
-def get_remote_model(model_id, suffix, remote):
-    # Check if model already exists
-    remote_model_path = os.path.join(remote, "models", model_id + "-" + suffix + ".h5")
-    remote_model_history_path = os.path.join(remote, "models", model_id + "-history.p")
-    remote_model_ranks_path = os.path.join(remote, "models", model_id + "-t-ranks.p")
-    local_model_path =  os.path.abspath("./models/%s-%s.h5" % (model_id, suffix))
-    local_model_history_path =  os.path.abspath("./models/%s-history.p" % model_id)
-    local_model_ranks_path =  os.path.abspath("./models/%s-t-ranks.p" % model_id)
-
-    if os.path.exists(local_model_path):
-        # Is there a newer model?
-        local_model_hash = get_hash(local_model_path, is_remote=False)
-        remote_model_hash = get_hash(remote_model_path, is_remote=True)
-        if local_model_hash != remote_model_hash:
-            download_files([remote_model_path], "./models/")
-
-        # Is there a newer history?
-        local_model_history_hash = get_hash(local_model_history_path, is_remote=False)
-        remote_model_history_hash = get_hash(remote_model_history_path, is_remote=True)
-        if local_model_history_hash != remote_model_history_hash:
-            download_files([remote_model_history_path], "./models/")
-
-        # Is there a newer ranks file?
-        local_model_ranks_hash = get_hash(local_model_ranks_path, is_remote=False)
-        remote_model_ranks_hash = get_hash(remote_model_ranks_path, is_remote=True)
-        if local_model_ranks_hash != remote_model_ranks_hash:
-            download_files([remote_model_ranks_path], "./models/")
-    else:
-        # Download model
-        download_files([remote_model_path,remote_model_history_path,remote_model_ranks_path], "./models/")
-
-def generate_history_graphs(model_id, suffix, history):
-    for key, values in history.items():
-        print("Generating %s graph" % key)
-        fig = plt.figure()
-        plt.plot(np.arange(len(values)), values)
-        fig.savefig("./paper_data/%s-%s-%s.pdf" % (model_id, suffix, key), bbox_inches='tight')
-
 def normalize(values):
     return (values - np.min(values)) / np.ptp(values)
 
-def generate_ranks_graphs(model_id, suffix, ranks_confidences):
-    ranks = ranks_confidences['ranks']
-    confidences = ranks_confidences['confidences']
-    #step = ranks_confidences['rank_trace_step']
-    #num_validation_traces = ranks_confidences['num_validation_traces']
-    step = 1000
-    num_validation_traces = 5000
+class FigureGenerator():
+    def __init__(self, input_path, model_id, model_suffix="last"):
+        if not 'models' in input_path:
+            raise Exception
 
-    x = range(0, num_validation_traces + step, step)
-    ranks_y = np.array([256] + list(np.mean(ranks, axis=0)), dtype=np.float32)
-    confidences_y = np.array([0] + list(np.mean(confidences, axis=0)), dtype=np.float32)
-    fig, ax1 = plt.subplots()
-    rank_series, = ax1.plot(x, ranks_y, color='tab:blue', label="rank")
-    ax1.set_xlabel('validation set size')
-    ax1.set_ylabel('mean rank')
-    ax2 = ax1.twinx()
-    ax2.set_ylabel('normalized confidence')
-    confidence_series, = ax2.plot(x, normalize(confidences_y), color='tab:orange', label="norm. confidence")
+        self.is_remote = ':' in input_path
+        self.model_id = model_id
+        self.model_suffix = model_suffix
 
-    legend = plt.legend(handles=[rank_series, confidence_series], loc=5)
-    plt.gca().add_artist(legend)
+        if self.is_remote:
+            self.remote_path = input_path
+            self.input_path = os.path.join("./models/", self.remote_path.rpartition('models')[2][1:])
+        else:
+            self.input_path = input_path
 
-    fig.savefig("./paper_data/%s-%s-tfold.pdf" % (model_id, suffix), bbox_inches='tight')
+        self.input_path = os.path.abspath(self.input_path)
+        self.output_path = os.path.abspath(os.path.join("./paper_data", self.input_path.rpartition('models')[2][1:]))
 
-    print(ranks_y)
-    print(confidences_y)
+    def get_remote_model(self):
+        remote_model_path = os.path.join(self.remote_path, self.model_id + "-" + self.model_suffix + ".h5")
+        remote_model_history_path = os.path.join(self.remote_path, self.model_id + "-history.p")
+        remote_model_ranks_path = os.path.join(self.remote_path, self.model_id + "-t-ranks.p")
+        local_model_path =  os.path.join(self.input_path, "%s-%s.h5" % (self.model_id, self.model_suffix))
+        local_model_history_path =  os.path.join(self.input_path, "%s-history.p" % self.model_id)
+        local_model_ranks_path =  os.path.join(self.input_path, "%s-t-ranks.p" % self.model_id)
 
+        # Check if model already exists
+        if os.path.exists(local_model_path):
+            # Is there a newer model?
+            local_model_hash = get_hash(local_model_path, is_remote=False)
+            remote_model_hash = get_hash(remote_model_path, is_remote=True)
+            if local_model_hash != remote_model_hash:
+                download_files([remote_model_path], self.input_path)
 
-def generate_model_graphs(model):
-    print(model.get_weights())
-    print(model.summary())
+            # Is there a newer history?
+            local_model_history_hash = get_hash(local_model_history_path, is_remote=False)
+            remote_model_history_hash = get_hash(remote_model_history_path, is_remote=True)
+            if local_model_history_hash != remote_model_history_hash:
+                download_files([remote_model_history_path], self.input_path)
 
-def generate_stats(model_id, suffix="last", remote=None):
-    if os.path.exists("./models"):
-        if not remote is None:
-            get_remote_model(model_id, suffix, remote)
+            # Is there a newer ranks file?
+            local_model_ranks_hash = get_hash(local_model_ranks_path, is_remote=False)
+            remote_model_ranks_hash = get_hash(remote_model_ranks_path, is_remote=True)
+            if local_model_ranks_hash != remote_model_ranks_hash:
+                download_files([remote_model_ranks_path], self.input_path)
+        else:
+            # Download model
+            download_files([remote_model_path,remote_model_history_path,remote_model_ranks_path], self.input_path)
+
+    def generate_stats(self):
+        if self.is_remote:
+            self.get_remote_model()
 
         # Make directory for resulting data and graphs
-        os.makedirs("./paper_data/", exist_ok=True)
+        os.makedirs(self.output_path, exist_ok=True)
 
         # History graphs
-        history = pickle.load(open(os.path.join("./models", model_id + "-history.p"), "rb"))
-        generate_history_graphs(model_id, suffix, history)
+        try:
+            history = pickle.load(open(os.path.join(self.input_path, self.model_id + "-history.p"), "rb"))
+            self.generate_history_graphs(history)
+        except FileNotFoundError:
+            print("File not found; skipping history graphs")
 
         # Rank graphs
-        ranks_confidences = pickle.load(open(os.path.join("./models", model_id + "-t-ranks.p"), "rb"))
-        generate_ranks_graphs(model_id, suffix, ranks_confidences)
+        try:
+            ranks_confidences = pickle.load(open(os.path.join(self.input_path, self.model_id + "-t-ranks.p"),   "rb"))
+            self.generate_ranks_graphs(ranks_confidences)
+        except FileNotFoundError:
+            print("File not found; skipping rank graphs")
 
         # Model graphs
-        model = ai.AI(name=model_id, suffix=suffix)
-        model.load()
-        generate_model_graphs(model.model)
-    else:
-        print("No models/ directory found, exiting.")
-        exit(1)
+        try:
+            model = ai.AI(name=self.model_id, suffix=self.model_suffix, path=self.input_path)
+            model.load()
+            self.generate_model_graphs(model.model)
+        except OSError:
+            print("File not found; skipping model graphs")
+
+    def generate_history_graphs(self, history):
+        for key, values in history.items():
+            print("Generating %s graph" % key)
+            fig = plt.figure()
+            plt.plot(np.arange(len(values)), values)
+            fig.savefig(os.path.join(self.output_path, "%s-%s-%s.pdf" % (self.model_id, self.model_suffix, key)), bbox_inches='tight')
+
+    def generate_ranks_graphs(self, ranks_confidences):
+        ranks = ranks_confidences['ranks']
+        confidences = ranks_confidences['confidences']
+        step = ranks_confidences['rank_trace_step']
+        num_validation_traces = ranks_confidences['num_validation_traces']
+        conf = ranks_confidences['conf']
+        t = ranks_confidences['folds']
+
+        x = range(0, num_validation_traces + step, step)
+        ranks_y = np.array([256] + list(np.mean(ranks, axis=0)), dtype=np.float32)
+        confidences_y = np.array([0] + list(np.mean(confidences, axis=0)), dtype=np.float32)
+        fig, ax1 = plt.subplots()
+        rank_series, = ax1.plot(x, ranks_y, color='tab:blue', label="mean rank")
+        ax1.set_xlabel('validation set size')
+        ax1.set_ylabel('mean rank')
+        ax1.set_ylim([0,256])
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('confidence')
+        confidence_series, = ax2.plot(x, confidences_y, color='tab:orange', label="confidence")
+
+        legend = plt.legend(handles=[rank_series, confidence_series], loc=9)
+        plt.gca().add_artist(legend)
+        plt.title("%d-fold cross-validation of dataset '%s'" % (t, conf.dataset_id))
+
+        fig.savefig(os.path.join(self.output_path, "%s-%s-tfold.pdf" % (self.model_id, self.model_suffix)), bbox_inches='tight')
+
+    def generate_model_graphs(self, model):
+        print(model.get_weights())
+        print(model.summary())
 
 if __name__ == "__main__":
     """
@@ -137,8 +160,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Tools for CEMA correlation optimization paper.', formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('command', type=str, help='Command to execute')
     parser.add_argument('parameters', type=str, help='Parameters for the command', nargs='+')
-    parser.add_argument('--remote', type=str, default=None, help='Remote location to fetch model from.')
     args, unknown = parser.parse_known_args()
 
     if args.command == 'stats':
-        generate_stats(args.parameters[0], remote=args.remote)
+        if len(args.parameters) >= 2:
+            f = FigureGenerator(args.parameters[0], args.parameters[1])
+            f.generate_stats()
+        else:
+            print("Not enough parameters")
+    else:
+        print("Unknown command %s" % args.command)

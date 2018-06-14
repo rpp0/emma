@@ -32,11 +32,14 @@ class AI():
     '''
     Base class for the models.
     '''
-    def __init__(self, name="unknown", suffix=None):
+    def __init__(self, name="unknown", suffix=None, path=None):
         self.id = str(int(time.time()))
         suffix = "" if suffix is None else '-' + suffix
         self.name = name + suffix
-        self.models_dir = os.path.join(os.getcwd(), 'models')
+        if path is None:
+            self.models_dir = os.path.join(os.getcwd(), 'models')
+        else:
+            self.models_dir = os.path.abspath(path)
         if not os.path.isdir(self.models_dir):
             os.makedirs(self.models_dir)
         self.model_path = os.path.join(self.models_dir, "%s.h5" % self.name)
@@ -73,7 +76,7 @@ class AI():
 
         self._post_train(save)
 
-    def train_t_fold(self, training_iterator, batch_size=10000, epochs=100, num_train_traces=45000, t=10, rank_trace_step=1000):
+    def train_t_fold(self, training_iterator, batch_size=10000, epochs=100, num_train_traces=45000, t=10, rank_trace_step=1000, conf=None):
         '''
         t-fold cross-validation according to paper by Prouff et al.
         '''
@@ -140,6 +143,7 @@ class AI():
             'batch_size': batch_size,
             'epochs': epochs,
             'num_validation_traces': num_validation_traces,
+            'conf': conf,
         }
         pickle.dump(data_to_save, open("%s-t-ranks.p" % self.base_path, "wb"))
 

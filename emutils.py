@@ -80,3 +80,25 @@ def get_ip_address(ifname):
         0x8915,  # SIOCGIFADDR
         struct.pack('256s', bytes(ifname[:15], encoding='utf-8'))
     )[20:24])
+
+def conf_to_id(conf):
+    conf_dict = conf.__dict__
+    result = ""
+    first = True
+    translation_table = str.maketrans({
+        '[': None,
+        ']': None,
+        ',': '-'
+    })
+
+    if 'actions' in conf_dict:
+        for action in conf_dict['actions']:
+            if first:
+                first = False
+            else:
+                result += "-"
+            result += action.translate(translation_table)
+    if 'dataset_id' in conf_dict:
+        result += "-" + conf_dict['dataset_id']
+
+    return result

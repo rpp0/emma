@@ -116,6 +116,10 @@ def perform_ml_attack(dataset, dataset_val, conf):
     async_result = aitrain.si(training_split, validation_split, conf).delay()
     wait_until_completion(async_result, message="Training neural network")
 
+def perform_base_test(dataset, conf):
+    async_result = basetest.si(dataset.trace_set_paths, conf).delay()
+    wait_until_completion(async_result, message="Performing base test")
+
 def perform_actions(dataset, conf):
     async_result = parallel_actions(dataset.trace_set_paths, conf)
     wait_until_completion(async_result, message="Performing actions")
@@ -179,6 +183,8 @@ if __name__ == "__main__":
     parser.add_argument('--num-valsets', type=int, default=128, help='Number of validation trace sets to use')
     parser.add_argument('--normalize', default=False, action='store_true', help='Normalize input data before feeding to NN')
     parser.add_argument('--tfold', default=False, action='store_true', help='Train using t-fold cross-validation')
+    parser.add_argument('--n-hidden-layers', type=int, default=1, help='Number of hidden layers in model.')
+    parser.add_argument('--activation', type=str, default='leakyrelu', help='Activation function of model.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
@@ -209,6 +215,8 @@ if __name__ == "__main__":
 
         if 'attack' in conf.actions:  # Group of tasks and merge correlation results
             perform_cpa_attack(dataset, conf)
+        elif 'basetest' in conf.actions:
+            perform_base_test(dataset, conf)
         elif True in [a.find('train') > -1 for a in conf.actions]:
             perform_ml_attack(dataset, dataset_val, conf)
         elif 'classify' in conf.actions:

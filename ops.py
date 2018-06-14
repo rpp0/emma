@@ -15,12 +15,14 @@ import pickle
 import configparser
 import aiiterators
 import ai
+import traceset
+import rank
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
 from functools import wraps
 from os.path import join, basename
-from emutils import Window
+from emutils import Window, conf_to_id
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from celery import Task
@@ -577,6 +579,64 @@ def get_conf_model_type(conf):
     return None
 
 @app.task(bind=True)
+def basetest(self, trace_set_paths, conf, rank_trace_step=1000, t=10):
+    resolve_paths(trace_set_paths)  # Get absolute paths
+
+    if type(trace_set_paths) is list:
+        result = EMResult(task_id=self.request.id)  # Keep state and results
+
+        # Process trace set paths
+        process_trace_set_paths(result, trace_set_paths, conf, request_id=self.request.id, keep_trace_sets=True)
+
+        all_traces_list = []
+        for trace_set in result.trace_sets:
+            all_traces_list.extend(trace_set.traces)
+        del result
+
+        all_traces = traceset.TraceSet(name="all_traces")
+        all_traces.set_traces(all_traces_list)
+
+        num_validation_traces = 60000
+
+        # Perform t-fold base test
+        ranks = np.zeros(shape=(10, int(num_validation_traces / rank_trace_step))) + 256
+        confidences = np.zeros(shape=(10, int(num_validation_traces / rank_trace_step)))
+        for i in range(0, t):
+            print("Fold %d" % i)
+            # Randomize trace_sets
+            random_indices = np.arange(len(all_traces.traces))
+            np.random.shuffle(random_indices)
+            validation_traces = np.take(all_traces.traces, random_indices, axis=0)[0:num_validation_traces]
+
+            # Now, evaluate the rank for increasing number of traces from the validation set (steps of 10)
+            for j in range(0, int(num_validation_traces / rank_trace_step)):
+                subset = traceset.TraceSet(name="all_traces")
+                subset.set_traces(validation_traces[0:(j+1)*rank_trace_step])
+                subset.window = Window(begin=0, end=len(subset.traces[0].signal))
+                subset.windowed = True
+                r, c = rank.calculate_traceset_rank(subset, 2, subset.traces[0].key[2])
+                ranks[i][j] = r
+                confidences[i][j] = c
+                print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
+
+        print(ranks)
+        print(confidences)
+        data_to_save = {
+            'ranks': ranks,
+            'confidences': confidences,
+            'rank_trace_step': rank_trace_step,
+            'folds': t,
+            'num_validation_traces': num_validation_traces,
+            'conf': conf,
+        }
+        directory = "./models/%s" % conf_to_id(conf)
+        os.makedirs(directory, exist_ok=True)
+        pickle.dump(data_to_save, open("%s/basetest-t-ranks.p" % directory, "wb"))
+    else:
+        logger.error("Must provide a list of trace set paths to worker!")
+        return None
+
+@app.task(bind=True)
 def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     resolve_paths(training_trace_set_paths)  # Get absolute paths for training set
     resolve_paths(validation_trace_set_paths)  # Get absolute paths for validation set
@@ -603,7 +663,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
         model.load()
     else:  # Create new model
         if model_type == 'aicorrnet':
-            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix)
+            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix, n_hidden_layers=conf.n_hidden_layers, activation=conf.activation)
         elif model_type == 'aishacpu':
             model = ai.AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix)
         elif model_type == 'aishacc':
@@ -613,6 +673,6 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
 
     logger.debug("Training...")
     if conf.tfold:
-        model.train_t_fold(training_iterator, batch_size=512, epochs=conf.epochs, num_train_traces=45000, t=10)
+        model.train_t_fold(training_iterator, batch_size=512, epochs=conf.epochs, num_train_traces=45000, t=10, rank_trace_step=10, conf=conf)
     else:
         model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)

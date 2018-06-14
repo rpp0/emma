@@ -291,10 +291,7 @@ def get_iterators_for_model(model_type, training_trace_set_paths, validation_tra
         batch_size = 32
     else:
         stream_server = None
-        if model_type == 'aicorrnet':
-            batch_size = 10000
-        else:
-            batch_size = 512
+        batch_size = 512
 
     training_iterator = None
     validation_iterator = None
