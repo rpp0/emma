@@ -40,7 +40,7 @@ class AI():
             self.models_dir = os.path.join(os.getcwd(), 'models')
         else:
             self.models_dir = os.path.abspath(path)
-        if not os.path.isdir(self.models_dir):
+        if not os.path.isdir(self.models_dir):  # TODO only do this when saving. (don't forget callbacks)
             os.makedirs(self.models_dir, exist_ok=True)
         self.model_path = os.path.join(self.models_dir, "%s.h5" % self.name)
         self.base_path = self.model_path.rpartition('.')[0]

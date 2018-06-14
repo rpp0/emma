@@ -5,6 +5,7 @@ import os
 import pickle
 import ai
 import subprocess
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -36,12 +37,15 @@ def get_hash(file_path, is_remote=False):
 def normalize(values):
     return (values - np.min(values)) / np.ptp(values)
 
+def is_remote(path):
+    return ':' in path
+
 class FigureGenerator():
     def __init__(self, input_path, model_id, model_suffix="last"):
         if not 'models' in input_path:
             raise Exception
 
-        self.is_remote = ':' in input_path
+        self.is_remote = is_remote(input_path)
         self.model_id = model_id
         self.model_suffix = model_suffix
 
@@ -151,6 +155,44 @@ class FigureGenerator():
         print(model.get_weights())
         print(model.summary())
 
+class ModelFinder():
+    def __init__(self, models_dir):
+        self.models_dir = models_dir
+        self.is_remote = is_remote(models_dir)
+        self.keywords = ('-t-ranks', '-last', '-history')
+
+    def find_models(self):
+        if self.is_remote:
+            host, _, path = self.models_dir.rpartition(':')
+            python_command = "python -c \"import os; import json; print(json.dumps(list(os.walk('%s'))))\"" % path
+
+            command = ["/usr/bin/ssh", host, python_command]
+            walk_process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=False)
+            stdout, stderr = walk_process.communicate()
+            walk_process.wait()
+
+            subwalks = json.loads(stdout.decode("utf-8"))
+        else:
+            walk_generator = os.walk(self.models_dir)
+            model_directories = next(walk_generator)[1]
+            subwalks = list(walk_generator)
+
+        model_locations = []
+        for subwalk in subwalks:
+            subdirectory = subwalk[0]
+            if self.is_remote:
+                subdirectory = host + ':' + subdirectory
+            files = subwalk[2]
+            model_names = set()
+            for file in files:
+                for keyword in self.keywords:
+                    if keyword in file:
+                        model_names.add(file.rpartition(keyword)[0])
+            if len(model_names) == 1:
+                model_locations.append((subdirectory, model_names.pop()))
+
+        return model_locations
+
 if __name__ == "__main__":
     """
     Tools for creating the paper. Possible commands:
@@ -166,6 +208,14 @@ if __name__ == "__main__":
         if len(args.parameters) >= 2:
             f = FigureGenerator(args.parameters[0], args.parameters[1])
             f.generate_stats()
+        else:
+            print("Not enough parameters")
+    elif args.command == 'autostats':
+        if len(args.parameters) >= 1:
+            mf = ModelFinder(args.parameters[0])
+            for model_location in mf.find_models():
+                f = FigureGenerator(model_location[0], model_location[1])
+                f.generate_stats()
         else:
             print("Not enough parameters")
     else:
