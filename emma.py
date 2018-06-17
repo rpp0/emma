@@ -185,6 +185,7 @@ if __name__ == "__main__":
     parser.add_argument('--tfold', default=False, action='store_true', help='Train using t-fold cross-validation')
     parser.add_argument('--n-hidden-layers', type=int, default=1, help='Number of hidden layers in model.')
     parser.add_argument('--activation', type=str, default='leakyrelu', help='Activation function of model.')
+    parser.add_argument('--cnn', default=False, action='store_true', help='Use ASCAD CNN for AICorrNet')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 

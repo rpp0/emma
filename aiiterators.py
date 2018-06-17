@@ -203,6 +203,8 @@ class AICorrSignalIterator(AISignalIteratorBase):
 
         # Get training data
         signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
+        if self.conf.cnn == True:
+            signals = np.expand_dims(signals, axis=-1)
 
         # Get model labels (key bytes to correlate)
         values = np.zeros((len(trace_set.traces), 16), dtype=float)

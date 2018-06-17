@@ -103,7 +103,8 @@ class CorrRankCallback(RankCallbackBase):
     RankCallback that assumes the model an encoding that is highly correlated with the true key bytes.
     """
 
-    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=10):
+    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=10, cnn=False):
+        self.cnn = cnn
         super(CorrRankCallback, self).__init__(log_dir, save_best, save_path, freq)
 
     def on_epoch_end(self, epoch, logs=None):
@@ -113,6 +114,8 @@ class CorrRankCallback(RankCallbackBase):
             return
         if not self.trace_set is None:
             x = np.array([trace.signal for trace in self.trace_set.traces])
+            if self.cnn:
+                x = np.expand_dims(x, axis=-1)
             encodings = self.model.predict(x) # Output: [?, 16]
 
             # Store encodings as fake traceset

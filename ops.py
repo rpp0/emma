@@ -665,7 +665,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
         model.load()
     else:  # Create new model
         if model_type == 'aicorrnet':
-            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix, n_hidden_layers=conf.n_hidden_layers, activation=conf.activation, path=models_dir)
+            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix, n_hidden_layers=conf.n_hidden_layers, activation=conf.activation, cnn=conf.cnn, path=models_dir)
         elif model_type == 'aishacpu':
             model = ai.AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix, path=models_dir)
         elif model_type == 'aishacc':

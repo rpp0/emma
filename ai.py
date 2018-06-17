@@ -367,59 +367,67 @@ def str_to_activation(string):
             return Activation(string)
 
 class AICorrNet(AI):
-    def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, suffix=None, path=None):
+    def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, cnn=False, suffix=None, path=None):
         # Get name based on config
         name += "-h" + str(n_hidden_layers)
-        if not use_bias:
-            name += "-bias"
-        if not activation is None:
-            name += "-" + str(activation)
-        if batch_norm:
-            name += "-bn"
-        if not reg is None:
-            name += "-reg" + str(reg)
-        if not regfinal is None:
-            name += "-regfinal" + str(regfinal)
+        if not cnn:
+            if not use_bias:
+                name += "-bias"
+            if not activation is None:
+                name += "-" + str(activation)
+            if batch_norm:
+                name += "-bn"
+            if not reg is None:
+                name += "-reg" + str(reg)
+            if not regfinal is None:
+                name += "-regfinal" + str(regfinal)
+        else:
+            name += '-cnn'
         super(AICorrNet, self).__init__(name, suffix=suffix, path=path)
 
         # Configure regularizer
         self.using_regularization = (not reg is None) or (not regfinal is None)
 
-        self.model = Sequential()
-        #initializer = keras.initializers.Constant(value=1.0/input_dim)
-        #initializer = keras.initializers.Constant(value=0.5)
-        #initializer = keras.initializers.Constant(value=1.0)
-        #initializer = keras.initializers.RandomUniform(minval=0, maxval=1.0, seed=None)
-        #initializer = keras.initializers.RandomUniform(minval=0, maxval=0.001, seed=None)
-        initializer = 'glorot_uniform'
-        #constraint = Clip()
-        constraint = None
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         #optimizer = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, decay=0.0)
         optimizer = keras.optimizers.Nadam(lr=0.0001)
         #optimizer = keras.optimizers.Adadelta()
 
-        # Hidden layers
-        for i in range(0, n_hidden_layers):
-            hidden_nodes = 256
-            self.model.add(Dense(hidden_nodes, input_dim=input_dim, use_bias=use_bias, activation=None, kernel_initializer=initializer, kernel_regularizer=str_to_reg(reg, reg_lambda)))
-            input_dim=hidden_nodes
-            if batch_norm:
-                self.model.add(BatchNormalization(momentum=momentum))
-            self.model.add(str_to_activation(activation))
+        if not cnn:
+            self.model = Sequential()
+            #initializer = keras.initializers.Constant(value=1.0/input_dim)
+            #initializer = keras.initializers.Constant(value=0.5)
+            #initializer = keras.initializers.Constant(value=1.0)
+            #initializer = keras.initializers.RandomUniform(minval=0, maxval=1.0, seed=None)
+            #initializer = keras.initializers.RandomUniform(minval=0, maxval=0.001, seed=None)
+            initializer = 'glorot_uniform'
+            #constraint = Clip()
+            constraint = None
 
-        # Output layer
-        self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, input_dim=input_dim, use_bias=use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(regfinal, reg_lambda)))
-        if batch_norm:
-            self.model.add(BatchNormalization(momentum=0.1))
-        self.model.add(str_to_activation(activation))
+            # Hidden layers
+            for i in range(0, n_hidden_layers):
+                hidden_nodes = 256
+                self.model.add(Dense(hidden_nodes, input_dim=input_dim, use_bias=use_bias, activation=None, kernel_initializer=initializer, kernel_regularizer=str_to_reg(reg, reg_lambda)))
+                input_dim=hidden_nodes
+                if batch_norm:
+                    self.model.add(BatchNormalization(momentum=momentum))
+                self.model.add(str_to_activation(activation))
+
+            # Output layer
+            self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, input_dim=input_dim, use_bias=use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(regfinal, reg_lambda)))
+            if batch_norm:
+                self.model.add(BatchNormalization(momentum=0.1))
+            self.model.add(str_to_activation(activation))
+        else:
+            from ASCAD_train_models import cnn_best_nosoftmax
+            self.model = cnn_best_nosoftmax(input_shape=(input_dim,1), classes=AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW)
 
         # Compile model
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
         # Custom callbacks
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
-        self.callbacks['rank'] = CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
+        self.callbacks['rank'] = CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=cnn)
 
     def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
         '''
