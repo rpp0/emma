@@ -121,13 +121,15 @@ class AI():
             for j in range(0, int(num_validation_traces / rank_trace_step)):
                 validation_traces_subset = validation_traces[0:(j+1)*rank_trace_step]
                 x = np.array([trace.signal for trace in validation_traces_subset])
+                if(conf.cnn):
+                    x = np.expand_dims(x, axis=-1)
                 encodings = self.model.predict(x) # Output: [?, 16]
                 keys = np.array([trace.key for trace in validation_traces_subset])
                 plaintexts = np.array([trace.plaintext for trace in validation_traces_subset])
                 fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
                 fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
                 fake_ts.windowed = True
-                r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2])
+                r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf.nomodel)
                 ranks[i][j] = r
                 confidences[i][j] = c
                 print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
@@ -146,6 +148,51 @@ class AI():
             'conf': conf,
         }
         pickle.dump(data_to_save, open("%s-t-ranks.p" % self.base_path, "wb"))
+
+    def test_fold(self, validation_iterator, rank_trace_step=1000, conf=None, max_traces=5000):
+        '''
+        UNTESTED
+        Test a single fold on the validation set to generate similar plot as train_t_fold, but without retraining the model. Could probably be used as a subcomponent of train_t_fold, but running out of time therefore TODO refactor.
+        '''
+
+        # Get all traces in memory to speed up the process
+        all_traces = validation_iterator.get_all_as_trace_set()
+        validation_traces = all_traces.traces[0:max_traces]
+        num_validation_traces = len(validation_traces)
+
+        ranks = np.zeros(shape=int(num_validation_traces / rank_trace_step)) + 256
+        confidences = np.zeros(shape=int(num_validation_traces / rank_trace_step))
+
+        for j in range(0, int(num_validation_traces / rank_trace_step)):
+            validation_traces_subset = validation_traces[0:(j+1)*rank_trace_step]
+            x = np.array([trace.signal for trace in validation_traces_subset])
+            if(conf.cnn):
+                x = np.expand_dims(x, axis=-1)
+            encodings = self.model.predict(x) # Output: [?, 16]
+            keys = np.array([trace.key for trace in validation_traces_subset])
+            plaintexts = np.array([trace.plaintext for trace in validation_traces_subset])
+            fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
+            fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
+            fake_ts.windowed = True
+            r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf.nomodel)
+            ranks[j] = r
+            confidences[j] = c
+            print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
+
+        print(ranks)
+        print(confidences)
+        data_to_save = {
+            'ranks': ranks,
+            'confidences': confidences,
+            'rank_trace_step': rank_trace_step,
+            'folds': 1,
+            'num_train_traces': 0,
+            'batch_size': None,
+            'epochs': 0,
+            'num_validation_traces': num_validation_traces,
+            'conf': conf,
+        }
+        pickle.dump(data_to_save, open("%s-testrank.p" % self.base_path, "wb"))
 
     def _old_post_train(self):
         '''
@@ -294,6 +341,10 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
     Extension of the standard Tensorboard callback that uses Matplotlib to
     plot graphs to Tensorboard.
     '''
+    def __init__(self, freq=10, *args, **kwargs):
+        self.freq = freq
+        super(CustomTensorboard, self).__init__(*args, **kwargs)
+
     def _plt_to_tf(self, plot, tag='plot'):
         '''
         Convert Matplotlib plot to Tensorboard summary.
@@ -331,7 +382,7 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
 
     def on_epoch_end(self, epoch, logs=None):
         super(CustomTensorboard, self).on_epoch_end(epoch, logs)
-        if epoch % 20 == 0:
+        if epoch % self.freq == 0:
             try:
                 self._plot_fft_weights(80000000)  # TODO: hardcoded sample rate
 
@@ -367,7 +418,7 @@ def str_to_activation(string):
             return Activation(string)
 
 class AICorrNet(AI):
-    def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, cnn=False, suffix=None, path=None):
+    def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, cnn=False, ptinput=False, nomodel=False, metric_freq=10, suffix=None, path=None):
         # Get name based on config
         name += "-h" + str(n_hidden_layers)
         if not cnn:
@@ -381,6 +432,8 @@ class AICorrNet(AI):
                 name += "-reg" + str(reg)
             if not regfinal is None:
                 name += "-regfinal" + str(regfinal)
+            if nomodel:
+                name += "-nomodel"
         else:
             name += '-cnn'
         super(AICorrNet, self).__init__(name, suffix=suffix, path=path)
@@ -390,7 +443,10 @@ class AICorrNet(AI):
 
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         #optimizer = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, decay=0.0)
-        optimizer = keras.optimizers.Nadam(lr=0.0001)
+        if cnn:
+            optimizer = keras.optimizers.Nadam(lr=0.00001)
+        else:
+            optimizer = keras.optimizers.Nadam(lr=0.0001)
         #optimizer = keras.optimizers.Adadelta()
 
         if not cnn:
@@ -426,8 +482,8 @@ class AICorrNet(AI):
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
         # Custom callbacks
-        self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id)
-        self.callbacks['rank'] = CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=cnn)
+        self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=metric_freq)
+        self.callbacks['rank'] = CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=cnn, freq=metric_freq, ptinput=ptinput, nomodel=nomodel)
 
     def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
         '''

@@ -103,8 +103,10 @@ class CorrRankCallback(RankCallbackBase):
     RankCallback that assumes the model an encoding that is highly correlated with the true key bytes.
     """
 
-    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=10, cnn=False):
+    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=10, cnn=False, ptinput=False, nomodel=False):
         self.cnn = cnn
+        self.ptinput = ptinput
+        self.nomodel = nomodel
         super(CorrRankCallback, self).__init__(log_dir, save_best, save_path, freq)
 
     def on_epoch_end(self, epoch, logs=None):
@@ -113,7 +115,10 @@ class CorrRankCallback(RankCallbackBase):
         if epoch % self.freq != 0:
             return
         if not self.trace_set is None:
-            x = np.array([trace.signal for trace in self.trace_set.traces])
+            if self.ptinput:
+                x = np.array([np.concatenate((trace.signal,trace.plaintext)) for trace in self.trace_set.traces])
+            else:
+                x = np.array([trace.signal for trace in self.trace_set.traces])
             if self.cnn:
                 x = np.expand_dims(x, axis=-1)
             encodings = self.model.predict(x) # Output: [?, 16]
@@ -126,7 +131,7 @@ class CorrRankCallback(RankCallbackBase):
             fake_ts.windowed = True
 
             for i in range(2, 3):  # TODO show for all keys
-                rank, confidence = calculate_traceset_rank(fake_ts, i, keys[0][i])  # TODO: It is assumed here that all true keys of the test set are the same
+                rank, confidence = calculate_traceset_rank(fake_ts, i, keys[0][i], self.nomodel)  # TODO: It is assumed here that all true keys of the test set are the same
                 self._save_best_rank_model(rank, confidence)
                 logs['rank %d' % i] = rank
                 logs['confidence %d' % i] = confidence
@@ -134,8 +139,8 @@ class CorrRankCallback(RankCallbackBase):
         else:
             print("Warning: no trace_set supplied to RankCallback")
 
-def calculate_traceset_rank(trace_set, key_index, true_key):
-    conf = Namespace(subkey=key_index)
+def calculate_traceset_rank(trace_set, key_index, true_key, nomodel=False):
+    conf = Namespace(subkey=key_index, nomodel=nomodel)
     result = EMResult(task_id=None)
     ops.attack_trace_set(trace_set, result, conf, params=None)
 

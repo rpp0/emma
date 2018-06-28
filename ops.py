@@ -143,7 +143,31 @@ def fft_trace_set(trace_set, result, conf, params=None):
     for trace in trace_set.traces:
         trace.signal = np.fft.fft(trace.signal)
 
-@op('window', optargs=['window_begin', 'window_end'])
+@op('rwindow', optargs=['window_begin', 'window_end', 'offset'])
+def random_window_trace_set(trace_set, result, conf, params=None):
+    '''
+    Like window, but with a random begin offset. Used to artificially increase training set.
+    '''
+    #logger.info("rwindow %s" % (str(params) if not params is None else ""))
+    if params is None:
+        logger.error("3 params must be provided to rwindow (begin, end, offset)")
+        exit(1)
+    else:
+        if len(params) > 2:
+            begin = int(params[0])
+            end = int(params[1])
+            offset = int(params[2])
+        else:
+            logger.error("3 params must be provided to rwindow (begin, end, offset)")
+            exit(1)
+
+    length = end - begin
+    rand_offset = np.random.randint(low=-offset, high=offset+1)
+    new_begin = max(begin + rand_offset, 0)
+    new_end = new_begin + length
+    window_trace_set(trace_set, result, conf, params=[str(new_begin), str(new_end), 'rectangular'])
+
+@op('window', optargs=['window_begin', 'window_end', 'method'])
 def window_trace_set(trace_set, result, conf, params=None):
     '''
     Perform windowing on a specific trace set. See https://en.wikipedia.org/wiki/Window_function#Spectral_analysis
@@ -254,8 +278,18 @@ def plot_trace_set(trace_set, result, conf=None, params=None):
     Plot each trace in a trace set using Matplotlib
     '''
     logger.info("plot %s" % (str(params) if not params is None else ""))
+    if not params is None:
+        if len(params) == 1 and not 'save' in params:
+            maxplots = int(params[0])
+        elif len(params) == 2:
+            maxplots = int(params[0])
+
+    count = 0
     for trace in trace_set.traces:
         plt.plot(range(0, len(trace.signal)), trace.signal)
+        count += 1
+        if count >= maxplots:
+            break
     plt.plot(range(0, len(conf.reference_signal)), conf.reference_signal, linewidth=2, linestyle='dashed')
 
     plt.title(trace_set.name)
@@ -303,7 +337,10 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
                 mask = trace_set.traces[i].mask[conf.subkey] if not trace_set.traces[i].mask is None else 0
             else:
                 mask = 0
-            hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess] ^ mask]  # Model of the power consumption
+            if conf.nomodel:
+                hypotheses[subkey_guess, i] = sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]
+            else:
+                hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess] ^ mask]  # Model of the power consumption
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for j in range(0, trace_set.window.size):
@@ -391,7 +428,10 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
             result._data['state'].load()
 
         # Fetch signals from traces
-        x = np.array([trace.signal for trace in trace_set.traces])
+        if conf.ptinput:
+            x = np.array([np.concatenate((trace.signal,trace.plaintext)) for trace in trace_set.traces], dtype=float)
+        else:
+            x = np.array([trace.signal for trace in trace_set.traces])
         #import keras.backend as K
         #get_output = K.function([result._data['state'].model.layers[0].input, K.learning_phase()], [result._data['state'].model.layers[-1].output])
         #encodings = get_output([x, 1])[0]
@@ -659,13 +699,13 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     # Select model
     model = None
     models_dir = os.path.join(os.getcwd(), 'models', conf_to_id(conf))
-    if conf.update:  # Load existing model to update
+    if conf.update or conf.testrank:  # Load existing model to update or test
         logger.warning("Loading model %s%s" % (model_type, '-' + conf.model_suffix if not conf.model_suffix is None else ''))
         model = ai.AI(model_type, suffix=conf.model_suffix, path=models_dir)
         model.load()
     else:  # Create new model
         if model_type == 'aicorrnet':
-            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix, n_hidden_layers=conf.n_hidden_layers, activation=conf.activation, cnn=conf.cnn, path=models_dir)
+            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix, n_hidden_layers=conf.n_hidden_layers, activation=conf.activation, cnn=conf.cnn, ptinput=conf.ptinput, metric_freq=conf.metric_freq, reg=conf.regularizer, regfinal=conf.regularizer, nomodel=conf.nomodel, reg_lambda=conf.reglambda, path=models_dir)
         elif model_type == 'aishacpu':
             model = ai.AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix, path=models_dir)
         elif model_type == 'aishacc':
@@ -673,8 +713,9 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
         elif model_type == 'aiascad':
             model = ai.AIASCAD(input_shape=input_shape, suffix=conf.model_suffix, path=models_dir)
 
-    logger.debug("Training...")
     if conf.tfold:
         model.train_t_fold(training_iterator, batch_size=512, epochs=conf.epochs, num_train_traces=45000, t=10, rank_trace_step=10, conf=conf)
+    elif conf.testrank:  # TODO this should not be in aitrain; refactor
+        model.test_fold(validation_iterator, rank_trace_step=10, conf=conf, max_traces=5000)
     else:
         model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)

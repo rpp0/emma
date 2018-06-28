@@ -183,7 +183,7 @@ class AISignalIteratorBase():
             if self.augment_roll:
                 signals = self._augment_roll(signals, roll_limit=16)
             if self.augment_noise:
-                signals = self._augment_noise(signals, mean=0, std=0.1)
+                signals = self._augment_noise(signals, mean=0.0, std=0.01)
 
             # Concatenate arrays until batch obtained
             self.signals_batch.extend(signals)
@@ -202,7 +202,10 @@ class AICorrSignalIterator(AISignalIteratorBase):
         '''
 
         # Get training data
-        signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
+        if self.conf.ptinput:
+            signals = np.array([np.concatenate((trace.signal,trace.plaintext)) for trace in trace_set.traces], dtype=float)
+        else:
+            signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
         if self.conf.cnn == True:
             signals = np.expand_dims(signals, axis=-1)
 
@@ -210,7 +213,10 @@ class AICorrSignalIterator(AISignalIteratorBase):
         values = np.zeros((len(trace_set.traces), 16), dtype=float)
         for i in range(len(trace_set.traces)):
             for j in range(16):
-                values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
+                if self.conf.nomodel:
+                    values[i, j] = sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]
+                else:
+                    values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
 
         return signals, values
 
@@ -293,7 +299,7 @@ def get_iterators_for_model(model_type, training_trace_set_paths, validation_tra
         batch_size = 32
     else:
         stream_server = None
-        batch_size = 512
+        batch_size = conf.batch_size
 
     training_iterator = None
     validation_iterator = None

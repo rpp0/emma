@@ -44,18 +44,18 @@ def is_remote(path):
     return ':' in path
 
 class RankConfidencePlot():
-    def __init__(self):
+    def __init__(self, x_label='number of traces', y1_label='mean rank', y2_label='mean confidence'):
         self.fig, self.ax1 = plt.subplots()
-        self.ax1.set_xlabel('number of traces')
-        self.ax1.set_ylabel('mean rank')
+        self.ax1.set_xlabel(x_label)
+        self.ax1.set_ylabel(y1_label)
         self.ax1.set_ylim([0,256])
         self.ax2 = self.ax1.twinx()
-        self.ax2.set_ylabel('confidence')
+        self.ax2.set_ylabel(y2_label)
         #self.ax1.spines['top'].set_visible(False)
         #self.ax2.spines['top'].set_visible(False)
         self.handles = []
 
-    def add_series(self, x, ranks_y, confidences_y, rank_color='tab:blue', confidence_color='tab:blue', rank_style='-', confidence_style=':', rank_label="mean rank", confidence_label="confidence"):
+    def add_series(self, x, ranks_y, confidences_y, rank_color='tab:blue', confidence_color='tab:blue', rank_style='-', confidence_style=':', rank_label="mean rank", confidence_label="mean confidence"):
         rank_series, = self.ax1.plot(x, ranks_y, color=rank_color, linestyle=rank_style, label=rank_label)
         confidence_series, = self.ax2.plot(x, confidences_y, color=confidence_color, linestyle=confidence_style, label=confidence_label, alpha=0.5)
         self.handles.extend([rank_series, confidence_series])
@@ -73,12 +73,13 @@ def get_series_from_tfold_blob(tfold_blob):
     confidences = tfold_blob['confidences']
     step = tfold_blob['rank_trace_step']
     num_validation_traces = tfold_blob['num_validation_traces']
+    print(num_validation_traces)
 
     x = range(0, num_validation_traces + step, step)
     ranks_y = np.array([256] + list(np.mean(ranks, axis=0)), dtype=np.float32)
     confidences_y = np.array([0] + list(np.mean(confidences, axis=0)), dtype=np.float32)
 
-    return x, ranks_y, confidences_y
+    return x[0:len(ranks_y)], ranks_y, confidences_y
 
 class FigureGenerator():
     def __init__(self, input_path, model_id, model_suffix="last"):
@@ -102,9 +103,11 @@ class FigureGenerator():
         remote_model_path = os.path.join(remote_path, model_id + "-" + model_suffix + ".h5")
         remote_model_history_path = os.path.join(remote_path, model_id + "-history.p")
         remote_model_ranks_path = os.path.join(remote_path, model_id + "-t-ranks.p")
+        remote_model_testrank_path = os.path.join(remote_path, model_id + "-last-testrank.p")
         local_model_path =  os.path.join(input_path, "%s-%s.h5" % (model_id, model_suffix))
         local_model_history_path =  os.path.join(input_path, "%s-history.p" % model_id)
         local_model_ranks_path =  os.path.join(input_path, "%s-t-ranks.p" % model_id)
+        local_model_testrank_path =  os.path.join(input_path, "%s-last-testrank.p" % model_id)
 
         # Check if model already exists
         if os.path.exists(input_path):
@@ -125,9 +128,15 @@ class FigureGenerator():
             remote_model_ranks_hash = get_hash(remote_model_ranks_path, is_remote=True)
             if local_model_ranks_hash != remote_model_ranks_hash:
                 download_files([remote_model_ranks_path], input_path)
+
+            # Newer testrank file?
+            local_model_testrank_hash = get_hash(local_model_testrank_path, is_remote=False)
+            remote_model_testrank_hash = get_hash(remote_model_testrank_path, is_remote=True)
+            if local_model_testrank_hash != remote_model_testrank_hash:
+                download_files([remote_model_testrank_path], input_path)
         else:
             # Download model
-            download_files([remote_model_path,remote_model_history_path,remote_model_ranks_path], input_path)
+            download_files([remote_model_path,remote_model_history_path,remote_model_ranks_path,remote_model_testrank_path], input_path)
 
     def generate_stats(self):
         if self.is_remote:
@@ -149,6 +158,13 @@ class FigureGenerator():
             self.generate_ranks_graphs(tfold_blob)
         except FileNotFoundError:
             print("File not found; skipping rank graphs")
+
+        # Testrank graphs
+        try:
+            tfold_blob = pickle.load(open(os.path.join(self.input_path, self.model_id + "-last-testrank.p"),   "rb"))
+            self.generate_testrank_graphs(tfold_blob)
+        except FileNotFoundError:
+            print("File not found; skipping testrank graphs")
 
         # Model graphs
         try:
@@ -172,9 +188,22 @@ class FigureGenerator():
         x, ranks_y, confidences_y = get_series_from_tfold_blob(tfold_blob)
 
         plot = RankConfidencePlot()
-        plot.set_title("%d-fold cross-validation of dataset '%s'" % (t, conf.dataset_id))
-        plot.add_series(x, ranks_y, confidences_y)
+        #plot.set_title("%d-fold cross-validation of dataset '%s'" % (t, conf.dataset_id))
+        plot.add_series(x, ranks_y, confidences_y, rank_label="rank", confidence_label="confidence")
         plot.save(os.path.join(self.output_path, "%s-%s-tfold.pdf" % (self.model_id, self.model_suffix)))
+
+    def generate_testrank_graphs(self, tfold_blob):
+        conf = tfold_blob['conf']
+        t = tfold_blob['folds']
+
+        tfold_blob['ranks'] = np.expand_dims(tfold_blob['ranks'], axis=0)
+        tfold_blob['confidences'] = np.expand_dims(tfold_blob['confidences'], axis=0)
+        x, ranks_y, confidences_y = get_series_from_tfold_blob(tfold_blob)
+
+        plot = RankConfidencePlot(y1_label="rank", y2_label="confidence")
+        #plot.set_title("Rank test of dataset '%s'" % conf.dataset_id)
+        plot.add_series(x, ranks_y, confidences_y, rank_label="rank", confidence_label="confidence")
+        plot.save(os.path.join(self.output_path, "%s-%s-testrank.pdf" % (self.model_id, self.model_suffix)))
 
     def generate_model_graphs(self, model):
         print(model.get_weights())
@@ -194,7 +223,37 @@ class CombinedFigureGenerator(FigureGenerator):
         self.model_suffix = model_suffix
         self.output_path = os.path.abspath(os.path.join("./paper_data", "combined-" + name))
 
-    def generate_stats(self, title=""):
+    def dump_text(self, name, x, ranks_y, confidences_y):
+        '''
+        Dump data to text. Useful for getting raw data for the paper.
+        '''
+
+        with open(os.path.join(self.output_path, "data-%s.txt" % name), "w") as f:
+            min_rank = np.amin(ranks_y)
+            min_rank_x = x[np.argmin(ranks_y)]
+            max_rank = np.amax(ranks_y)
+            max_rank_x = x[np.argmax(ranks_y)]
+            min_conf = np.amin(confidences_y)
+            min_conf_x = x[np.argmin(confidences_y)]
+            max_conf = np.amax(confidences_y)
+            max_conf_x = x[np.argmax(confidences_y)]
+            f.write("Ranks:\n")
+            f.write(str(list(zip(x, ranks_y))))
+            f.write("\n\n")
+            f.write("Confidences:\n")
+            f.write(str(list(zip(x, confidences_y))))
+            f.write("\n\n")
+            f.write("Min rank: (%d, %d)\n" % (min_rank_x, min_rank))
+            f.write("Max rank: (%d, %d)\n" % (max_rank_x, max_rank))
+            f.write("Last rank: (%d, %d)\n" % (x[-1], ranks_y[-1]))
+            f.write("Min confidence: (%d, %f)\n" % (min_conf_x, min_conf))
+            f.write("Max confidence: (%d, %f)\n" % (max_conf_x, max_conf))
+            f.write("Last confidence: (%d, %f)\n" % (x[-1], confidences_y[-1]))
+
+        print("Dumped %s data to text" % name)
+
+
+    def generate_stats(self, title="", dump_text=True):
         plot = RankConfidencePlot()
 
         linestyles = ['-', '--', ':', '-.']
@@ -216,13 +275,53 @@ class CombinedFigureGenerator(FigureGenerator):
             x, ranks_y, confidences_y = get_series_from_tfold_blob(tfold_blob)
             dataset_name = input_path[input_path.find('ASCAD'):]
             rank_label = "mean rank (%s)" % dataset_name
+            confidence_label = "mean confidence (%s)" % dataset_name
+            linestyle = linestyles.pop(0)
+            color = colors.pop(0)
+            plot.add_series(x, ranks_y, confidences_y, rank_label=rank_label, confidence_label=confidence_label, rank_color=color, confidence_color=color)
+
+            if dump_text:
+                self.dump_text(dataset_name + '-' + model_id, x, ranks_y, confidences_y)
+
+        os.makedirs(self.output_path, exist_ok=True)
+        plot.save(os.path.join(self.output_path, "combined-%s-tfold.pdf" % model_id))
+        print("Combined:")
+        print(self.input_tuples)
+
+    def generate_stats_testrank(self, title="", dump_text=True):
+        plot = RankConfidencePlot()
+
+        linestyles = ['-', '--', ':', '-.']
+        #colors = ['xkcd:aqua', 'xkcd:azure', 'xkcd:green']
+        colors = ['tab:blue', 'tab:orange', 'tab:green']
+        if len(self.input_tuples) < 1:
+            print("Nothing to do")
+            return
+
+        for input_tuple in sorted(self.input_tuples, key=lambda f: ascad_sort_name(f[0])):
+            input_path, model_id = input_tuple
+
+            if is_remote(input_path):
+                remote_path = input_path
+                input_path = os.path.join("./models/", remote_path.rpartition('models')[2][1:])
+                self.get_remote_model(input_path, remote_path, model_id, self.model_suffix)
+
+            tfold_blob = pickle.load(open(os.path.join(input_path, model_id + "-last-testrank.p"),   "rb"))
+            tfold_blob['ranks'] = np.expand_dims(tfold_blob['ranks'], axis=0)
+            tfold_blob['confidences'] = np.expand_dims(tfold_blob['confidences'], axis=0)
+            x, ranks_y, confidences_y = get_series_from_tfold_blob(tfold_blob)
+            dataset_name = input_path[input_path.find('ASCAD'):]
+            rank_label = "rank (%s)" % dataset_name
             confidence_label = "confidence (%s)" % dataset_name
             linestyle = linestyles.pop(0)
             color = colors.pop(0)
             plot.add_series(x, ranks_y, confidences_y, rank_label=rank_label, confidence_label=confidence_label, rank_color=color, confidence_color=color)
 
+            if dump_text:
+                self.dump_text(dataset_name + '-' + model_id, x, ranks_y, confidences_y)
+
         os.makedirs(self.output_path, exist_ok=True)
-        plot.save(os.path.join(self.output_path, "combined-%s-tfold.pdf" % model_id))
+        plot.save(os.path.join(self.output_path, "combined-%s-testrank.pdf" % model_id))
         print("Combined:")
         print(self.input_tuples)
 
@@ -299,7 +398,14 @@ if __name__ == "__main__":
             mf = ModelFinder(args.parameters[0])
             model_locations = mf.find_models(dir_filter=args.parameters[1], model_filter=args.parameters[2])
             f = CombinedFigureGenerator(model_locations, name=args.parameters[1])
-            f.generate_stats()
+            try: # Deadline approaching, fix later
+                f.generate_stats()
+            except FileNotFoundError:
+                pass
+            try:  # Deadline approaching, fix later
+                f.generate_stats_testrank()
+            except FileNotFoundError:
+                pass
         else:
             print("Not enough parameters. Expected <models_root_directory> <dir_filter> <model_filter>")
     else:
