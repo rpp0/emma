@@ -103,11 +103,11 @@ class FigureGenerator():
         remote_model_path = os.path.join(remote_path, model_id + "-" + model_suffix + ".h5")
         remote_model_history_path = os.path.join(remote_path, model_id + "-history.p")
         remote_model_ranks_path = os.path.join(remote_path, model_id + "-t-ranks.p")
-        remote_model_testrank_path = os.path.join(remote_path, model_id + "-last-testrank.p")
+        remote_model_testrank_path = os.path.join(remote_path, model_id + "-bestrank-testrank.p")
         local_model_path =  os.path.join(input_path, "%s-%s.h5" % (model_id, model_suffix))
         local_model_history_path =  os.path.join(input_path, "%s-history.p" % model_id)
         local_model_ranks_path =  os.path.join(input_path, "%s-t-ranks.p" % model_id)
-        local_model_testrank_path =  os.path.join(input_path, "%s-last-testrank.p" % model_id)
+        local_model_testrank_path =  os.path.join(input_path, "%s-bestrank-testrank.p" % model_id)
 
         # Check if model already exists
         if os.path.exists(input_path):
@@ -161,7 +161,7 @@ class FigureGenerator():
 
         # Testrank graphs
         try:
-            tfold_blob = pickle.load(open(os.path.join(self.input_path, self.model_id + "-last-testrank.p"),   "rb"))
+            tfold_blob = pickle.load(open(os.path.join(self.input_path, self.model_id + "-bestrank-testrank.p"),   "rb"))
             self.generate_testrank_graphs(tfold_blob)
         except FileNotFoundError:
             print("File not found; skipping testrank graphs")
@@ -306,7 +306,7 @@ class CombinedFigureGenerator(FigureGenerator):
                 input_path = os.path.join("./models/", remote_path.rpartition('models')[2][1:])
                 self.get_remote_model(input_path, remote_path, model_id, self.model_suffix)
 
-            tfold_blob = pickle.load(open(os.path.join(input_path, model_id + "-last-testrank.p"),   "rb"))
+            tfold_blob = pickle.load(open(os.path.join(input_path, model_id + "-bestrank-testrank.p"),   "rb"))
             tfold_blob['ranks'] = np.expand_dims(tfold_blob['ranks'], axis=0)
             tfold_blob['confidences'] = np.expand_dims(tfold_blob['confidences'], axis=0)
             x, ranks_y, confidences_y = get_series_from_tfold_blob(tfold_blob)

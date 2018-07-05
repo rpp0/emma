@@ -151,7 +151,6 @@ class AI():
 
     def test_fold(self, validation_iterator, rank_trace_step=1000, conf=None, max_traces=5000):
         '''
-        UNTESTED
         Test a single fold on the validation set to generate similar plot as train_t_fold, but without retraining the model. Could probably be used as a subcomponent of train_t_fold, but running out of time therefore TODO refactor.
         '''
 
@@ -420,6 +419,8 @@ def str_to_activation(string):
 class AICorrNet(AI):
     def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, cnn=False, ptinput=False, nomodel=False, metric_freq=10, suffix=None, path=None):
         # Get name based on config
+        if nomodel:
+            name += "-nomodel"
         name += "-h" + str(n_hidden_layers)
         if not cnn:
             if not use_bias:
@@ -432,8 +433,6 @@ class AICorrNet(AI):
                 name += "-reg" + str(reg)
             if not regfinal is None:
                 name += "-regfinal" + str(regfinal)
-            if nomodel:
-                name += "-nomodel"
         else:
             name += '-cnn'
         super(AICorrNet, self).__init__(name, suffix=suffix, path=path)
