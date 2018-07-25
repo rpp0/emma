@@ -19,8 +19,8 @@ def remote_get_trace_set(trace_set_path, format, ignore_malformed=True):
 
 def get_dataset(dataset, conf=None):
     '''
-    Get a full list of relative trace set paths given a dataset ID. This is used by the EMMA
-    master node to distribute the trace set paths to EMMA worker nodes.
+    Retrieve the dataset properties (trace sets, reference index to use, etc.) from the local
+    node for a given dataset_id.
     '''
     datasets_conf = configparser.RawConfigParser()
     datasets_conf.read('datasets.conf')

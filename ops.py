@@ -713,9 +713,9 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
         elif model_type == 'aiascad':
             model = ai.AIASCAD(input_shape=input_shape, suffix=conf.model_suffix, path=models_dir)
 
-    if conf.tfold:
+    if conf.tfold:  # Train t times and generate tfold rank summary
         model.train_t_fold(training_iterator, batch_size=512, epochs=conf.epochs, num_train_traces=45000, t=10, rank_trace_step=10, conf=conf)
     elif conf.testrank:  # TODO this should not be in aitrain; refactor
         model.test_fold(validation_iterator, rank_trace_step=10, conf=conf, max_traces=5000)
-    else:
+    else:  # Train once
         model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)

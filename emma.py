@@ -4,35 +4,13 @@
 # Copyright 2017, Pieter Robyns
 # ----------------------------------------------------
 
-from ops import *
+from ops import ops
+from activities import *
 from debug import DEBUG
-from time import sleep
 from emma_worker import app, backend
-from celery import group, chord, chain
-from celery.result import AsyncResult, GroupResult
-import numpy as np
 import matplotlib.pyplot as plt
-import sys
 import argparse
-import configparser
-import emutils
-import emio
 import subprocess
-import time
-
-def parallel_actions_merge_corr(trace_set_paths, conf):
-    num_partitions = min(conf.max_subtasks, len(trace_set_paths))
-    result = []
-    for part in emutils.partition(trace_set_paths, num_partitions):
-        result.append(work.si(part, conf))
-    return chord(result, body=merge.s(conf))()
-
-def parallel_actions(trace_set_paths, conf):
-    num_partitions = min(conf.max_subtasks, len(trace_set_paths))
-    result = []
-    for part in emutils.partition(trace_set_paths, num_partitions):
-        result.append(work.si(part, conf))
-    return group(result)()
 
 def args_epilog():
     result = "Actions can take the following parameters between square brackets ('[]'):\n"
@@ -57,105 +35,66 @@ def clear_redis():
     except FileNotFoundError:
         logger.warning("Could not clear local Redis database")
 
-def wait_until_completion(async_result, message="Task"):
-    count = 0
-    while not async_result.ready():
-        print("\r%s: elapsed: %ds" % (message, count), end='')
-        count += 1
-        time.sleep(1)
-    print("")
+class EMMAHost():
+    def __init__(self, args):
+        self.dataset, self.dataset_ref, self.dataset_val = self._get_datasets(args)
+        self.conf = self._generate_conf(args)
 
-    if isinstance(async_result, AsyncResult):
-        return async_result.result
-    elif isinstance(async_result, GroupResult):
-        return async_result.results
-    else:
-        raise TypeError
+    def _get_datasets(self, args):
+        # Load dataset from worker node
+        dataset = emio.remote_get_dataset(dataset=args.dataset, conf=args)
 
-def perform_cpa_attack(dataset, conf):
-    logger.info("Attacking traces: %s" % str(dataset.trace_set_paths))
-    max_correlations = np.zeros([conf.skip_subkeys + conf.num_subkeys, 256])
+        # Load reference set if applicable. Otherwise just use reference from dataset
+        if not args.refset is None:
+            dataset_ref = emio.remote_get_dataset(dataset=args.refset, conf=args)
+        else:
+            dataset_ref = dataset
 
-    for subkey in range(conf.skip_subkeys, min(conf.skip_subkeys + conf.num_subkeys, 16)):
-        conf.subkey = subkey
+        # Load validation set if applicable
+        if not args.valset is None:
+            dataset_val = emio.remote_get_dataset(dataset=args.valset, conf=args)
+        else:
+            dataset_val = None
 
-        # Execute task
-        async_result = parallel_actions_merge_corr(dataset.trace_set_paths, conf)
-        em_result = wait_until_completion(async_result, message="Attacking subkey %d" % conf.subkey)
+        return dataset, dataset_ref, dataset_val
 
-        # Parse results
-        if not em_result is None:
-            corr_result = em_result.correlations
-            print("Num entries: %d" % corr_result._n[0][0])
+    def _generate_conf(self, args):
+        if self.dataset is None or self.dataset_ref is None:
+            raise Exception("Tried to generate configuration without loading datasets.")
 
-            # Get maximum correlations over all points
-            for subkey_guess in range(0, 256):
-                max_correlations[conf.subkey, subkey_guess] = np.max(np.abs(corr_result[subkey_guess,:]))
+        conf = argparse.Namespace(
+            format=self.dataset.format,
+            reference_signal=self.dataset_ref.reference_signal,
+            traces_per_set=self.dataset.traces_per_set,
+            datasets_path=self.dataset.prefix,
+            dataset_id=self.dataset.id,
+            subkey=0,
+            **args.__dict__
+        )
 
-            print("{:02x}".format(np.argmax(max_correlations[conf.subkey])))
+        return conf
 
-    # Print results to stdout
-    emutils.pretty_print_correlations(max_correlations, limit_rows=20)
-    most_likely_bytes = np.argmax(max_correlations, axis=1)
-    print(emutils.numpy_to_hex(most_likely_bytes))
+    def _determine_activity(self):
+        num_activities = 0
+        activity = None
 
-def perform_ml_attack(dataset, dataset_val, conf):
-    """
-    Train ML algorithm. Use only one core because Tensorflow is not thread-safe.
-    """
-    if dataset_val is None:  # No validation dataset provided, so split training data
-        split_size = 1  # Number of trace sets to use for validation
-        validation_split = dataset.trace_set_paths[0:split_size]
-        training_split = dataset.trace_set_paths[split_size:]
-    else:
-        validation_split = dataset_val.trace_set_paths[0:conf.num_valsets]
-        training_split = dataset.trace_set_paths
+        for activity_name in activities.keys():
+            for action in self.conf.actions:
+                if activity_name == action:
+                    activity = activities[activity_name]
+                    num_activities += 1
 
-    logger.info("Training set: %s" % str(training_split))
-    logger.info("Validation set: %s" % str(validation_split))
-    async_result = aitrain.si(training_split, validation_split, conf).delay()
-    wait_until_completion(async_result, message="Training neural network")
+        if num_activities > 1:
+            raise Exception("Only one activity can be executed at a time. Choose from: %s" % str(activities.keys()))
 
-def perform_base_test(dataset, conf):
-    async_result = basetest.si(dataset.trace_set_paths, conf).delay()
-    wait_until_completion(async_result, message="Performing base test")
+        if activity is None:
+            activity = activities['default']
 
-def perform_actions(dataset, conf):
-    async_result = parallel_actions(dataset.trace_set_paths, conf)
-    wait_until_completion(async_result, message="Performing actions")
+        return activity
 
-def perform_classification_attack(dataset, conf):
-    async_result = parallel_actions(dataset.trace_set_paths, conf)
-    celery_results = wait_until_completion(async_result, message="Classifying")
-
-    if conf.hamming:
-        predict_count = np.zeros(9, dtype=int)
-        label_count = np.zeros(9, dtype=int)
-    else:
-        predict_count = np.zeros(256, dtype=int)
-        label_count = np.zeros(256, dtype=int)
-    accuracy = 0
-    num_samples = 0
-
-    # Get results from all workers and store in prediction dictionary
-    for celery_result in celery_results:
-        em_result = celery_result.get()
-        for i in range(0, len(em_result._data['labels'])):
-            label = em_result._data['labels'][i]
-            prediction = em_result._data['predictions'][i]
-            if label == prediction:
-                accuracy += 1
-            predict_count[prediction] += 1
-            label_count[label] += 1
-            num_samples += 1
-    accuracy /= float(num_samples)
-
-    print("Labels")
-    print(label_count)
-    print("Predictions")
-    print(predict_count)
-    print("Best prediction: %d" % np.argmax(predict_count))
-    print("Accuracy: %.4f" % accuracy)
+    def run(self):
+        activity = self._determine_activity()
+        activity(self)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -199,38 +138,8 @@ if __name__ == "__main__":
     try:
         clear_redis()
 
-        # Get a list of filenames from a dataset
-        dataset = emio.remote_get_dataset(dataset=args.dataset, conf=args)
-        if not args.refset is None:
-            dataset_ref = emio.remote_get_dataset(dataset=args.refset, conf=args)
-        else:
-            dataset_ref = dataset
-        if not args.valset is None:
-            dataset_val = emio.remote_get_dataset(dataset=args.valset, conf=args)
-        else:
-            dataset_val = None
-
-        # Worker-specific configuration. Add properties of the loaded dataset
-        conf = argparse.Namespace(
-            format=dataset.format,
-            reference_signal=dataset_ref.reference_signal,
-            traces_per_set=dataset.traces_per_set,
-            datasets_path=dataset.prefix,
-            dataset_id=dataset.id,
-            subkey=0,
-            **args.__dict__
-        )
-
-        if 'attack' in conf.actions:  # Group of tasks and merge correlation results
-            perform_cpa_attack(dataset, conf)
-        elif 'basetest' in conf.actions:
-            perform_base_test(dataset, conf)
-        elif True in [a.find('train') > -1 for a in conf.actions]:
-            perform_ml_attack(dataset, dataset_val, conf)
-        elif 'classify' in conf.actions:
-            perform_classification_attack(dataset, conf)
-        else:  # Regular group of tasks
-            perform_actions(dataset, conf)
+        emma = EMMAHost(args)
+        emma.run()
     except KeyboardInterrupt:
         pass
 
