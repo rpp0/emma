@@ -519,11 +519,11 @@ def merge(self, to_merge, conf):
 
 @app.task
 def remote_get_dataset(dataset, conf=None):
-    return emio.get_dataset(dataset, conf=conf)
+    return emio.get_dataset(dataset, conf=conf, remote=False)
 
 @app.task
 def remote_get_trace_set(trace_set_path, format, ignore_malformed):
-    return emio.get_trace_set(trace_set_path, format, ignore_malformed)
+    return emio.get_trace_set(trace_set_path, format, ignore_malformed, remote=False)
 
 def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=False):
     # Perform actions
@@ -553,12 +553,12 @@ def process_trace_set_paths(result, trace_set_paths, conf, request_id=None, keep
         logger.info("Processing '%s' (%d/%d)" % (trace_set_name, num_done, num_todo))
 
         # Load trace
-        trace_set = emio.get_trace_set(trace_set_path, conf.format, ignore_malformed=False)
+        trace_set = emio.get_trace_set(trace_set_path, conf.format, ignore_malformed=False, remote=False)
         if trace_set is None:
             logger.warning("Failed to load trace set %s (got None). Skipping..." % trace_set_path)
             continue
 
-        # Process trace
+        # Process trace set
         process_trace_set(result, trace_set, conf, request_id, keep_trace_sets)
 
         num_done += 1

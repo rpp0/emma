@@ -33,16 +33,13 @@ class Dataset():
         At a later time, the relative paths need to be resolved to absolute paths
         on the workers.
         '''
-
-        # Get local absolute path for worker in order to get listing
         settings = configparser.RawConfigParser()
         settings.read('settings.conf')
-        prefix = settings.get("Datasets", "datasets_path")
-        self.prefix = prefix
+        self.root = settings.get("Datasets", "datasets_path")
 
         # Assign trace set paths
         if self.format == "cw":  # .npy
-            path = join(prefix, self.id)
+            path = join(self.root, self.id)
             self.trace_set_paths = sorted([join(self.id, f) for f in listdir(path) if isfile(join(path, f)) and '_traces.npy' in f])
         elif self.format == "sigmf":  # .meta
             self.trace_set_paths = None
@@ -52,8 +49,8 @@ class Dataset():
             raise NotImplementedError
         elif self.format == "ascad":  # ASCAD .h5
             # Hack to force split between validation and training set in ASCAD
-            validation_set = join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id)
-            training_set = join(prefix, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)
+            validation_set = join(self.root, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id)
+            training_set = join(self.root, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)
 
             # Make sure we never use training set when attacking or classifying
             if not conf is None and ('attack' in conf.actions or 'classify' in conf.actions):
@@ -66,13 +63,18 @@ class Dataset():
         assert(len(self.trace_set_paths) > 0)
 
         # Assign reference signal
-        reference_trace_set = emio.get_trace_set(join(self.prefix, self.trace_set_paths[0]), self.format, ignore_malformed=False)
+        reference_trace_set = emio.get_trace_set(join(self.root, self.trace_set_paths[0]), self.format, ignore_malformed=False, remote=False)
 
         self.traces_per_set = len(reference_trace_set.traces)
         self.reference_signal = reference_trace_set.traces[self.reference_index].signal
 
-# Statistics precomputed with get_dataset_statistics.py
+
 def get_dataset_normalization_mean_std(name):
+    """
+    Statistics precomputed with get_dataset_statistics.py
+    :param name:
+    :return:
+    """
     if name == 'em-corr-arduino' or name == 'em-cpa-arduino':
         mean = 0.014595353784991782
         std = 0.006548281541447703

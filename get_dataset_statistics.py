@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
         # Calculate mean
         for trace_set_path in dataset.trace_set_paths:
-            trace_set = emio.get_trace_set(join(dataset.prefix, trace_set_path), dataset.format, ignore_malformed=False)
+            trace_set = emio.get_trace_set(join(dataset.prefix, trace_set_path), dataset.format, ignore_malformed=False, remote=False)
             for trace in trace_set.traces:
                 mean_sum += np.sum(trace.signal)
                 n += len(trace.signal)
@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
         # Calculate std dev
         for trace_set_path in dataset.trace_set_paths:
-            trace_set = emio.get_trace_set(join(dataset.prefix, trace_set_path), dataset.format, ignore_malformed=False)
+            trace_set = emio.get_trace_set(join(dataset.prefix, trace_set_path), dataset.format, ignore_malformed=False, remote=False)
             for trace in trace_set.traces:
                 std_sum += np.sum(np.square(trace.signal - mean))
 

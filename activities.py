@@ -3,13 +3,11 @@
 # Copyright 2018, Pieter Robyns
 # ----------------------------------------------------
 
-import numpy as np
 import time
 import emutils
-import emio
 
 from ops import *
-from celery import group, chord, chain
+from celery import group, chord
 from celery.result import AsyncResult, GroupResult
 from celery.utils.log import get_task_logger
 from functools import wraps
@@ -17,10 +15,11 @@ from functools import wraps
 logger = get_task_logger(__name__)  # Logger
 activities = {}
 
+
 def activity(name):
-    '''
+    """
     Defines the @activity decorator
-    '''
+    """
     def decorator(func):
         activities[name] = func
 
@@ -31,7 +30,14 @@ def activity(name):
 
     return decorator
 
+
 def wait_until_completion(async_result, message="Task"):
+    """
+    Wait for a Celery async_result to complete and measure the time taken.
+    :param async_result:
+    :param message:
+    :return:
+    """
     count = 0
     while not async_result.ready():
         print("\r%s: elapsed: %ds" % (message, count), end='')
@@ -46,22 +52,34 @@ def wait_until_completion(async_result, message="Task"):
     else:
         raise TypeError
 
-def parallel_actions_merge_corr(trace_set_paths, conf):
-    num_partitions = min(conf.max_subtasks, len(trace_set_paths))
-    result = []
-    for part in emutils.partition(trace_set_paths, num_partitions):
-        result.append(work.si(part, conf))
-    return chord(result, body=merge.s(conf))()
 
-def parallel_actions(trace_set_paths, conf):
+def parallel_actions(trace_set_paths, conf, merge_results=False):
+    """
+    Divide the trace set paths into `conf.max_subtasks` partitions that are distributed to available workers. The
+    actions are performed in parallel on these partitions. Optionally, after processing is completed by all workers,
+    the results can be merged.
+    :param trace_set_paths:
+    :param conf:
+    :param merge_results:
+    :return:
+    """
     num_partitions = min(conf.max_subtasks, len(trace_set_paths))
     result = []
     for part in emutils.partition(trace_set_paths, num_partitions):
         result.append(work.si(part, conf))
-    return group(result)()
+    if merge_results:  # Merge correlation subresult from all workers into one final result
+        return chord(result, body=merge.s(conf))()
+    else:
+        return group(result)()
+
 
 @activity('attack')
 def perform_cpa_attack(emma):
+    """
+    Activity that performs a regular Correlation Power Analysis attack on the dataset.
+    :param emma:
+    :return:
+    """
     logger.info("Attacking traces: %s" % str(emma.dataset.trace_set_paths))
     max_correlations = np.zeros([emma.conf.skip_subkeys + emma.conf.num_subkeys, 256])
 
@@ -69,7 +87,7 @@ def perform_cpa_attack(emma):
         emma.conf.subkey = subkey
 
         # Execute task
-        async_result = parallel_actions_merge_corr(emma.dataset.trace_set_paths, emma.conf)
+        async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf, merge_results=True)
         em_result = wait_until_completion(async_result, message="Attacking subkey %d" % emma.conf.subkey)
 
         # Parse results
@@ -88,16 +106,17 @@ def perform_cpa_attack(emma):
     most_likely_bytes = np.argmax(max_correlations, axis=1)
     print(emutils.numpy_to_hex(most_likely_bytes))
 
+
 @activity('corrtrain')
 @activity('ascadtrain')
 @activity('shacputrain')
 @activity('shacctrain')
 def perform_ml_attack(emma):
     """
-    Train ML algorithm. Use only one core because Tensorflow is not thread-safe.
+    Trains a machine learning algorithm on the training samples from a dataset.
     """
     if emma.dataset_val is None:  # No validation dataset provided, so split training data
-        split_size = 1  # Number of trace sets to use for validation TODO: Find solution for ASCAD
+        split_size = 1  # Number of trace sets to use for validation TODO: Find solution for ASCAD. This split should be managed at database.py level
         validation_split = emma.dataset.trace_set_paths[0:split_size]
         training_split = emma.dataset.trace_set_paths[split_size:]
     else:
@@ -106,18 +125,25 @@ def perform_ml_attack(emma):
 
     logger.info("Training set: %s" % str(training_split))
     logger.info("Validation set: %s" % str(validation_split))
-    async_result = aitrain.si(training_split, validation_split, emma.conf).delay()
-    wait_until_completion(async_result, message="Training neural network")
+
+    if emma.conf.remote:
+        async_result = aitrain.si(training_split, validation_split, emma.conf).delay()
+        wait_until_completion(async_result, message="Waiting for worker to train neural network")
+    else:
+        aitrain(training_split, validation_split, emma.conf)
+
 
 @activity('basetest')
 def perform_base_test(emma):
     async_result = basetest.si(emma.dataset.trace_set_paths, emma.conf).delay()
     wait_until_completion(async_result, message="Performing base test")
 
+
 @activity('default')
 def perform_actions(emma):
     async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf)
     wait_until_completion(async_result, message="Performing actions")
+
 
 @activity('classify')
 def perform_classification_attack(emma):

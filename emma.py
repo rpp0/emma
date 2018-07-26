@@ -4,15 +4,24 @@
 # Copyright 2017, Pieter Robyns
 # ----------------------------------------------------
 
-from ops import ops
-from activities import *
-from debug import DEBUG
-from emma_worker import app, backend
-import matplotlib.pyplot as plt
+from ops import ops, ops_optargs
+from activities import activities
+from emma_worker import app
+from celery.utils.log import get_task_logger
+
 import argparse
 import subprocess
+import emutils
+import emio
+import configparser
+
+logger = get_task_logger(__name__)
+
 
 def args_epilog():
+    """
+    Build epilog for the help instructions of EMMA.
+    """
     result = "Actions can take the following parameters between square brackets ('[]'):\n"
     for op in ops.keys():
         result += "{:>20s} ".format(op)
@@ -25,34 +34,40 @@ def args_epilog():
         result += "\n"
     return result
 
+
 def clear_redis():
-    '''
+    """
     Clear any previous results from Redis. Sadly, there is no cleaner way atm.
-    '''
+    """
     try:
         subprocess.check_output(["redis-cli", "flushall"])
         logger.info("Redis cleared")
     except FileNotFoundError:
         logger.warning("Could not clear local Redis database")
 
-class EMMAHost():
+
+class EMMAHost:
     def __init__(self, args):
+        settings = configparser.RawConfigParser()
+        settings.read('settings.conf')  # TODO Make it so the settings are first loaded with the settings file and then can be overwritten by CLI args
+        self.remote = settings.getboolean("Host", "remote")
+
         self.dataset, self.dataset_ref, self.dataset_val = self._get_datasets(args)
         self.conf = self._generate_conf(args)
 
     def _get_datasets(self, args):
         # Load dataset from worker node
-        dataset = emio.remote_get_dataset(dataset=args.dataset, conf=args)
+        dataset = emio.get_dataset(dataset=args.dataset, conf=args, remote=self.remote)
 
         # Load reference set if applicable. Otherwise just use reference from dataset
         if not args.refset is None:
-            dataset_ref = emio.remote_get_dataset(dataset=args.refset, conf=args)
+            dataset_ref = emio.get_dataset(dataset=args.refset, conf=args, remote=self.remote)
         else:
             dataset_ref = dataset
 
         # Load validation set if applicable
         if not args.valset is None:
-            dataset_val = emio.remote_get_dataset(dataset=args.valset, conf=args)
+            dataset_val = emio.get_dataset(dataset=args.valset, conf=args, remote=self.remote)
         else:
             dataset_val = None
 
@@ -66,9 +81,10 @@ class EMMAHost():
             format=self.dataset.format,
             reference_signal=self.dataset_ref.reference_signal,
             traces_per_set=self.dataset.traces_per_set,
-            datasets_path=self.dataset.prefix,
+            datasets_path=self.dataset.root,
             dataset_id=self.dataset.id,
             subkey=0,
+            remote=self.remote,
             **args.__dict__
         )
 
@@ -96,11 +112,12 @@ class EMMAHost():
         activity = self._determine_activity()
         activity(self)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('actions', type=str, help='Action to perform. Choose from %s' % str(ops.keys()), nargs='+')
     parser.add_argument('dataset', type=str, help='Identifier of dataset to use')
-    parser.add_argument('--outform', dest='outform', type=str, choices=['cw','sigmf','gnuradio'], default='sigmf', help='Output format to use when saving')
+    parser.add_argument('--outform', dest='outform', type=str, choices=['cw', 'sigmf', 'gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')
     parser.add_argument('--max-subtasks', type=int, default=32, help='Maximum number of subtasks')
     parser.add_argument('--skip-subkeys', type=int, default=0, help='Number of subkeys to skip')

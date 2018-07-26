@@ -11,13 +11,19 @@ from traceset import TraceSet
 from dataset import Dataset
 from emutils import Window
 
-def remote_get_dataset(dataset, conf=None):
-    return ops.remote_get_dataset.si(dataset, conf=conf).apply_async().get()
+def get_dataset(dataset, conf=None, remote=True):
+    if remote:
+        return ops.remote_get_dataset.si(dataset, conf=conf).apply_async().get()
+    else:
+        return _get_dataset(dataset, conf)
 
-def remote_get_trace_set(trace_set_path, format, ignore_malformed=True):
-    return ops.remote_get_trace_set.si(trace_set_path, format, ignore_malformed).apply_async().get()
+def get_trace_set(trace_set_path, format, ignore_malformed=True, remote=True):
+    if remote:
+        return ops.remote_get_trace_set.si(trace_set_path, format, ignore_malformed).apply_async().get()
+    else:
+        return _get_trace_set(trace_set_path, format, ignore_malformed)
 
-def get_dataset(dataset, conf=None):
+def _get_dataset(dataset, conf=None):
     '''
     Retrieve the dataset properties (trace sets, reference index to use, etc.) from the local
     node for a given dataset_id.
@@ -33,7 +39,7 @@ def get_dataset(dataset, conf=None):
     else:
         raise Exception("Dataset %s does not exist in datasets.conf" % dataset)
 
-def get_trace_set(trace_set_path, format, ignore_malformed=True):
+def _get_trace_set(trace_set_path, format, ignore_malformed=True):
     '''
     Load traces in from absolute path trace_set_path into a TraceSet object depending on the format.
     '''
