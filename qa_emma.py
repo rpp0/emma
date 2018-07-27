@@ -9,6 +9,7 @@ import unittest
 import numpy as np
 import os
 import rank
+import ops
 
 from correlationlist import CorrelationList
 from traceset import TraceSet
@@ -205,10 +206,54 @@ class TestAI(unittest.TestCase):
 class TestRank(unittest.TestCase):
     def test_calculate_ranks(self):
         dummy_scores = np.array(list(range(1, 257)))  # 1, 2, 3, ..., 256 (rank scores)
-        expected_outcome = list(range(255, -1, -1))   # 0, 1, 2, 3, ..., 255 (resulting ranks)
+        expected_outcome = list(range(255, -1, -1))   # 255, 254, 253, ..., 0 (resulting ranks)
 
         outcome = list(rank.calculate_ranks(dummy_scores))
         self.assertListEqual(outcome, expected_outcome)
+
+    def test_get_rank_and_confidence(self):
+        dummy_scores = np.array(list(range(1, 257)))
+        ranks = rank.calculate_ranks(dummy_scores)
+
+        rank_value, confidence = rank.get_rank_and_confidence(ranks, dummy_scores, 255)
+        self.assertEqual(confidence, 1)
+        self.assertEqual(rank_value, 0)
+        rank_value, _ = rank.get_rank_and_confidence(ranks, dummy_scores, 254)
+        self.assertEqual(rank_value, 1)
+        rank_value, _ = rank.get_rank_and_confidence(ranks, dummy_scores, 154)
+        self.assertEqual(rank_value, 101)
+
+
+class TestOps(unittest.TestCase):
+    def test_align_trace_set(self):
+        traces = np.array([[0, 1, 0, 8, 10, 8, 0, 1, 0], [8, 8, 11, 8], [8, 10, 8, 0]])
+        expected = np.array([[8, 10, 8, 0, 1, 0], [8, 11, 8], [8, 10, 8, 0]])
+        reference_signal = np.array([8, 10, 8])
+        conf = Namespace(reference_signal=reference_signal)
+
+        ts = TraceSet(traces=traces, name='test')
+        ops.align_trace_set(ts, None, conf, params=[0, len(reference_signal)])
+        for i in range(0, len(ts.traces)):
+            self.assertListEqual(list(ts.traces[i].signal), expected[i])
+
+    def test_filterkey_trace_set(self):
+        traces = np.array([[0], [1], [2]])
+        keys = np.array([[0], [1], [2]])
+
+        ts = TraceSet(traces=traces, keys=keys)
+        conf = Namespace()
+        ops.filterkey_trace_set(ts, None, conf, params=['01'])
+
+        self.assertEqual(len(ts.traces), 1)
+        self.assertListEqual(list(ts.traces[0].signal), list(traces[1]))
+
+    def test_spectogram_trace_set(self):
+        traces = np.array([[0, 1, 2]])
+
+        ts = TraceSet(traces=traces)
+        ops.spectogram_trace_set(ts, None, None, None)
+
+        self.assertListEqual([int(x) for x in list(ts.traces[0].signal)], [9, 3, 3])
 
 
 if __name__ == '__main__':

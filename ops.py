@@ -25,7 +25,6 @@ from os.path import join, basename
 from emutils import Window, conf_to_id
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
-from celery import Task
 from emresult import EMResult
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -33,13 +32,11 @@ logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
 ops_optargs = {}
 
-class EMMATask(Task):
-    test = 'a'
 
 def op(name, optargs=None):
-    '''
+    """
     Defines the @op decorator
-    '''
+    """
     def decorator(func):
         ops[name] = func
         if not optargs is None:
@@ -50,12 +47,13 @@ def op(name, optargs=None):
         return wrapper
     return decorator
 
+
 @op('align', optargs=['ref_window_begin', 'ref_window_end'])
 def align_trace_set(trace_set, result, conf, params=None):
-    '''
+    """
     Align a set of traces based on a single reference trace using cross-correlation.
     If a trace is empty, it is discarded.
-    '''
+    """
     logger.info("align %s" % (str(params) if not params is None else ""))
     if params is None:  # If no parameters provided, assume percent% max offset
         percent = 0.30
@@ -84,11 +82,12 @@ def align_trace_set(trace_set, result, conf, params=None):
 
     trace_set.set_traces(np.array(aligned_trace_set))
 
+
 @op('filterkey', optargs=['key'])
 def filterkey_trace_set(trace_set, result, conf, params=None):
-    '''
+    """
     Filter traces by key prefix
-    '''
+    """
     logger.info("filterkey %s" % (str(params) if not params is None else ""))
     if params is None:
         logger.warning("No argument specified for filterkey. Skipping op.")
@@ -110,11 +109,12 @@ def filterkey_trace_set(trace_set, result, conf, params=None):
 
     trace_set.set_traces(np.array(filtered_trace_set))
 
+
 @op('spec')
 def spectogram_trace_set(trace_set, result, conf, params=None):
-    '''
+    """
     Calculate the spectogram of the trace set.
-    '''
+    """
     logger.info("spec %s" % (str(params) if not params is None else ""))
     if not trace_set.windowed:
         logger.warning("Taking the FFT of non-windowed traces will result in variable FFT sizes.")
@@ -124,15 +124,17 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
         #if True: # If real signal
         #    trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
 
+
 @op('norm')
 def normalize_trace_set(trace_set, result, conf, params=None):
-    '''
-    normalize the signals (amplitudes) in a trace set.
-    '''
+    """
+    Normalize the signals (amplitudes) in a trace set.
+    """
     logger.info("norm %s" % (str(params) if not params is None else ""))
 
     for trace in trace_set.traces:
         trace.signal = trace.signal - np.mean(trace.signal)
+
 
 @op('fft')
 def fft_trace_set(trace_set, result, conf, params=None):
@@ -143,11 +145,12 @@ def fft_trace_set(trace_set, result, conf, params=None):
     for trace in trace_set.traces:
         trace.signal = np.fft.fft(trace.signal)
 
+
 @op('rwindow', optargs=['window_begin', 'window_end', 'offset'])
 def random_window_trace_set(trace_set, result, conf, params=None):
-    '''
+    """
     Like window, but with a random begin offset. Used to artificially increase training set.
-    '''
+    """
     #logger.info("rwindow %s" % (str(params) if not params is None else ""))
     if params is None:
         logger.error("3 params must be provided to rwindow (begin, end, offset)")
@@ -167,9 +170,10 @@ def random_window_trace_set(trace_set, result, conf, params=None):
     new_end = new_begin + length
     window_trace_set(trace_set, result, conf, params=[str(new_begin), str(new_end), 'rectangular'])
 
+
 @op('window', optargs=['window_begin', 'window_end', 'method'])
 def window_trace_set(trace_set, result, conf, params=None):
-    '''
+    """
     Perform windowing on a specific trace set. See https://en.wikipedia.org/wiki/Window_function#Spectral_analysis
     for a good overview of the effects of the different windowing methods on the PSD of the signal.
 
@@ -179,7 +183,7 @@ def window_trace_set(trace_set, result, conf, params=None):
     Interesting excerpt: 'What cannot be seen from the graphs is that the rectangular window has the best noise bandwidth, which makes it a good candidate for detecting low-level sinusoids in an otherwise white noise environment. Interpolation techniques, such as zero-padding and frequency-shifting, are available to mitigate its potential scalloping loss.'
 
     Params: (window start, window end)
-    '''
+    """
     logger.info("window %s" % (str(params) if not params is None else ""))
     windowing_method = conf.windowing_method  # Default windowing
     if params is None:  # If no parameters provided, window according to reference signal
@@ -211,22 +215,24 @@ def window_trace_set(trace_set, result, conf, params=None):
     trace_set.windowed = True
     trace_set.window = window
 
+
 @op('filter')
 def filter_trace_set(trace_set, result, conf, params=None):
-    '''
+    """
     Apply a Butterworth filter to the traces.
-    '''
+    """
     logger.info("filter %s" % (str(params) if not params is None else ""))
     for trace in trace_set.traces:
         trace.signal = butter_filter(trace.signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
 
     conf.reference_signal = butter_filter(conf.reference_signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
 
+
 @op('rmoutliers')
 def rmoutliers_trace_set(trace_set, result, conf, params=None):
-    '''
+    """
     Remove outliers in terms of amplitude.
-    '''
+    """
     logger.info("rmoutliers %s" % (str(params) if not params is None else ""))
     reference_mean = np.mean(conf.reference_signal)
     threshold = 0.001
@@ -240,6 +246,7 @@ def rmoutliers_trace_set(trace_set, result, conf, params=None):
 
     trace_set.set_traces(new_traces)
 
+
 @op('roll')
 def roll_trace_set(trace_set, result, conf, params=None):
     logger.info("roll %s" % (str(params) if not params is None else ""))
@@ -251,11 +258,12 @@ def roll_trace_set(trace_set, result, conf, params=None):
     for trace in trace_set.traces:
         trace.signal = np.roll(trace.signal, np.random.randint(roll_window.begin, roll_window.end))
 
+
 @op('save')
 def save_trace_set(trace_set, result, conf, params=None):
-    '''
+    """
     Save the trace set to a file using the output format specified in the conf object.
-    '''
+    """
     logger.info("save %s" % (str(params) if not params is None else ""))
     if conf.outform == 'cw':
         # Save back to output file
@@ -266,17 +274,18 @@ def save_trace_set(trace_set, result, conf, params=None):
     elif conf.outform == 'sigmf':  # TODO make SigMF compliant
         count = 1
         for trace in trace_set.traces:
-            trace.tofile(join(output_path_gnuradio, "%s-%d.rf32_le" % (trace_set.name, count)))
+            trace.tofile(join(conf.outpath, "%s-%d.rf32_le" % (trace_set.name, count)))
             count += 1
     else:
         print("Unknown format: %s" % conf.outform)
         exit(1)
 
+
 @op('plot', optargs=['save'])
 def plot_trace_set(trace_set, result, conf=None, params=None):
-    '''
+    """
     Plot each trace in a trace set using Matplotlib
-    '''
+    """
     logger.info("plot %s" % (str(params) if not params is None else ""))
     if not params is None:
         if len(params) == 1 and not 'save' in params:
@@ -302,11 +311,12 @@ def plot_trace_set(trace_set, result, conf=None, params=None):
     else:
         plt.show()
 
+
 @op('attack')
 def attack_trace_set(trace_set, result, conf=None, params=None):
-    '''
+    """
     Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
-    '''
+    """
     logger.info("attack %s" % (str(params) if not params is None else ""))
 
     # Use mask?
@@ -354,6 +364,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
             # Update correlation
             result.correlations.update((subkey_guess,j), hypotheses[subkey_guess,:], measurements)
 
+
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("memattack %s" % (str(params) if not params is None else ""))
@@ -373,6 +384,7 @@ def memattack_trace_set(trace_set, result, conf=None, params=None):
                 hypotheses = [hw[byte_guess]] * trace_set.num_traces
                 result.correlations.update((byte_idx,byte_guess,j), hypotheses, measurements)
 
+
 @op('memtrain')
 def memtrain_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
@@ -387,11 +399,12 @@ def memtrain_trace_set(trace_set, result, conf=None, params=None):
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
+
 @op('weight', optargs=['weight_filename'])
 def weight_trace_set(trace_set, result, conf=None, params=None):
-    '''
+    """
     Multiply trace signal element-wise with weights stored in a file.
-    '''
+    """
     logger.info("weight %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if params is None:
@@ -408,6 +421,7 @@ def weight_trace_set(trace_set, result, conf=None, params=None):
     else:
         logger.error("The trace set must be windowed before applying weights.")
 
+
 @op('sum')
 def sum_trace_set(trace_set, result, conf=None, params=None):
     logger.info("sum %s" % (str(params) if not params is None else ""))
@@ -416,6 +430,7 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
 
     trace_set.windowed = True
     trace_set.window = Window(begin=0, end=1)
+
 
 @op('corrtest')
 def corrtest_trace_set(trace_set, result, conf=None, params=None):
@@ -452,6 +467,7 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
     else:
         logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
 
+
 @op('shacputest')
 def shacputest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("shacputest %s" % (str(params) if not params is None else ""))
@@ -467,6 +483,7 @@ def shacputest_trace_set(trace_set, result, conf=None, params=None):
             else:
                 result._data['labels'].append(trace.plaintext[0] ^ 0x36)
             result._data['predictions'].append(np.argmax(result._data['state'].predict(np.array([trace.signal], dtype=float))))
+
 
 @op('shacctest')
 def shacctest_trace_set(trace_set, result, conf=None, params=None):
@@ -486,6 +503,7 @@ def shacctest_trace_set(trace_set, result, conf=None, params=None):
             cc_out = result._data['state'].predict(np.array([trace.signal], dtype=float))
             predicted_classes = np.argmax(cc_out, axis=1)
             result._data['predictions'].append(predicted_classes[0])
+
 
 @app.task(bind=True)
 def merge(self, to_merge, conf):
@@ -517,13 +535,16 @@ def merge(self, to_merge, conf):
     else:
         return None
 
+
 @app.task
 def remote_get_dataset(dataset, conf=None):
     return emio.get_dataset(dataset, conf=conf, remote=False)
 
+
 @app.task
 def remote_get_trace_set(trace_set_path, format, ignore_malformed):
     return emio.get_trace_set(trace_set_path, format, ignore_malformed, remote=False)
+
 
 def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=False):
     # Perform actions
@@ -544,6 +565,7 @@ def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=
     if keep_trace_sets:
         result.trace_sets.append(trace_set)
 
+
 def process_trace_set_paths(result, trace_set_paths, conf, request_id=None, keep_trace_sets=False):
     num_todo = len(trace_set_paths)
     num_done = 0
@@ -563,11 +585,12 @@ def process_trace_set_paths(result, trace_set_paths, conf, request_id=None, keep
 
         num_done += 1
 
+
 def resolve_paths(trace_set_paths):
-    '''
+    """
     Determine the path on disk based on the location of the database specified in the
     worker's settings file.
-    '''
+    """
     settings = configparser.RawConfigParser()
     settings.read('settings.conf')
     prefix = settings.get("Datasets", "datasets_path")
@@ -576,11 +599,12 @@ def resolve_paths(trace_set_paths):
             # Add prefix to path
             trace_set_paths[i] = join(prefix, trace_set_paths[i])
 
+
 @app.task(bind=True)
 def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=True):
-    '''
+    """
     Actions to be performed by workers on the trace set given in trace_set_path.
-    '''
+    """
     resolve_paths(trace_set_paths)  # Get absolute paths
 
     if type(trace_set_paths) is list:
@@ -600,6 +624,7 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
         logger.error("Must provide a list of trace set paths to worker!")
         return None
 
+
 def action_to_model_type(action):
     if action == 'corrtrain':
         return 'aicorrnet'
@@ -612,12 +637,14 @@ def action_to_model_type(action):
     else:
         return None
 
+
 def get_conf_model_type(conf):
     for action in conf.actions:
         model_type = action_to_model_type(action)
         if not model_type is None:
             return model_type
     return None
+
 
 @app.task(bind=True)
 def basetest(self, trace_set_paths, conf, rank_trace_step=1000, t=10):
@@ -676,6 +703,7 @@ def basetest(self, trace_set_paths, conf, rank_trace_step=1000, t=10):
     else:
         logger.error("Must provide a list of trace set paths to worker!")
         return None
+
 
 @app.task(bind=True)
 def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
