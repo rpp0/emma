@@ -115,10 +115,16 @@ def perform_ml_attack(emma):
     """
     Trains a machine learning algorithm on the training samples from a dataset.
     """
-    if emma.dataset_val is None:  # No validation dataset provided, so split training data
-        split_size = 1  # Number of trace sets to use for validation TODO: Find solution for ASCAD. This split should be managed at database.py level
-        validation_split = emma.dataset.trace_set_paths[0:split_size]
-        training_split = emma.dataset.trace_set_paths[split_size:]
+    if emma.dataset is None:
+        raise Exception("No dataset provided")
+
+    if emma.dataset_val is None:  # No validation dataset provided, so split training data in two parts
+        if emma.dataset.format == "ascad":  # ASCAD uses different formatting
+            validation_split = [x for x in emma.dataset.trace_set_paths if x.endswith('-val')]
+            training_split = [x for x in emma.dataset.trace_set_paths if x.endswith('-train')]
+        else:
+            validation_split = emma.dataset.trace_set_paths[0:emma.conf.num_valsets]
+            training_split = emma.dataset.trace_set_paths[emma.conf.num_valsets:]
     else:
         validation_split = emma.dataset_val.trace_set_paths[0:emma.conf.num_valsets]
         training_split = emma.dataset.trace_set_paths
@@ -140,9 +146,15 @@ def perform_base_test(emma):
 
 
 @activity('default')
-def perform_actions(emma):
+def perform_actions(emma, message="Performing actions"):
+    """
+    Default activity: split trace_set_paths in partitions and let each node execute the actions on its assigned partition.
+    :param emma:
+    :param message:
+    :return:
+    """
     async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf)
-    wait_until_completion(async_result, message="Performing actions")
+    return wait_until_completion(async_result, message=message)
 
 
 @activity('classify')
