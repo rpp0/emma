@@ -6,16 +6,15 @@
 import keras
 import numpy as np
 import keras.backend as K
-import pickle
 import tensorflow as tf
 import ops
-import ai
 
 from lut import sbox
 from traceset import TraceSet
 from argparse import Namespace
 from emutils import Window
 from emresult import EMResult
+
 
 class RankCallbackBase(keras.callbacks.Callback):
     """
@@ -67,6 +66,7 @@ class RankCallbackBase(keras.callbacks.Callback):
             return True
         return False
 
+
 class ProbRankCallback(RankCallbackBase):
     """
     RankCallback that assumes the model outputs a probability for each key byte [?, 256].
@@ -97,6 +97,7 @@ class ProbRankCallback(RankCallbackBase):
             self._save_best_rank_model(rank, confidence)
         else:
             print("Warning: no trace_set supplied to RankCallback")
+
 
 class CorrRankCallback(RankCallbackBase):
     """
@@ -139,6 +140,7 @@ class CorrRankCallback(RankCallbackBase):
         else:
             print("Warning: no trace_set supplied to RankCallback")
 
+
 def calculate_traceset_rank(trace_set, key_index, true_key, nomodel=False):
     conf = Namespace(subkey=key_index, nomodel=nomodel)
     result = EMResult(task_id=None)
@@ -157,6 +159,7 @@ def calculate_traceset_rank(trace_set, key_index, true_key, nomodel=False):
 
     return rank, confidence
 
+
 def calculate_ranks(key_scores):
     assert(key_scores.shape == (256,))
     key_ranks = np.zeros(256, dtype=int)
@@ -167,6 +170,7 @@ def calculate_ranks(key_scores):
 
     return key_ranks
 
+
 def get_rank_and_confidence(key_ranks, key_scores, true_key):
     print_rank_top_x(key_ranks, x=5, scores=key_scores)
     print("True key is %02x" % true_key)
@@ -176,6 +180,7 @@ def get_rank_and_confidence(key_ranks, key_scores, true_key):
     confidence = np.float32(key_scores[key_ranks[0]] - key_scores[key_ranks[1]])
 
     return rank, confidence
+
 
 def print_rank_top_x(key_ranks, x=5, scores=None):
     print("-----------------------------")

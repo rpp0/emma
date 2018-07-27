@@ -5,18 +5,20 @@
 # Test suites
 # ----------------------------------------------------
 
-from correlationlist import CorrelationList
-import ops
 import unittest
 import numpy as np
-import emutils
-import tensorflow as tf
-import keras.backend as K
-from ai import AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH
+import os
+import rank
+
+from correlationlist import CorrelationList
 from traceset import TraceSet
-from aiiterators import AICorrSignalIterator
 from argparse import Namespace
-from rank import CorrRankCallback
+from aiiterators import AICorrSignalIterator
+
+
+class UnitTestSettings:
+    TEST_FAST = os.environ.get('EMMA_FAST_UNITTEST', 'False') == 'True'
+
 
 class TestCorrelationList(unittest.TestCase):
     def test_update(self):
@@ -26,17 +28,17 @@ class TestCorrelationList(unittest.TestCase):
             [4, 5],
             [4, 8]
         ])
-        x = test_array[:,0]
-        y = test_array[:,1]
+        x = test_array[:, 0]
+        y = test_array[:, 1]
 
         clist1 = CorrelationList(1)
         clist1.update(0, x, y)
         clist2 = CorrelationList([1, 1])
-        clist2.update((0,0), x, y)
+        clist2.update((0, 0), x, y)
 
         # Checks
-        self.assertAlmostEqual(clist1[0], np.corrcoef(x, y)[1,0], places=13)
-        self.assertAlmostEqual(clist2[0,0], np.corrcoef(x, y)[1,0], places=13)
+        self.assertAlmostEqual(clist1[0], np.corrcoef(x, y)[1, 0], places=13)
+        self.assertAlmostEqual(clist2[0, 0], np.corrcoef(x, y)[1, 0], places=13)
 
     def test_merge(self):
         test_array_1 = np.array([
@@ -83,23 +85,24 @@ class TestCorrelationList(unittest.TestCase):
 
         self.assertAlmostEqual(c3[0], np.corrcoef(x_check, y_check)[1,0], places=13)
 
+
 class TestUtils(unittest.TestCase):
-    def test_pretty_print_correlations(self):
-        pass
-        # TODO implement me
-        test = CorrelationList([16,256])
-        #emutils.pretty_print_correlations(test)
+    pass
+
 
 class TestAI(unittest.TestCase):
+    @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_corrtrain(self):
-        '''
+        import ai
+        from ai import AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH
+        """
         Artificial example to test AICorrNet and trace processing
-        '''
+        """
 
         # ------------------------------
         # Generate data
         # ------------------------------
-        traces = [ # Contains abs(trace). Shape = [trace, point]
+        traces = [  # Contains abs(trace). Shape = [trace, point]
             [1, 1, 1, -15],
             [-4, 1, 2, -12],
             [10, 1, 3, 8],
@@ -133,15 +136,16 @@ class TestAI(unittest.TestCase):
         # ------------------------------
         # Preprocess data
         # ------------------------------
-        it_dummy = AICorrSignalIterator([], Namespace(max_cache=0, augment_roll=False, augment_noise=False, normalize=False, traces_per_set=4), batch_size=10000, request_id=None, stream_server=None)
+        conf = Namespace(max_cache=0, augment_roll=False, augment_noise=False, normalize=False, traces_per_set=4, online=False, dataset_id='qa', ptinput=False, cnn=False, nomodel=False)
+        it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
 
         # ------------------------------
         # Train and obtain encodings
         # ------------------------------
-        model = ops.AICorrNet(4, name="test")
-        rank = CorrRankCallback('/tmp/deleteme/', save_best=False, save_path=None, freq=100)
-        rank.set_trace_set(trace_set)
+        model = ai.AICorrNet(4, name="test")
+        rank_cb = rank.CorrRankCallback('/tmp/deleteme/', save_best=False, save_path=None, freq=100)
+        rank_cb.set_trace_set(trace_set)
 
         if model.using_regularization:
             print("Warning: cant do correlation loss test because regularizer will influence loss function")
@@ -154,7 +158,7 @@ class TestAI(unittest.TestCase):
         print("When feeding x through the model without training, the encodings become:")
         print(model.predict(x))
         print("Training now")
-        model.train_set(x, y, save=False, epochs=1010, extra_callbacks=[rank])
+        model.train_set(x, y, save=False, epochs=1010, extra_callbacks=[rank_cb])
         print("Done training")
 
         # Get the encodings of the input data using the same approach used in ops.py corrtest (iterate over rows)
@@ -174,22 +178,20 @@ class TestAI(unittest.TestCase):
         calculated_loss = 0
         for i in range(AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH):
             print("Subkey %d HWs   : %s" %(i, str(y[:,i])))
-            print("Subkey %d encodings: %s" %(i, str(result[:,i-AICORRNET_KEY_LOW])))
-            y_key = y[:,i].reshape([-1, 1])
-            y_pred = result[:,i-AICORRNET_KEY_LOW].reshape([-1, 1])
-
-            # Normalize labels
-            y_key_norm = y_key - np.mean(y_key, axis=0)
-            y_pred_norm = y_pred - np.mean(y_pred, axis=0)
+            print("Subkey %d encodings: %s" %(i, str(result[:, i-AICORRNET_KEY_LOW])))
+            y_key = y[:, i].reshape([-1, 1])
+            y_pred = result[:, i-AICORRNET_KEY_LOW].reshape([-1, 1])
 
             # Calculate correlation (vector approach)
-            #denom = np.sqrt(np.dot(y_pred_norm.T, y_pred_norm)) * np.sqrt(np.dot(y_key_norm.T, y_key_norm))
-            #denom = np.maximum(denom, 1e-15)
-            #corr_key_i = (np.dot(y_key_norm.T, y_pred_norm) / denom)[0,0]
-            #print("corr_vec: %s" % corr_key_i)
+            # y_key_norm = y_key - np.mean(y_key, axis=0)
+            # y_pred_norm = y_pred - np.mean(y_pred, axis=0)
+            # denom = np.sqrt(np.dot(y_pred_norm.T, y_pred_norm)) * np.sqrt(np.dot(y_key_norm.T, y_key_norm))
+            # denom = np.maximum(denom, 1e-15)
+            # corr_key_i = (np.dot(y_key_norm.T, y_pred_norm) / denom)[0,0]
+            # print("corr_vec: %s" % corr_key_i)
 
             # Calculate correlation (numpy approach)
-            corr_key_i = np.corrcoef(y_pred[:,0], y_key[:,0], rowvar=False)[1,0]
+            corr_key_i = np.corrcoef(y_pred[:, 0], y_key[:, 0], rowvar=False)[1,0]
             print("corr_num: %s" % corr_key_i)
 
             calculated_loss += 1.0 - corr_key_i
@@ -198,6 +200,16 @@ class TestAI(unittest.TestCase):
         print("Predicted loss: %s" % str(predicted_loss))
         print("Calculated loss: %s" % str(calculated_loss))
         self.assertAlmostEqual(predicted_loss, calculated_loss, places=5)
+
+
+class TestRank(unittest.TestCase):
+    def test_calculate_ranks(self):
+        dummy_scores = np.array(list(range(1, 257)))  # 1, 2, 3, ..., 256 (rank scores)
+        expected_outcome = list(range(255, -1, -1))   # 0, 1, 2, 3, ..., 255 (resulting ranks)
+
+        outcome = list(rank.calculate_ranks(dummy_scores))
+        self.assertListEqual(outcome, expected_outcome)
+
 
 if __name__ == '__main__':
     unittest.main()

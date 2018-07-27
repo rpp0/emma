@@ -21,7 +21,6 @@ from keras.applications.vgg16 import VGG16
 from keras import regularizers
 from keras.engine.topology import Layer
 from keras.losses import categorical_crossentropy
-from rank import ProbRankCallback, CorrRankCallback
 
 K.set_epsilon(1e-15)
 # Some temporary globals for testing purposes
@@ -52,7 +51,7 @@ class AI():
             'lastloss': LastLoss(),
             'tensorboard': TensorBoard(log_dir='/tmp/keras/' + self.name + '-' + self.id),
             'save': SaveLowestValLoss(self.model_path),
-            'rank': ProbRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path),
+            'rank': rank.ProbRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path),
         }
 
     def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
@@ -474,7 +473,7 @@ class AICorrNet(AI):
 
         # Custom callbacks
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=metric_freq)
-        self.callbacks['rank'] = CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=cnn, freq=metric_freq, ptinput=ptinput, nomodel=nomodel)
+        self.callbacks['rank'] = rank.CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=cnn, freq=metric_freq, ptinput=ptinput, nomodel=nomodel)
 
     def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
         """
