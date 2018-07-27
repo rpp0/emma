@@ -28,10 +28,11 @@ K.set_epsilon(1e-15)
 AICORRNET_KEY_LOW = 2  # 0
 AICORRNET_KEY_HIGH = 3  # 16
 
+
 class AI():
-    '''
+    """
     Base class for the models.
-    '''
+    """
     def __init__(self, name="unknown", suffix=None, path=None):
         self.id = str(int(time.time()))
         suffix = "" if suffix is None else '-' + suffix
@@ -77,9 +78,9 @@ class AI():
         self._post_train(save)
 
     def train_t_fold(self, training_iterator, batch_size=10000, epochs=100, num_train_traces=45000, t=10, rank_trace_step=1000, conf=None):
-        '''
+        """
         t-fold cross-validation according to paper by Prouff et al.
-        '''
+        """
 
         # Get all traces in memory to speed up the process
         # First, process all ops and apply them to the traces set
@@ -150,9 +151,9 @@ class AI():
         pickle.dump(data_to_save, open("%s-t-ranks.p" % self.base_path, "wb"))
 
     def test_fold(self, validation_iterator, rank_trace_step=1000, conf=None, max_traces=5000):
-        '''
+        """
         Test a single fold on the validation set to generate similar plot as train_t_fold, but without retraining the model. Could probably be used as a subcomponent of train_t_fold, but running out of time therefore TODO refactor.
-        '''
+        """
 
         # Get all traces in memory to speed up the process
         all_traces = validation_iterator.get_all_as_trace_set()
@@ -193,30 +194,10 @@ class AI():
         }
         pickle.dump(data_to_save, open("%s-testrank.p" % self.base_path, "wb"))
 
-    def _old_post_train(self):
-        '''
-        DEPRECATED
-        '''
-        activations = self.model.get_weights()[0]
-        print(activations)
-        if self.use_bias:
-            bias = self.model.get_weights()[1]
-            print(bias)
-
-        top = 10
-        activations = np.reshape(activations, -1)
-        best_indices = np.argsort(activations)[-top:]
-        print("Best indices: %s" % str(best_indices))
-        print("Max weights: %s" % str([activations[i] for i in best_indices]))
-
-        # Save progress
-        if save:
-            pickle.dump(activations, open("/tmp/weights.p", "wb"))  # TODO remove me later
-
     def _post_train(self, save=True):
-        '''
+        """
         Do some post-train actions like printing the model weights and saving the model.
-        '''
+        """
         if save:
             self.model.save("%s-last.h5" % self.base_path)
 
@@ -226,11 +207,12 @@ class AI():
     def load(self):
         self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
 
+
 class AIMemCopyDirect():
-    '''
+    """
     Extremely simple NN that attempts to find a relation between the power consumption (input)
     and the resulting one-hot encoding of the byte that was copied from memory.
-    '''
+    """
     def __init__(self, input_dim, hamming):
         if hamming:
             self.num_outputs = 9
@@ -254,11 +236,12 @@ class AIMemCopyDirect():
     def test(self, x):
         pass
 
+
 def correlation_loss(y_true_raw, y_pred_raw):
-    '''
+    """
     Custom loss function that calculates the Pearson correlation of the prediction with
     the true values over a number of batches.
-    '''
+    """
     # y_true_raw = K.print_tensor(y_true_raw, message='y_true_raw = ')  # Note: print truncating is incorrect in the print_tensor function
     # y_pred_raw = K.print_tensor(y_pred_raw, message='y_pred_raw = ')
     y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
@@ -275,12 +258,14 @@ def correlation_loss(y_true_raw, y_pred_raw):
 
     return loss
 
+
 class LossHistory(keras.callbacks.Callback):
     def on_train_begin(self, logs={}):
         self.losses = []
 
     def on_batch_end(self, batch, logs={}):
         self.losses.append(logs.get('loss'))
+
 
 class SavingHistory(History):
     def __init__(self, path):
@@ -290,10 +275,11 @@ class SavingHistory(History):
     def on_train_end(self, logs={}):
         pickle.dump(self.history, open("%s-history.p" % self.path, "wb"))
 
+
 class Clip(keras.constraints.Constraint):
-    '''
+    """
     Custom kernel constraint, limiting their values between a certain range.
-    '''
+    """
     def __init__(self):
         self.weight_range = [-1.0, 1.0]
 
@@ -301,15 +287,17 @@ class Clip(keras.constraints.Constraint):
         return K.clip(w, self.weight_range[0], self.weight_range[1])
 keras.constraints.Clip = Clip  # Register custom constraint in Keras
 
+
 class LastLoss(keras.callbacks.Callback):
-    '''
+    """
     Callback to keep last loss.
-    '''
+    """
     def on_train_begin(self, logs={}):
         self.value = None
 
     def on_batch_end(self, batch, logs={}):
         self.value = logs.get('loss')
+
 
 class SaveLowestValLoss(keras.callbacks.Callback):
     def __init__(self, path):
@@ -336,18 +324,18 @@ class SaveLowestValLoss(keras.callbacks.Callback):
 
 
 class CustomTensorboard(keras.callbacks.TensorBoard):
-    '''
+    """
     Extension of the standard Tensorboard callback that uses Matplotlib to
     plot graphs to Tensorboard.
-    '''
+    """
     def __init__(self, freq=10, *args, **kwargs):
         self.freq = freq
         super(CustomTensorboard, self).__init__(*args, **kwargs)
 
     def _plt_to_tf(self, plot, tag='plot'):
-        '''
+        """
         Convert Matplotlib plot to Tensorboard summary.
-        '''
+        """
         # Write to PNG buffer
         buf = io.BytesIO()
         plot.savefig(buf, format='png')
@@ -394,8 +382,10 @@ class CustomTensorboard(keras.callbacks.TensorBoard):
                 print("Exception in image generation: %s" % str(e))
                 pass
 
+
 def spec_reg(weight_matrix):
     return 0.001 * K.sum(K.abs(1.0 - weight_matrix))
+
 
 def str_to_reg(string, reg_lambda):
     if string == 'l1':
@@ -407,6 +397,7 @@ def str_to_reg(string, reg_lambda):
     else:
         return None
 
+
 def str_to_activation(string):
     if string == 'leakyrelu':
         return LeakyReLU()
@@ -415,6 +406,7 @@ def str_to_activation(string):
             return None
         else:
             return Activation(string)
+
 
 class AICorrNet(AI):
     def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, cnn=False, ptinput=False, nomodel=False, metric_freq=10, suffix=None, path=None):
@@ -485,11 +477,11 @@ class AICorrNet(AI):
         self.callbacks['rank'] = CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=cnn, freq=metric_freq, ptinput=ptinput, nomodel=nomodel)
 
     def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
-        '''
+        """
         Train entire training set with model.fit()
 
         Used in qa_emma
-        '''
+        """
 
         # Callbacks
         last_loss = LastLoss()
@@ -503,6 +495,7 @@ class AICorrNet(AI):
         self.last_loss = last_loss.value
 
         self._post_train(save)
+
 
 class AISHACPU(AI):
     def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16', suffix=None, path=None):
@@ -535,6 +528,7 @@ class AISHACPU(AI):
         optimizer = keras.optimizers.Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, decay=0.0)
 
         self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
 
 class AISHACC(AI):
     def __init__(self, input_shape, name="aishacc", hamming=True, suffix=None, path=None):
@@ -618,6 +612,7 @@ class AISHACC(AI):
 
         self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
+
 def cc_loss(y_true, y_pred):
     # y_true: [batch, 256]
     # y_pred: [batch, correlations, filter_nr]
@@ -633,8 +628,10 @@ def cc_loss(y_true, y_pred):
 
     return loss
 
+
 def cc_catcross_loss(y_true, y_pred):
     return tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
+
 
 class AIASCAD(AI):
     def __init__(self, input_shape, name="aiascad", suffix=None, path=None):
@@ -642,6 +639,7 @@ class AIASCAD(AI):
         from ASCAD_train_models import cnn_best
 
         self.model = cnn_best(input_shape=input_shape)
+
 
 class CCLayer(Conv1D):
     def __init__(self, epsilon=1e-7, normalize_inputs=False, **kwargs):
@@ -655,7 +653,6 @@ class CCLayer(Conv1D):
         kernel_l2norm = tf.norm(self.kernel, ord=2, axis=0, keep_dims=True)
 
         self.zn_kernel = tf.divide(tf.subtract(self.kernel, kernel_mean), kernel_l2norm + self.epsilon)
-        # TODO: Tweede mogelijkheid is regularizer maken die in essentie aan de loss function een term toevoegt gebaseerd op mean en variance van de kernel?
 
     def call(self, inputs):
         if self.normalize_inputs:

@@ -4,30 +4,48 @@
 # ----------------------------------------------------
 
 import numpy as np
-import configparser
 import ops
 import configparser
 from traceset import TraceSet
 from dataset import Dataset
 from emutils import Window
+from os.path import join
+
 
 def get_dataset(dataset, conf=None, remote=True):
+    """
+    Wrapper function for getting dataset properties, either from the local or remote worker.
+    :param dataset:
+    :param conf:
+    :param remote:
+    :return:
+    """
     if remote:
         return ops.remote_get_dataset.si(dataset, conf=conf).apply_async().get()
     else:
         return _get_dataset(dataset, conf)
 
+
 def get_trace_set(trace_set_path, format, ignore_malformed=True, remote=True):
+    """
+    Wrapper function for getting a trace set, either from the local or remote worker.
+    :param trace_set_path:
+    :param format:
+    :param ignore_malformed:
+    :param remote:
+    :return:
+    """
     if remote:
         return ops.remote_get_trace_set.si(trace_set_path, format, ignore_malformed).apply_async().get()
     else:
         return _get_trace_set(trace_set_path, format, ignore_malformed)
 
+
 def _get_dataset(dataset, conf=None):
-    '''
+    """
     Retrieve the dataset properties (trace sets, reference index to use, etc.) from the local
     node for a given dataset_id.
-    '''
+    """
     datasets_conf = configparser.RawConfigParser()
     datasets_conf.read('datasets.conf')
 
@@ -39,10 +57,11 @@ def _get_dataset(dataset, conf=None):
     else:
         raise Exception("Dataset %s does not exist in datasets.conf" % dataset)
 
+
 def _get_trace_set(trace_set_path, format, ignore_malformed=True):
-    '''
+    """
     Load traces in from absolute path trace_set_path into a TraceSet object depending on the format.
-    '''
+    """
 
     if format == "cw":
         name = trace_set_path.rpartition('_traces')[0]
@@ -52,7 +71,7 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
 
         existing_properties = []
         try:
-            traces = np.load(trace_set_path, encoding="bytes")  # TODO make more robust towards non-existing paths
+            traces = np.load(trace_set_path, encoding="bytes")
             existing_properties.append(traces)
         except FileNotFoundError:
             traces = None
@@ -117,6 +136,7 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
 
     return None
 
+
 def get_ascad_trace_set(name, data, meta, limit=None):
     """
     Convert ASCAD data to a TraceSet object.
@@ -145,11 +165,12 @@ def get_ascad_trace_set(name, data, meta, limit=None):
 
     return trace_set
 
+
 def update_cw_config(path, trace_set, update_dict):
-    '''
+    """
     Update ChipWhisperer config file in order to reflect changes made to
     the traces by EMMA.
-    '''
+    """
     cp = configparser.RawConfigParser()
     cp.optionxform = str  # Preserve case sensitivity
 

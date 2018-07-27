@@ -22,6 +22,7 @@ import emio
 
 logger = get_task_logger(__name__)
 
+
 class AISignalIteratorBase():
     def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None):
         self.trace_set_paths = trace_set_paths
@@ -67,7 +68,6 @@ class AISignalIteratorBase():
         result.set_traces(all_traces)
 
         return result
-
 
     def _preprocess_trace_set(self, trace_set):
         # X

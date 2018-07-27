@@ -12,10 +12,14 @@ import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Ignore Tensorflow deprecation and performance warnings
 
-settings = configparser.RawConfigParser()  # TODO: error handling, detect first usage of EMMA by presence of settings.conf
-settings.read('settings.conf')
-broker = settings.get("Network", "broker")
-backend = settings.get("Network", "backend")
+try:
+    settings = configparser.RawConfigParser()
+    settings.read('settings.conf')
+    broker = settings.get("Network", "broker")
+    backend = settings.get("Network", "backend")
+except FileNotFoundError:
+    print("No settings.conf found! Please create it before running EMMA.")
+    exit(1)
 
 app = Celery('emma',
              broker=broker,
