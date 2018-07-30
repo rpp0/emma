@@ -101,4 +101,7 @@ def conf_to_id(conf):
     if 'dataset_id' in conf_dict:
         result += "-" + conf_dict['dataset_id']
 
+    # Replacing corrtest TODO make this cleaner somehow
+    result = result.replace("corrtest-attack", "corrtrain")
+
     return result

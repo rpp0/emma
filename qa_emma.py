@@ -137,14 +137,34 @@ class TestAI(unittest.TestCase):
         # ------------------------------
         # Preprocess data
         # ------------------------------
-        conf = Namespace(max_cache=0, augment_roll=False, augment_noise=False, normalize=False, traces_per_set=4, online=False, dataset_id='qa', ptinput=False, cnn=False, nomodel=False)
+        conf = Namespace(
+            max_cache=0,
+            augment_roll=False,
+            augment_noise=False,
+            normalize=False,
+            traces_per_set=4,
+            online=False,
+            dataset_id='qa',
+            ptinput=False,
+            cnn=False,
+            nomodel=False,
+            n_hidden_layers=1,
+            activation='leakyrelu',
+            metric_freq=10,
+            regularizer=None,
+            reglambda=0.001,
+            model_suffix=None,
+            use_bias=True,
+            batch_norm=True,
+            hamming=False,
+        )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
 
         # ------------------------------
         # Train and obtain encodings
         # ------------------------------
-        model = ai.AICorrNet(4, name="test")
+        model = ai.AICorrNet(conf, input_dim=4, name="test")
         rank_cb = rank.CorrRankCallback('/tmp/deleteme/', save_best=False, save_path=None, freq=100)
         rank_cb.set_trace_set(trace_set)
 

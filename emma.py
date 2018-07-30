@@ -143,12 +143,14 @@ if __name__ == "__main__":
     parser.add_argument('--activation', type=str, default='leakyrelu', help='Activation function of model.')
     parser.add_argument('--cnn', default=False, action='store_true', help='Use ASCAD CNN for AICorrNet')
     parser.add_argument('--testrank', default=False, action='store_true', help='Load model and test rank for varying test set sizes.')
-    parser.add_argument('--regularizer', type=str, default=None, help='Reg')
-    parser.add_argument('--reglambda', type=float, default=0.001, help='Reg')
+    parser.add_argument('--regularizer', type=str, default=None, help='Regularizer to use.')
+    parser.add_argument('--reglambda', type=float, default=0.001, help='Regularizer lambda.')
     parser.add_argument('--nomodel', default=False, action='store_true', help='Do not assume power consumption model.')
     parser.add_argument('--ptinput', default=False, action='store_true', help='Also use plaintext as inputs.')
     parser.add_argument('--batch-size', type=int, default=512, help='Batch size.')
     parser.add_argument('--metric-freq', type=int, default=10, help='Frequency of calculating metrics (e.g. rank) of model.')
+    parser.add_argument('--use-bias', default=True, action='store_true', help='Use a bias term.')  # TODO: It's impossible to disable this now; fix
+    parser.add_argument('--batch-norm', default=True, action='store_true', help='Use batch normalization.')  # TODO: It's impossible to disable this now; fix
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 

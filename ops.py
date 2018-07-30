@@ -437,9 +437,7 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result._data['state'] is None:
-            models_dir = os.path.join(os.getcwd(), 'models', conf_to_id(conf)).replace("corrtest-attack", "corrtrain")
-            result._data['state'] = ai.AI("aicorrnet", suffix=conf.model_suffix, path=models_dir)
-            logger.warning("Loading model %s" % result._data['state'].model_path)
+            result._data['state'] = ai.AI(conf, "aicorrnet")
             result._data['state'].load()
 
         # Fetch signals from traces
@@ -473,8 +471,7 @@ def shacputest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("shacputest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result._data['state'] is None:
-            logger.debug("Loading Keras")
-            result._data['state'] = ai.AI("aishacpu" + ("-hw" if conf.hamming else ""), suffix=conf.model_suffix)
+            result._data['state'] = ai.AI(conf, "aishacpu")
             result._data['state'].load()
 
         for trace in trace_set.traces:
@@ -490,8 +487,7 @@ def shacctest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("shacctest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result._data['state'] is None:
-            logger.debug("Loading Keras")
-            result._data['state'] = ai.AI("aishacc" + ("-hw" if conf.hamming else ""), suffix=conf.model_suffix)
+            result._data['state'] = ai.AI(conf, "aishacc")
             result._data['state'].load()
 
         for trace in trace_set.traces:
@@ -714,7 +710,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     subtype = 'custom'
 
     # Determine type of model to train
-    model_type = get_conf_model_type(conf)
+    model_type = get_conf_model_type(conf)  # TODO: Refactor 'name' to 'model_type' everywhere
 
     # Select training iterator (gathers data, performs augmentation and preprocessing)
     training_iterator, validation_iterator = aiiterators.get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
@@ -726,20 +722,18 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
 
     # Select model
     model = None
-    models_dir = os.path.join(os.getcwd(), 'models', conf_to_id(conf))
     if conf.update or conf.testrank:  # Load existing model to update or test
-        logger.warning("Loading model %s%s" % (model_type, '-' + conf.model_suffix if not conf.model_suffix is None else ''))
-        model = ai.AI(model_type, suffix=conf.model_suffix, path=models_dir)
+        model = ai.AI(conf, model_type)
         model.load()
     else:  # Create new model
         if model_type == 'aicorrnet':
-            model = ai.AICorrNet(input_dim=input_shape[0], suffix=conf.model_suffix, n_hidden_layers=conf.n_hidden_layers, activation=conf.activation, cnn=conf.cnn, ptinput=conf.ptinput, metric_freq=conf.metric_freq, reg=conf.regularizer, regfinal=conf.regularizer, nomodel=conf.nomodel, reg_lambda=conf.reglambda, path=models_dir)
+            model = ai.AICorrNet(conf, input_dim=input_shape[0])
         elif model_type == 'aishacpu':
-            model = ai.AISHACPU(input_shape=input_shape, hamming=conf.hamming, subtype=subtype, suffix=conf.model_suffix, path=models_dir)
+            model = ai.AISHACPU(conf, input_shape=input_shape, subtype=subtype)
         elif model_type == 'aishacc':
-            model = ai.AISHACC(input_shape=input_shape, hamming=conf.hamming, suffix=conf.model_suffix, path=models_dir)
+            model = ai.AISHACC(conf, input_shape=input_shape)
         elif model_type == 'aiascad':
-            model = ai.AIASCAD(input_shape=input_shape, suffix=conf.model_suffix, path=models_dir)
+            model = ai.AIASCAD(conf, input_shape=input_shape)
 
     if conf.tfold:  # Train t times and generate tfold rank summary
         model.train_t_fold(training_iterator, batch_size=conf.batch_size, epochs=conf.epochs, num_train_traces=45000, t=10, rank_trace_step=10, conf=conf)

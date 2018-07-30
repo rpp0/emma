@@ -28,23 +28,51 @@ AICORRNET_KEY_LOW = 2  # 0
 AICORRNET_KEY_HIGH = 3  # 16
 
 
-class AI():
+class AI:
     """
     Base class for the models.
     """
-    def __init__(self, name="unknown", suffix=None, path=None):
+    def __init__(self, conf, name="unknown"):
+        """
+        Initialize AI based on a configuration.
+        :param conf:
+        :param name:
+        """
+        # Set parameters
+        self.last_loss = None
+        self.n_hidden_layers = conf.n_hidden_layers
+        self.use_bias = conf.use_bias
+        self.batch_norm = conf.batch_norm
+        self.activation = conf.activation
+        self.cnn = conf.cnn
+        self.ptinput = conf.ptinput
+        self.metric_freq = conf.metric_freq
+        self.reg = conf.regularizer
+        self.regfinal = conf.regularizer
+        self.nomodel = conf.nomodel
+        self.reg_lambda = conf.reglambda
+        self.momentum = 0.1
+        self.hamming = conf.hamming
+
+        self.suffix = "" if conf.model_suffix is None else '-' + conf.model_suffix  # Added to name later
+        self.name = self.conf_to_name(name, conf)
+
+        # ID
         self.id = str(int(time.time()))
-        suffix = "" if suffix is None else '-' + suffix
-        self.name = name + suffix
-        if path is None:
-            self.models_dir = os.path.join(os.getcwd(), 'models')
-        else:
-            self.models_dir = os.path.abspath(path)
+
+        # Get path
+        models_dir = os.path.join(os.getcwd(), 'models', emutils.conf_to_id(conf))
+        self.models_dir = os.path.abspath(models_dir)
         if not os.path.isdir(self.models_dir):  # TODO only do this when saving. (don't forget callbacks)
             os.makedirs(self.models_dir, exist_ok=True)
         self.model_path = os.path.join(self.models_dir, "%s.h5" % self.name)
         self.base_path = self.model_path.rpartition('.')[0]
+
+        # Internal model
         self.model = None
+
+        # Some additional properties
+        self.using_regularization = (not self.reg is None) or (not self.regfinal is None)
 
         # Callbacks during training
         self.callbacks = {
@@ -203,7 +231,31 @@ class AI():
     def predict(self, x):
         return self.model.predict(x, batch_size=10000, verbose=0)
 
+    def conf_to_name(self, model_type, conf):
+        name = model_type
+
+        if conf.nomodel:
+            name += "-nomodel"
+        name += "-h" + str(conf.n_hidden_layers)
+        if not conf.cnn:
+            if not conf.use_bias:
+                name += "-nobias"
+            if not conf.activation is None:
+                name += "-" + str(conf.activation)
+            if conf.batch_norm:
+                name += "-bn"
+            if not conf.regularizer is None:
+                name += "-reg" + str(conf.regularizer)
+            if conf.hamming:
+                name += '-hw'
+        else:
+            name += '-cnn'
+        name = name + self.suffix
+
+        return name
+
     def load(self):
+        print("Loading model %s" % self.model_path)
         self.model = load_model(self.model_path, custom_objects={'correlation_loss': correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
 
 
@@ -408,38 +460,18 @@ def str_to_activation(string):
 
 
 class AICorrNet(AI):
-    def __init__(self, input_dim, name="aicorrnet", n_hidden_layers=1, use_bias=True, activation='leakyrelu', batch_norm=True, momentum=0.1, reg=None, regfinal=None, reg_lambda=0.001, cnn=False, ptinput=False, nomodel=False, metric_freq=10, suffix=None, path=None):
-        # Get name based on config
-        if nomodel:
-            name += "-nomodel"
-        name += "-h" + str(n_hidden_layers)
-        if not cnn:
-            if not use_bias:
-                name += "-bias"
-            if not activation is None:
-                name += "-" + str(activation)
-            if batch_norm:
-                name += "-bn"
-            if not reg is None:
-                name += "-reg" + str(reg)
-            if not regfinal is None:
-                name += "-regfinal" + str(regfinal)
-        else:
-            name += '-cnn'
-        super(AICorrNet, self).__init__(name, suffix=suffix, path=path)
-
-        # Configure regularizer
-        self.using_regularization = (not reg is None) or (not regfinal is None)
+    def __init__(self, conf, input_dim, name="aicorrnet"):
+        super(AICorrNet, self).__init__(conf, name)
 
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         #optimizer = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, decay=0.0)
-        if cnn:
+        if self.cnn:
             optimizer = keras.optimizers.Nadam(lr=0.00001)
         else:
             optimizer = keras.optimizers.Nadam(lr=0.0001)
         #optimizer = keras.optimizers.Adadelta()
 
-        if not cnn:
+        if not self.cnn:
             self.model = Sequential()
             #initializer = keras.initializers.Constant(value=1.0/input_dim)
             #initializer = keras.initializers.Constant(value=0.5)
@@ -451,19 +483,19 @@ class AICorrNet(AI):
             constraint = None
 
             # Hidden layers
-            for i in range(0, n_hidden_layers):
+            for i in range(0, self.n_hidden_layers):
                 hidden_nodes = 256
-                self.model.add(Dense(hidden_nodes, input_dim=input_dim, use_bias=use_bias, activation=None, kernel_initializer=initializer, kernel_regularizer=str_to_reg(reg, reg_lambda)))
+                self.model.add(Dense(hidden_nodes, input_dim=input_dim, use_bias=self.use_bias, activation=None, kernel_initializer=initializer, kernel_regularizer=str_to_reg(self.reg, self.reg_lambda)))
                 input_dim=hidden_nodes
-                if batch_norm:
-                    self.model.add(BatchNormalization(momentum=momentum))
-                self.model.add(str_to_activation(activation))
+                if self.batch_norm:
+                    self.model.add(BatchNormalization(momentum=self.momentum))
+                self.model.add(str_to_activation(self.activation))
 
             # Output layer
-            self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, input_dim=input_dim, use_bias=use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(regfinal, reg_lambda)))
-            if batch_norm:
+            self.model.add(Dense(AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW, input_dim=input_dim, use_bias=self.use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(self.regfinal, self.reg_lambda)))
+            if self.batch_norm:
                 self.model.add(BatchNormalization(momentum=0.1))
-            self.model.add(str_to_activation(activation))
+            self.model.add(str_to_activation(self.activation))
         else:
             from ASCAD_train_models import cnn_best_nosoftmax
             self.model = cnn_best_nosoftmax(input_shape=(input_dim,1), classes=AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW)
@@ -472,8 +504,8 @@ class AICorrNet(AI):
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
         # Custom callbacks
-        self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=metric_freq)
-        self.callbacks['rank'] = rank.CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=cnn, freq=metric_freq, ptinput=ptinput, nomodel=nomodel)
+        self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=self.metric_freq)
+        self.callbacks['rank'] = rank.CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=self.cnn, freq=self.metric_freq, ptinput=self.ptinput, nomodel=self.nomodel)
 
     def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
         """
@@ -497,27 +529,26 @@ class AICorrNet(AI):
 
 
 class AISHACPU(AI):
-    def __init__(self, input_shape, name="aishacpu", hamming=True, subtype='vgg16', suffix=None, path=None):
-        super(AISHACPU, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix, path=path)
+    def __init__(self, conf, input_shape, name="aishacpu", subtype='vgg16'):
+        super(AISHACPU, self).__init__(conf, name)
+
         assert(K.image_data_format() == 'channels_last')
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 
         self.model = None
         if subtype == 'vgg16':
-            self.model = VGG16(include_top=True, weights=None, input_tensor=input_tensor, input_shape=None, pooling='avg', classes=9 if hamming else 256)
+            self.model = VGG16(include_top=True, weights=None, input_tensor=input_tensor, input_shape=None, pooling='avg', classes=9 if self.hamming else 256)
         elif subtype == 'custom':
-            #reg = regularizers.l2(0.01)
-            reg = None
             self.model = Sequential()
-            self.model.add(Dense(1024, input_shape=input_shape, kernel_regularizer=reg))
+            self.model.add(Dense(1024, input_shape=input_shape, kernel_regularizer=self.reg))
             self.model.add(BatchNormalization(momentum=0.1))
             self.model.add(Activation('relu'))
             input_shape = (None, 1024)
-            self.model.add(Dense(256, input_shape=input_shape, kernel_regularizer=reg))
+            self.model.add(Dense(256, input_shape=input_shape, kernel_regularizer=self.reg))
             self.model.add(BatchNormalization(momentum=0.1))
             self.model.add(Activation('relu'))
             input_shape = (None, 256)
-            self.model.add(Dense(9 if hamming else 256, use_bias=True, input_shape=input_shape, kernel_regularizer=reg))
+            self.model.add(Dense(9 if self.hamming else 256, use_bias=True, input_shape=input_shape, kernel_regularizer=self.reg))
             self.model.add(BatchNormalization(momentum=0.1))
             self.model.add(Activation('softmax'))
 
@@ -530,8 +561,9 @@ class AISHACPU(AI):
 
 
 class AISHACC(AI):
-    def __init__(self, input_shape, name="aishacc", hamming=True, suffix=None, path=None):
-        super(AISHACC, self).__init__(name + ('-hw' if hamming else ''), suffix=suffix, path=path)
+    def __init__(self, conf, input_shape, name="aishacc"):
+        super(AISHACC, self).__init__(conf, name)
+
         input_tensor = Input(shape=input_shape)  # Does not include batch size
 
         """
@@ -595,10 +627,10 @@ class AISHACC(AI):
         #self.model.add(Conv1D(filters=512, kernel_size=3, activation='relu', padding='same'))
         #self.model.add(Dropout(0.25))
         self.model.add(Flatten())
-        self.model.add(Dense(9 if hamming else 256))
+        self.model.add(Dense(9 if self.hamming else 256))
         self.model.add(BatchNormalization(momentum=0.99))
         self.model.add(Activation('tanh'))
-        self.model.add(Dense(9 if hamming else 256))
+        self.model.add(Dense(9 if self.hamming else 256))
         self.model.add(BatchNormalization(momentum=0.99))
         self.model.add(Activation('softmax'))
 
@@ -633,8 +665,8 @@ def cc_catcross_loss(y_true, y_pred):
 
 
 class AIASCAD(AI):
-    def __init__(self, input_shape, name="aiascad", suffix=None, path=None):
-        super(AIASCAD, self).__init__(name, suffix=suffix, path=path)
+    def __init__(self, conf, input_shape, name="aiascad"):
+        super(AIASCAD, self).__init__(conf, name)
         from ASCAD_train_models import cnn_best
 
         self.model = cnn_best(input_shape=input_shape)
