@@ -255,6 +255,35 @@ class TestOps(unittest.TestCase):
 
         self.assertListEqual([int(x) for x in list(ts.traces[0].signal)], [9, 3, 3])
 
+    def test_normalize_trace_set(self):
+        traces = np.array([[10, 16, 19],])
+        expected = np.array([[-5, 1, 4],])
+
+        ts = TraceSet(traces=traces)
+        ops.normalize_trace_set(ts, None, None, None)
+        for i in range(0, len(traces)):
+            self.assertListEqual(list(ts.traces[i].signal), list(expected[i]))
+
+    def test_fft_trace_set(self):
+        traces = np.array([[0, 1, 2]])
+
+        ts = TraceSet(traces=traces)
+        ops.fft_trace_set(ts, None, None, None)
+
+        self.assertListEqual([round(x, 8) for x in list(ts.traces[0].signal)], [3.+0.j, -1.5+0.8660254j, -1.5-0.8660254j])
+
+    def test_window_trace_set(self):
+        traces = np.array([[1], [1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4]])
+        params = [1, 5]
+        expected = np.array([[0, 0, 0, 0], [2, 3, 4, 5], [2, 3, 4, 0]])
+
+        ts = TraceSet(traces=traces)
+        conf = Namespace(windowing_method="rectangular")
+        ops.window_trace_set(ts, None, conf, params=params)
+
+        for i in range(0, len(traces)):
+            self.assertListEqual(list(ts.traces[i].signal), list(expected[i]))
+
 
 if __name__ == '__main__':
     unittest.main()

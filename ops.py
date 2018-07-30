@@ -151,7 +151,7 @@ def random_window_trace_set(trace_set, result, conf, params=None):
     """
     Like window, but with a random begin offset. Used to artificially increase training set.
     """
-    #logger.info("rwindow %s" % (str(params) if not params is None else ""))
+    # logger.info("rwindow %s" % (str(params) if not params is None else ""))
     if params is None:
         logger.error("3 params must be provided to rwindow (begin, end, offset)")
         exit(1)
