@@ -32,6 +32,8 @@ class RankCallbackBase(keras.callbacks.Callback):
         self.cnn = conf.cnn
         self.ptinput = conf.ptinput
         self.nomodel = conf.nomodel
+        self.key_low = conf.key_low
+        self.key_high = conf.key_high
 
         if not save_path is None:
             self.save_path = "%s-bestrank.h5" % save_path.rpartition('.')[0]
@@ -138,7 +140,7 @@ class CorrRankCallback(RankCallbackBase):
             fake_ts.window = Window(begin=0, end=encodings.shape[1])
             fake_ts.windowed = True
 
-            for i in range(2, 3):  # TODO show for all keys
+            for i in range(self.key_low, self.key_high):
                 rank, confidence = calculate_traceset_rank(fake_ts, i, keys[0][i], self.nomodel)  # TODO: It is assumed here that all true keys of the test set are the same
                 self._save_best_rank_model(rank, confidence)
                 logs['rank %d' % i] = rank
