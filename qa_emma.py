@@ -95,7 +95,6 @@ class TestAI(unittest.TestCase):
     @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_corrtrain(self):
         import ai
-        from ai import AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH
         """
         Artificial example to test AICorrNet and trace processing
         """
@@ -157,6 +156,8 @@ class TestAI(unittest.TestCase):
             use_bias=True,
             batch_norm=True,
             hamming=False,
+            key_low=2,
+            key_high=3,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
@@ -187,7 +188,7 @@ class TestAI(unittest.TestCase):
         for i in range(0, x.shape[0]):
             result.append(model.predict(np.array([x[i,:]], dtype=float))[0])  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 16]
         result = np.array(result)
-        print("When feeding x through the model after training, the encodings for key bytes %d to %d become:\n %s" % (AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH, str(result)))
+        print("When feeding x through the model after training, the encodings for key bytes %d to %d become:\n %s" % (conf.key_low, conf.key_high, str(result)))
 
         # ------------------------------
         # Check loss function
@@ -197,11 +198,11 @@ class TestAI(unittest.TestCase):
 
         # Manually calculate the loss using numpy to verify that we are learning a correct correlation
         calculated_loss = 0
-        for i in range(AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH):
-            print("Subkey %d HWs   : %s" %(i, str(y[:,i])))
-            print("Subkey %d encodings: %s" %(i, str(result[:, i-AICORRNET_KEY_LOW])))
+        for i in range(conf.key_low, conf.key_high):
+            print("Subkey %d HWs   : %s" % (i, str(y[:, i])))
+            print("Subkey %d encodings: %s" % (i, str(result[:, i-conf.key_low])))
             y_key = y[:, i].reshape([-1, 1])
-            y_pred = result[:, i-AICORRNET_KEY_LOW].reshape([-1, 1])
+            y_pred = result[:, i-conf.key_low].reshape([-1, 1])
 
             # Calculate correlation (vector approach)
             # y_key_norm = y_key - np.mean(y_key, axis=0)

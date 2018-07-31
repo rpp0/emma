@@ -371,7 +371,7 @@ def memattack_trace_set(trace_set, result, conf=None, params=None):
     if result.correlations is None:
         result.correlations = CorrelationList([16, 256, trace_set.window.size])
 
-    for byte_idx in range(0, conf.num_subkeys):
+    for byte_idx in range(0, conf.key_high - conf.key_low):
         for j in range(0, trace_set.window.size):
             # Get measurements (columns) from all traces
             measurements = np.empty(trace_set.num_traces)

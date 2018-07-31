@@ -81,9 +81,9 @@ def perform_cpa_attack(emma):
     :return:
     """
     logger.info("Attacking traces: %s" % str(emma.dataset.trace_set_paths))
-    max_correlations = np.zeros([emma.conf.skip_subkeys + emma.conf.num_subkeys, 256])
+    max_correlations = np.zeros([emma.conf.key_high, 256])
 
-    for subkey in range(emma.conf.skip_subkeys, min(emma.conf.skip_subkeys + emma.conf.num_subkeys, 16)):
+    for subkey in range(emma.conf.key_low, min(emma.conf.key_high, 16)):
         emma.conf.subkey = subkey
 
         # Execute task
