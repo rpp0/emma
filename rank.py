@@ -21,13 +21,17 @@ class RankCallbackBase(keras.callbacks.Callback):
     Calculate the rank after passing a trace set through the model. A trace_set must be supplied
     since to calculate the rank we need metadata about the traces as well (plaintext and key).
     """
-    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=100):
+    def __init__(self, conf, log_dir, save_best=True, save_path='/tmp/model.h5'):
         self.trace_set = None
         self.writer = tf.summary.FileWriter(log_dir)
         self.save_best = save_best
         self.best_rank = 256
         self.best_confidence = 0
-        self.freq = freq
+
+        self.metric_freq = conf.metric_freq
+        self.cnn = conf.cnn
+        self.ptinput = conf.ptinput
+        self.nomodel = conf.nomodel
 
         if not save_path is None:
             self.save_path = "%s-bestrank.h5" % save_path.rpartition('.')[0]
@@ -56,6 +60,12 @@ class RankCallbackBase(keras.callbacks.Callback):
         self.writer.flush()
 
     def _save_best_rank_model(self, rank, confidence):
+        """
+        Saves the model to disk if the rank is lower and confidence is higher than the previous best.
+        :param rank:
+        :param confidence:
+        :return:
+        """
         # Save
         if self.save_best and rank <= self.best_rank:
             self.best_rank = rank
@@ -72,8 +82,8 @@ class ProbRankCallback(RankCallbackBase):
     RankCallback that assumes the model outputs a probability for each key byte [?, 256].
     """
 
-    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5'):
-        super(ProbRankCallback, self).__init__(log_dir, save_best, save_path)
+    def __init__(self, conf, log_dir, save_best=True, save_path='/tmp/model.h5'):
+        super(ProbRankCallback, self).__init__(conf, log_dir, save_best, save_path)
 
     def on_epoch_end(self, epoch, logs=None):
         if not self.trace_set is None:
@@ -104,20 +114,17 @@ class CorrRankCallback(RankCallbackBase):
     RankCallback that assumes the model an encoding that is highly correlated with the true key bytes.
     """
 
-    def __init__(self, log_dir, save_best=True, save_path='/tmp/model.h5', freq=10, cnn=False, ptinput=False, nomodel=False):
-        self.cnn = cnn
-        self.ptinput = ptinput
-        self.nomodel = nomodel
-        super(CorrRankCallback, self).__init__(log_dir, save_best, save_path, freq)
+    def __init__(self, conf, log_dir, save_best=True, save_path='/tmp/model.h5'):
+        super(CorrRankCallback, self).__init__(conf, log_dir, save_best, save_path)
 
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
 
-        if epoch % self.freq != 0:
+        if epoch % self.metric_freq != 0:
             return
         if not self.trace_set is None:
             if self.ptinput:
-                x = np.array([np.concatenate((trace.signal,trace.plaintext)) for trace in self.trace_set.traces])
+                x = np.array([np.concatenate((trace.signal, trace.plaintext)) for trace in self.trace_set.traces])
             else:
                 x = np.array([trace.signal for trace in self.trace_set.traces])
             if self.cnn:

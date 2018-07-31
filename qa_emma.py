@@ -150,7 +150,7 @@ class TestAI(unittest.TestCase):
             nomodel=False,
             n_hidden_layers=1,
             activation='leakyrelu',
-            metric_freq=10,
+            metric_freq=100,
             regularizer=None,
             reglambda=0.001,
             model_suffix=None,
@@ -165,7 +165,7 @@ class TestAI(unittest.TestCase):
         # Train and obtain encodings
         # ------------------------------
         model = ai.AICorrNet(conf, input_dim=4, name="test")
-        rank_cb = rank.CorrRankCallback('/tmp/deleteme/', save_best=False, save_path=None, freq=100)
+        rank_cb = rank.CorrRankCallback(conf, '/tmp/deleteme/', save_best=False, save_path=None)
         rank_cb.set_trace_set(trace_set)
 
         if model.using_regularization:

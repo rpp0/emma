@@ -79,7 +79,6 @@ class AI:
             'lastloss': LastLoss(),
             'tensorboard': TensorBoard(log_dir='/tmp/keras/' + self.name + '-' + self.id),
             'save': SaveLowestValLoss(self.model_path),
-            'rank': rank.ProbRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path),
         }
 
     def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
@@ -94,10 +93,10 @@ class AI:
 
         # Train model
         self.model.fit_generator(training_iterator,
-                                epochs=epochs,
-                                steps_per_epoch=steps_per_epoch,
-                                validation_data=validation_batch,
-                                workers=workers, callbacks=list(self.callbacks.values()) + [SavingHistory(self.base_path)], verbose=1)
+                                 epochs=epochs,
+                                 steps_per_epoch=steps_per_epoch,
+                                 validation_data=validation_batch,
+                                 workers=workers, callbacks=list(self.callbacks.values()) + [SavingHistory(self.base_path)], verbose=1)
 
         # Get loss from callback
         self.last_loss = self.callbacks['lastloss'].value
@@ -300,8 +299,8 @@ def correlation_loss(y_true_raw, y_pred_raw):
 
     loss = K.variable(0.0)
     for key_col in range(AICORRNET_KEY_LOW, AICORRNET_KEY_HIGH):  # 0 - 16
-        y_key = K.expand_dims(y_true[:,key_col], axis=1)  # [?, 16] -> [?, 1]
-        y_keypred = K.expand_dims(y_pred[:,key_col-AICORRNET_KEY_LOW], axis=1)  # [?, 16] -> [?, 1]
+        y_key = K.expand_dims(y_true[:, key_col], axis=1)  # [?, 16] -> [?, 1]
+        y_keypred = K.expand_dims(y_pred[:, key_col-AICORRNET_KEY_LOW], axis=1)  # [?, 16] -> [?, 1]
         denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
         denom = K.maximum(denom, K.epsilon())
         correlation = K.dot(K.transpose(y_key), y_keypred) / denom
@@ -498,14 +497,14 @@ class AICorrNet(AI):
             self.model.add(str_to_activation(self.activation))
         else:
             from ASCAD_train_models import cnn_best_nosoftmax
-            self.model = cnn_best_nosoftmax(input_shape=(input_dim,1), classes=AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW)
+            self.model = cnn_best_nosoftmax(input_shape=(input_dim, 1), classes=AICORRNET_KEY_HIGH - AICORRNET_KEY_LOW)
 
         # Compile model
         self.model.compile(optimizer=optimizer, loss=correlation_loss, metrics=[])
 
         # Custom callbacks
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=self.metric_freq)
-        self.callbacks['rank'] = rank.CorrRankCallback('/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path, cnn=self.cnn, freq=self.metric_freq, ptinput=self.ptinput, nomodel=self.nomodel)
+        self.callbacks['rank'] = rank.CorrRankCallback(conf, '/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
 
     def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
         """
