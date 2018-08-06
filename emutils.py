@@ -16,12 +16,25 @@ BANNER = """  _____ __  __ __  __    _
  |Electromagnetic Mining Array
  ============================="""
 
+
+def get_action_op_params(action_string):
+    params = None
+    if '[' in action_string:
+        op, _, params = action_string.rpartition('[')
+        params = params.rstrip(']').split(',')
+    else:
+        op = action_string
+
+    return op, params
+
+
 def chunks(input_list, chunk_size):
     '''
     Divide a list into chunks of size 'chunk_size'
     '''
     for i in range(0, len(input_list), chunk_size):
         yield input_list[i:i+chunk_size]
+
 
 def partition(input_list, num_partitions):
     '''
@@ -32,11 +45,13 @@ def partition(input_list, num_partitions):
     for i in range(0, len(input_list), n):
         yield input_list[i:i+n]
 
+
 def numpy_to_hex(np_array):
     result = ""
     for elem in np_array:
         result += "{:0>2} ".format(hex(elem)[2:])
     return result
+
 
 def pretty_print_correlations(np_array, limit_rows=20):
     if type(np_array) != np.ndarray:
@@ -63,6 +78,7 @@ def pretty_print_correlations(np_array, limit_rows=20):
                 print(" {:>4.2f} ({:02x}) |".format(float(corr), byte),end='')
             print('')
 
+
 class Window(object):
     def __init__(self, begin, end):
         self.begin = begin
@@ -72,6 +88,7 @@ class Window(object):
         else:
             self.size = None
 
+
 # Source: https://stackoverflow.com/questions/24196932/how-can-i-get-the-ip-address-of-eth0-in-python
 def get_ip_address(ifname):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -80,6 +97,7 @@ def get_ip_address(ifname):
         0x8915,  # SIOCGIFADDR
         struct.pack('256s', bytes(ifname[:15], encoding='utf-8'))
     )[20:24])
+
 
 def conf_to_id(conf):
     conf_dict = conf.__dict__
@@ -92,7 +110,7 @@ def conf_to_id(conf):
     })
 
     if 'actions' in conf_dict:
-        for action in conf_dict['actions']:
+        for action in conf_dict['actions'][:-1]:
             if first:
                 first = False
             else:
@@ -101,7 +119,7 @@ def conf_to_id(conf):
     if 'dataset_id' in conf_dict:
         result += "-" + conf_dict['dataset_id']
 
-    # Replacing corrtest TODO make this cleaner somehow
-    result = result.replace("corrtest-attack", "corrtrain")
+    # Ignore corrtest in naming because it's something between action and activity TODO make this cleaner somehow
+    result = result.replace("-corrtest", "")
 
     return result

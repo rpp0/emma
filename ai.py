@@ -252,6 +252,22 @@ class AI:
         print("Loading model %s" % self.model_path)
         self.model = load_model(self.model_path, custom_objects={'correlation_loss': self.correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
 
+    def get_saliency(self, examples_iterator):
+        # Define tensors
+        gradients_tensor = K.gradients(self.model.layers[-1].output, self.model.input)[0]
+        signals_tensor = K.placeholder(self.model.input.shape)
+        get_gradients = K.function([signals_tensor], [gradients_tensor])
+
+        # Get batch from iterator
+        examples_batch_signals, example_batch_values = examples_iterator.next()
+        print(examples_batch_signals.shape)
+
+        # Get gradients of this batch
+        gradients = get_gradients([examples_batch_signals])
+
+        # Visualize gradients
+        print(gradients)
+
 
 class AIMemCopyDirect():
     """

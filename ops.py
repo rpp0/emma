@@ -22,7 +22,7 @@ from dsp import *
 from correlationlist import CorrelationList
 from functools import wraps
 from os.path import join, basename
-from emutils import Window, conf_to_id
+from emutils import Window, conf_to_id, get_action_op_params
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from emresult import EMResult
@@ -545,12 +545,7 @@ def remote_get_trace_set(trace_set_path, format, ignore_malformed):
 def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=False):
     # Perform actions
     for action in conf.actions:
-        params = None
-        if '[' in action:
-            op, _, params = action.rpartition('[')
-            params = params.rstrip(']').split(',')
-        else:
-            op = action
+        op, params = get_action_op_params(action)
         if op in ops:
             ops[op](trace_set, result, conf=conf, params=params)
         else:
@@ -710,7 +705,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     subtype = 'custom'
 
     # Determine type of model to train
-    model_type = get_conf_model_type(conf)  # TODO: Refactor 'name' to 'model_type' everywhere
+    model_type = get_conf_model_type(conf)  # TODO: Refactor 'name' to 'model_type' everywhere and let user specify modeltype in [] params of "train" activity
 
     # Select training iterator (gathers data, performs augmentation and preprocessing)
     training_iterator, validation_iterator = aiiterators.get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
@@ -741,3 +736,27 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
         model.test_fold(validation_iterator, rank_trace_step=10, conf=conf, max_traces=5000)
     else:  # Train once
         model.train_generator(training_iterator, validation_iterator, epochs=conf.epochs, workers=1)
+
+
+@app.task(bind=True)
+def salvis(self, trace_set_paths, model_type, conf):
+    """
+    Visualize the salience of an AI.
+    :param self:
+    :param trace_set_paths: List of trace set paths to be used as possible examples for the saliency visualization.
+    :param model_type: Type of model to load for this configuration.
+    :param conf: Configuration of the model (required preprocessing actions, architecture, etc.).
+    :return:
+    """
+
+    logger.info("Loading model")
+    model = ai.AI(conf, model_type)
+    model.load()
+
+    logger.info("Resolving traces")
+    resolve_paths(trace_set_paths)
+    examples_iterator, _ = aiiterators.get_iterators_for_model(model_type, trace_set_paths, [], conf, hamming=conf.hamming, subtype=None, request_id=self.request.id)
+
+    logger.info("Getting saliency")
+    model.get_saliency(examples_iterator)
+

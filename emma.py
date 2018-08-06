@@ -90,27 +90,29 @@ class EMMAHost:
 
         return conf
 
-    def _determine_activity(self):
+    def _determine_activity(self):  # TODO put under activities.py
         num_activities = 0
         activity = None
 
-        for activity_name in activities.keys():
-            for action in self.conf.actions:
-                if activity_name == action:
-                    activity = activities[activity_name]
-                    num_activities += 1
+        for action in self.conf.actions:
+            op, params = emutils.get_action_op_params(action)
+            if op in activities.keys():
+                activity = activities[op]
+                num_activities += 1
 
         if num_activities > 1:
             raise Exception("Only one activity can be executed at a time. Choose from: %s" % str(activities.keys()))
 
         if activity is None:
             activity = activities['default']
+        if params is None:
+            params = []
 
-        return activity
+        return activity, params
 
     def run(self):
-        activity = self._determine_activity()
-        activity(self)
+        activity, params = self._determine_activity()
+        activity(self, *params)
 
 
 if __name__ == "__main__":

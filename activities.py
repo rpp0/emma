@@ -16,6 +16,15 @@ logger = get_task_logger(__name__)  # Logger
 activities = {}
 
 
+def submit_task(task, *args, remote=True, message="Working", **kwargs):
+    if remote:
+        async_result = task.si(*args).delay()
+        wait_until_completion(async_result, message=message + " (remote)")
+    else:
+        logger.info(message)
+        task(*args)
+
+
 def activity(name):
     """
     Defines the @activity decorator
@@ -132,11 +141,10 @@ def perform_ml_attack(emma):
     logger.info("Training set: %s" % str(training_split))
     logger.info("Validation set: %s" % str(validation_split))
 
-    if emma.conf.remote:
-        async_result = aitrain.si(training_split, validation_split, emma.conf).delay()
-        wait_until_completion(async_result, message="Waiting for worker to train neural network")
-    else:
-        aitrain(training_split, validation_split, emma.conf)
+    submit_task(aitrain,
+                training_split, validation_split, emma.conf,
+                remote=emma.conf.remote,
+                message="Training neural network")
 
 
 @activity('basetest')
@@ -190,3 +198,11 @@ def perform_classification_attack(emma):
     print(predict_count)
     print("Best prediction: %d" % np.argmax(predict_count))
     print("Accuracy: %.4f" % accuracy)
+
+
+@activity('salvis')
+def visualize_model(emma, model_type, *args, **kwargs):
+    submit_task(salvis,
+                emma.dataset.trace_set_paths, model_type, emma.conf,
+                remote=emma.conf.remote,
+                message="Visualizing neural net")
