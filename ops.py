@@ -292,6 +292,8 @@ def plot_trace_set(trace_set, result, conf=None, params=None):
             maxplots = int(params[0])
         elif len(params) == 2:
             maxplots = int(params[0])
+    else:
+        maxplots = 32
 
     count = 0
     for trace in trace_set.traces:
@@ -758,5 +760,7 @@ def salvis(self, trace_set_paths, model_type, conf):
     examples_iterator, _ = aiiterators.get_iterators_for_model(model_type, trace_set_paths, [], conf, hamming=conf.hamming, subtype=None, request_id=self.request.id)
 
     logger.info("Getting saliency")
-    model.get_saliency(examples_iterator)
+    #model.get_saliency(examples_iterator)
+    model.get_saliency_deluxe(examples_iterator)
+    #model.get_saliency_keravi(examples_iterator)
 

@@ -89,14 +89,17 @@ def perform_cpa_attack(emma):
     :param emma:
     :return:
     """
-    logger.info("Attacking traces: %s" % str(emma.dataset.trace_set_paths))
+    if emma.dataset_val is None:
+        emma.dataset_val = emma.dataset
+
+    logger.info("Attacking traces: %s" % str(emma.dataset_val.trace_set_paths))
     max_correlations = np.zeros([emma.conf.key_high, 256])
 
     for subkey in range(emma.conf.key_low, min(emma.conf.key_high, 16)):
         emma.conf.subkey = subkey
 
         # Execute task
-        async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf, merge_results=True)
+        async_result = parallel_actions(emma.dataset_val.trace_set_paths, emma.conf, merge_results=True)
         em_result = wait_until_completion(async_result, message="Attacking subkey %d" % emma.conf.subkey)
 
         # Parse results
@@ -161,8 +164,11 @@ def perform_actions(emma, message="Performing actions"):
     :param message:
     :return:
     """
-    async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf)
-    return wait_until_completion(async_result, message=message)
+    if emma.conf.remote:
+        async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf)
+        return wait_until_completion(async_result, message=message)
+    else:
+        work(emma.dataset.trace_set_paths, emma.conf)
 
 
 @activity('classify')
@@ -202,7 +208,12 @@ def perform_classification_attack(emma):
 
 @activity('salvis')
 def visualize_model(emma, model_type, *args, **kwargs):
+    if emma.dataset_val is not None:
+        trace_sets = emma.dataset_val.trace_set_paths
+    else:
+        trace_sets = emma.dataset.trace_set_paths
+
     submit_task(salvis,
-                emma.dataset.trace_set_paths, model_type, emma.conf,
+                trace_sets, model_type, emma.conf,
                 remote=emma.conf.remote,
-                message="Visualizing neural net")
+                message="Visualizing neural net %s" % str(trace_sets))

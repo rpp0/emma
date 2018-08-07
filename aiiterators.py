@@ -55,14 +55,17 @@ class AISignalIteratorBase():
         return self
 
     def get_all_as_trace_set(self, limit=None):
+        if limit is None:
+            traces_to_get = self.trace_set_paths
+        else:
+            traces_to_get = self.trace_set_paths[0:limit]
+
         result = EMResult(task_id=self.request_id)  # Make new collection of results
-        ops.process_trace_set_paths(result, self.trace_set_paths, self.conf, keep_trace_sets=True, request_id=self.request_id)  # Store processed trace path in result
+        ops.process_trace_set_paths(result, traces_to_get, self.conf, keep_trace_sets=True, request_id=self.request_id)  # Store processed trace path in result
 
         all_traces = []
         for trace_set in result.trace_sets:
             all_traces.extend(trace_set.traces)
-            if not limit is None and len(all_traces) >= limit:
-                break
 
         result = TraceSet(name="all_traces")
         result.set_traces(all_traces)
