@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 
-def plot_colormap(inputs, show=True, cmap='inferno', **kwargs):
+def plot_colormap(inputs, show=True, cmap='inferno', draw_axis=True, **kwargs):
     """
     Plot signals given in the inputs numpy array in a colormap.
     :param inputs:
@@ -18,7 +18,8 @@ def plot_colormap(inputs, show=True, cmap='inferno', **kwargs):
                            interpolation='nearest',
                            cmap=cmap,
                            **kwargs)
-    plt.colorbar(colorplot)
+    if draw_axis:
+        plt.colorbar(colorplot)
     plt.tight_layout()
     if show:
         plt.show()

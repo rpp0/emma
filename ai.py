@@ -313,6 +313,94 @@ class AI:
             # Plot
             visualizations.plot_colormap(gradients[0: max_shown_traces, :])
 
+    def get_saliency_2d_overlay(self, examples_iterator, take_gradient_mean=True, max_shown_traces=512, hide_bias=False):
+        from dsp import normalize_p2p
+        # Get batch from iterator
+        examples_batch_signals = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=2).traces])
+
+        print("Size: %d traces" % examples_batch_signals.shape[0])
+
+        for subkey in range(self.key_low, self.key_high):
+            # Define tensors
+            gradients_tensor = K.gradients(self.model.output[:, subkey - self.key_low], self.model.input)[0]
+            get_gradients = K.function([self.model.input], [gradients_tensor])
+
+            # Get gradients of this batch
+            gradients = get_gradients([examples_batch_signals])[0]
+
+            # Square gradient (we don't care about the sign or about low values)
+            gradients = np.square(gradients)
+
+            # Replace with mean
+            if take_gradient_mean:
+                mean_gradient = np.mean(gradients, axis=0)  # !!!!!!!!!!! TODO TODO TODO Scale or square?
+                gradients = []
+                for i in range(0, 512):
+                    gradients.append(mean_gradient)
+                gradients = np.array(gradients)
+
+            mult = np.multiply(gradients[0: max_shown_traces, :], examples_batch_signals[0: max_shown_traces, :])
+            visualizations.plot_colormap(examples_batch_signals[0: max_shown_traces, :], cmap='gray', show=False, draw_axis=False, alpha=1.0)
+            visualizations.plot_colormap(mult, cmap='inferno', show=True, draw_axis=False, alpha=0.8)
+
+    def get_saliency_2d_overlayold(self, examples_iterator, take_gradient_mean=True, max_shown_traces=512, hide_bias=False):
+        """
+        # Get batch from iterator
+        examples_batch_signals = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=2).traces])
+
+        visualizations.plot_colormap(examples_batch_signals[0: max_shown_traces, 1:], cmap='plasma', show=False, draw_axis=False)
+        fig = plt.gcf()
+        fig.canvas.draw()
+
+        w, h = fig.canvas.get_width_height()
+        image_buffer = np.frombuffer(fig.canvas.buffer_rgba(), np.uint8).reshape(h, w, -1)
+
+        plt.clf()
+        plt.imshow(image_buffer)
+        plt.axis("off")
+        plt.show()
+        """
+
+        from matplotlib.colors import ListedColormap
+
+        # Get batch from iterator
+        examples_batch_signals = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=2).traces])
+
+        print("Size: %d traces" % examples_batch_signals.shape[0])
+        if hide_bias:
+            visualizations.plot_colormap(examples_batch_signals[0: max_shown_traces, 1:], cmap='Greys', show=False, draw_axis=False)
+        else:
+            visualizations.plot_colormap(examples_batch_signals[0: max_shown_traces, :], cmap='Greys', show=False, draw_axis=False)
+
+        colormaps = ['Purples', 'Blues', 'Greens', 'Oranges', 'Reds']
+        colormaps = ['inferno', 'inferno', 'inferno', 'inferno', 'inferno']
+        for subkey in range(self.key_low, self.key_high):
+            # Define tensors
+            gradients_tensor = K.gradients(self.model.output[:, subkey - self.key_low], self.model.input)[0]
+            get_gradients = K.function([self.model.input], [gradients_tensor])
+
+            # Get gradients of this batch
+            gradients = get_gradients([examples_batch_signals])[0]
+
+            # Square gradient (we don't care about the sign or about low values)
+            gradients = np.square(gradients)
+
+            # Replace with mean
+            if take_gradient_mean:
+                mean_gradient = np.mean(gradients, axis=0)  # !!!!!!!!!!! TODO TODO TODO Scale or square?
+                gradients = []
+                for i in range(0, 512):
+                    gradients.append(mean_gradient)
+                gradients = np.array(gradients)
+
+            # Plot
+            cmap_orig = plt.get_cmap(colormaps.pop(0))
+            cmap_alpha = cmap_orig(np.arange(cmap_orig.N))
+            cmap_alpha[:, -1] = np.linspace(0, 1, cmap_orig.N)  # dim 0: pixel, dim 1: channel
+            cmap_alpha = ListedColormap(cmap_alpha)
+            visualizations.plot_colormap(gradients[0: max_shown_traces, :], cmap=cmap_alpha, show=False, draw_axis=False)
+        plt.show()
+
     def get_saliency_keravi(self, examples_iterator):
         from vis.visualization import visualize_saliency
 
