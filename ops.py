@@ -760,7 +760,7 @@ def salvis(self, trace_set_paths, model_type, conf):
     examples_iterator, _ = aiiterators.get_iterators_for_model(model_type, trace_set_paths, [], conf, hamming=conf.hamming, subtype=None, request_id=self.request.id)
 
     logger.info("Getting saliency")
-    #model.get_saliency(examples_iterator)
-    model.get_saliency_deluxe(examples_iterator)
+    model.get_saliency_1d(examples_iterator)
+    #model.get_saliency_2d(examples_iterator)
     #model.get_saliency_keravi(examples_iterator)
 

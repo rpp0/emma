@@ -11,6 +11,7 @@ import tensorflow as tf
 import traceset
 import emutils
 import rank
+import visualizations
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU
 from keras.layers.normalization import BatchNormalization
@@ -254,16 +255,15 @@ class AI:
         print("Loading model %s" % self.model_path)
         self.model = load_model(self.model_path, custom_objects={'correlation_loss': self.correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
 
-    def get_saliency(self, examples_iterator):
+    def get_saliency_1d(self, examples_iterator):
         from dsp import normalize
 
         # Get batch from iterator
         examples_batch_signals, example_batch_values = examples_iterator.next()
         signal_to_plot = np.mean(examples_batch_signals, axis=0)[1:]
 
-        plt.plot(normalize(signal_to_plot), color='tab:blue', label='Signal (normalized)')
+        plt.plot(normalize(signal_to_plot), color='tab:blue', label='Mean signal (normalized)')
 
-        gradient_colors = ['tab:orange', 'tab:green', 'tab:purple']
         for subkey in range(self.key_low, self.key_high):
             # Define tensors
             gradients_tensor = K.gradients(self.model.output[:, subkey], self.model.input)[0]
@@ -271,61 +271,47 @@ class AI:
 
             # Get gradients of this batch
             gradients = get_gradients([examples_batch_signals])[0]
+
+            # Square gradient (we don't care about the sign or about low values)
+            gradients = np.square(gradients)
 
             # Visualize gradients
             gradient_to_plot = np.mean(gradients, axis=0)[1:]
-            plt.plot(normalize(gradient_to_plot), color=gradient_colors.pop(0), label='Subkey %d gradient (normalized)' % subkey, alpha=0.6)
+            plt.plot(normalize(gradient_to_plot), label='Mean subkey %d gradient (normalized)' % subkey, alpha=0.6)
         plt.legend()
         plt.show()
 
-    def get_saliency_deluxe(self, examples_iterator):
-        import matplotlib.colors as colors
-
+    def get_saliency_2d(self, examples_iterator, take_gradient_mean=True, max_shown_traces=512, hide_bias=False):
         # Get batch from iterator
-        examples_batch_signals = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=100).traces])
-        vmin = examples_batch_signals[:, 1:].min()  # Minimum value except bias term
-        vmax = examples_batch_signals[:, 1:].max()  # Maximum value except bias term
+        examples_batch_signals = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=2).traces])
 
         print("Size: %d traces" % examples_batch_signals.shape[0])
-        plt.imshow(examples_batch_signals[0:512, :],
-                   #norm=colors.LogNorm(vmin=examples_batch_signals.min(), vmax=examples_batch_signals.max()),
-                   vmin=vmin,
-                   vmax=vmax,
-                   interpolation='nearest',
-                   cmap='plasma')
-        plt.tight_layout()
-        plt.show()
+        if hide_bias:
+            visualizations.plot_colormap(examples_batch_signals[0: max_shown_traces, 1:], cmap='plasma')
+        else:
+            visualizations.plot_colormap(examples_batch_signals[0: max_shown_traces, :], cmap='plasma')
 
         for subkey in range(self.key_low, self.key_high):
             # Define tensors
-            #loss_func = get_correlation_loss(subkey, subkey+1)
-            gradients_tensor = K.gradients(self.model.output[:, subkey], self.model.input)[0]
-            #gradients_tensor = K.gradients(loss_func(), self.model.input)[0]
+            gradients_tensor = K.gradients(self.model.output[:, subkey - self.key_low], self.model.input)[0]
             get_gradients = K.function([self.model.input], [gradients_tensor])
 
             # Get gradients of this batch
             gradients = get_gradients([examples_batch_signals])[0]
-            print("Size: %d gradient" % gradients.shape[0])
+
+            # Square gradient (we don't care about the sign or about low values)
+            gradients = np.square(gradients)
 
             # Replace with mean
-            mean_gradient = np.square(np.mean(gradients, axis=0)) # !!!!!!!!!!! TODO TODO TODO Scale or square?
-            gradients = []
-            for i in range(0, 512):
-                gradients.append(mean_gradient)
-            gradients = np.array(gradients)
+            if take_gradient_mean:
+                mean_gradient = np.mean(gradients, axis=0)  # !!!!!!!!!!! TODO TODO TODO Scale or square?
+                gradients = []
+                for i in range(0, 512):
+                    gradients.append(mean_gradient)
+                gradients = np.array(gradients)
 
             # Plot
-            vmin_grad = gradients.min()
-            vmax_grad = gradients.max()
-            plt.imshow(gradients,
-                       #norm=colors.LogNorm(vmin=examples_batch_signals.min(), vmax=examples_batch_signals.max()),
-                       vmin=vmin_grad,
-                       vmax=vmax_grad,
-                       interpolation='nearest',
-                       alpha=1.0,
-                       cmap='inferno')
-            plt.tight_layout()
-            plt.show()
+            visualizations.plot_colormap(gradients[0: max_shown_traces, :])
 
     def get_saliency_keravi(self, examples_iterator):
         from vis.visualization import visualize_saliency

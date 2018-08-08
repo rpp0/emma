@@ -39,6 +39,7 @@ class AISignalIteratorBase():
         self.normalize = conf.normalize
         self.stream_server = stream_server
         self.traces_per_set = conf.traces_per_set
+        self.num_total_examples = 0
         if conf.online:
             self.num_total_examples = batch_size
         else:
@@ -46,10 +47,11 @@ class AISignalIteratorBase():
 
             # TODO fixme, hack for getting ASCAD to report correct number of samples
             if 'ASCAD' in conf.dataset_id:
-                if '-val' in self.trace_set_paths[0]:
-                    self.num_total_examples = 10000
-                else:
-                    self.num_total_examples = 50000
+                if self.trace_set_paths:
+                    if '-val' in self.trace_set_paths[0]:
+                        self.num_total_examples = 10000
+                    else:
+                        self.num_total_examples = 50000
 
     def __iter__(self):
         return self
