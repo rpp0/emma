@@ -207,13 +207,16 @@ def perform_classification_attack(emma):
 
 
 @activity('salvis')
-def visualize_model(emma, model_type, *args, **kwargs):
+def visualize_model(emma, model_type, vis_type='2doverlay', *args, **kwargs):
     if emma.dataset_val is not None:
         trace_sets = emma.dataset_val.trace_set_paths
     else:
         trace_sets = emma.dataset.trace_set_paths
 
     submit_task(salvis,
-                trace_sets, model_type, emma.conf,
+                trace_sets,
+                model_type,
+                vis_type.lower(),
+                emma.conf,
                 remote=emma.conf.remote,
                 message="Visualizing neural net %s" % str(trace_sets))

@@ -17,6 +17,7 @@ import aiiterators
 import ai
 import traceset
 import rank
+import saliency
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
@@ -741,7 +742,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
 
 
 @app.task(bind=True)
-def salvis(self, trace_set_paths, model_type, conf):
+def salvis(self, trace_set_paths, model_type, vis_type, conf):
     """
     Visualize the salience of an AI.
     :param self:
@@ -750,7 +751,6 @@ def salvis(self, trace_set_paths, model_type, conf):
     :param conf: Configuration of the model (required preprocessing actions, architecture, etc.).
     :return:
     """
-
     logger.info("Loading model")
     model = ai.AI(conf, model_type)
     model.load()
@@ -759,9 +759,27 @@ def salvis(self, trace_set_paths, model_type, conf):
     resolve_paths(trace_set_paths)
     examples_iterator, _ = aiiterators.get_iterators_for_model(model_type, trace_set_paths, [], conf, hamming=conf.hamming, subtype=None, request_id=self.request.id)
 
-    logger.info("Getting saliency")
-    #model.get_saliency_1d(examples_iterator)
-    #model.get_saliency_2d(examples_iterator)
-    model.get_saliency_2d_overlay(examples_iterator)
-    #model.get_saliency_keravi(examples_iterator)
+    logger.info("Retrieving batch of examples")
+    examples_batch = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=2).traces])
+    examples_batch = examples_batch[0:conf.saliency_num_traces, :]
+    if len(examples_batch.shape) != 2:
+        raise ValueError("Expected 2D examples batch for saliency visualization.")
+
+    if conf.saliency_remove_bias:
+        examples_batch = examples_batch[:, 1:]
+
+    logger.info("Getting saliency of %d traces" % examples_batch.shape[0])
+
+    if vis_type == '1d':
+        saliency.plot_saliency_1d(conf, model, examples_batch)
+    elif vis_type == '2d':
+        saliency.plot_saliency_2d(conf, model, examples_batch)
+    elif vis_type == '2doverlay':
+        saliency.plot_saliency_2d_overlay(conf, model, examples_batch)
+    elif vis_type == 'kerasvis':
+        saliency.plot_saliency_kerasvis(conf, model, examples_batch)
+    elif vis_type == '2doverlayold':
+        saliency.plot_saliency_2d_overlayold(conf, model, examples_batch)
+    else:
+        logger.error("Unknown visualization type: %s" % vis_type)
 
