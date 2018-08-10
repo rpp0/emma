@@ -1,7 +1,23 @@
 import matplotlib.pyplot as plt
+from datetime import datetime
+from matplotlib.backends.backend_pdf import PdfPages
 
 
-def plot_colormap(inputs, show=True, cmap='inferno', draw_axis=True, **kwargs):
+def plt_save_pdf(filename):
+    pp = PdfPages(filename)
+    pp.savefig()
+    pp.close()
+
+
+def plot_colormap(inputs,
+                  show=True,
+                  cmap='inferno',
+                  draw_axis=True,
+                  title='',
+                  xlabel='',
+                  ylabel='',
+                  save=False,
+                  **kwargs):
     """
     Plot signals given in the inputs numpy array in a colormap.
     :param inputs:
@@ -20,6 +36,14 @@ def plot_colormap(inputs, show=True, cmap='inferno', draw_axis=True, **kwargs):
                            **kwargs)
     if draw_axis:
         plt.colorbar(colorplot)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
     plt.tight_layout()
+    if save:
+        if title:
+            plt_save_pdf('/tmp/%s.pdf' % title)
+        else:
+            plt_save_pdf('/tmp/%s.pdf' % str(datetime.now()))
     if show:
         plt.show()

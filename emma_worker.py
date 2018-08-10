@@ -11,6 +11,7 @@ import configparser
 import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Ignore Tensorflow deprecation and performance warnings
+# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Do not use GPU
 
 try:
     settings = configparser.RawConfigParser()

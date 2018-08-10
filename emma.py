@@ -42,7 +42,7 @@ def clear_redis():
     try:
         subprocess.check_output(["redis-cli", "flushall"])
         logger.info("Redis cleared")
-    except FileNotFoundError:
+    except (FileNotFoundError, subprocess.CalledProcessError):
         logger.warning("Could not clear local Redis database")
 
 
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument('--regularizer', type=str, default=None, help='Regularizer to use.')
     parser.add_argument('--reglambda', type=float, default=0.001, help='Regularizer lambda.')
     parser.add_argument('--nomodel', default=False, action='store_true', help='Do not assume power consumption model.')
-    parser.add_argument('--ptinput', default=False, action='store_true', help='Also use plaintext as inputs.')
+    parser.add_argument('--ptinput', default=False, action='store_true', help='Also use plaintext as inputs to neural net.')
     parser.add_argument('--batch-size', type=int, default=512, help='Batch size.')
     parser.add_argument('--metric-freq', type=int, default=10, help='Frequency of calculating metrics (e.g. rank) of model.')
     parser.add_argument('--use-bias', default=True, action='store_true', help='Use a bias term.')  # TODO: It's impossible to disable this now; fix

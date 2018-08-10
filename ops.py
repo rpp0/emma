@@ -18,6 +18,7 @@ import ai
 import traceset
 import rank
 import saliency
+import visualizations
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
@@ -27,7 +28,6 @@ from emutils import Window, conf_to_id, get_action_op_params
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from emresult import EMResult
-from matplotlib.backends.backend_pdf import PdfPages
 
 logger = get_task_logger(__name__)  # Logger
 ops = {}  # Op registry
@@ -307,9 +307,7 @@ def plot_trace_set(trace_set, result, conf=None, params=None):
     plt.title(trace_set.name)
 
     if (not params is None) and 'save' in params:
-        pp = PdfPages('/tmp/%s.pdf' % trace_set.name)
-        pp.savefig()
-        pp.close()
+        visualizations.plt_save_pdf('/tmp/%s.pdf' % trace_set.name)
         plt.clf()
     else:
         plt.show()

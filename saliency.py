@@ -17,21 +17,20 @@ def plot_saliency_2d_overlay(conf, model, examples_batch):
                                                square_gradients=True,
                                                mean_of_gradients=conf.saliency_mean_gradient)
 
-        # Multiply the gradient element-by-element with the EM trace so high gradients
-        # are brighter in the colormap
-        mult = np.multiply(gradients, examples_batch)
-
         # Plot the result
         visualizations.plot_colormap(examples_batch,
                                      cmap='gray',
                                      show=False,
                                      draw_axis=False,
                                      alpha=1.0)
-        visualizations.plot_colormap(mult,
+        visualizations.plot_colormap(gradients,
                                      cmap='inferno',
                                      show=True,
                                      draw_axis=False,
-                                     alpha=0.8)
+                                     alpha=0.8,
+                                     title='%d' % subkey,
+                                     xlabel='Time (samples)',
+                                     ylabel='Trace index')
 
 
 def plot_saliency_2d(conf, model, examples_batch):
