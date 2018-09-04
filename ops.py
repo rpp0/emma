@@ -18,37 +18,19 @@ import ai
 import traceset
 import rank
 import saliency
-import visualizations
+import registry
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
 from distancelist import DistanceList
-from functools import wraps
 from os.path import join, basename
 from emutils import Window, conf_to_id, get_action_op_params
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from emresult import EMResult
+from registry import op
 
 logger = get_task_logger(__name__)  # Logger
-ops = {}  # Op registry
-ops_optargs = {}
-
-
-def op(name, optargs=None):
-    """
-    Defines the @op decorator
-    """
-    def decorator(func):
-        ops[name] = func
-        if not optargs is None:
-            ops_optargs[name] = optargs
-
-        @wraps(func)  # Copy function metadata to wrapper()
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
 
 
 @op('align', optargs=['ref_window_begin', 'ref_window_end'])
@@ -282,37 +264,6 @@ def save_trace_set(trace_set, result, conf, params=None):
     else:
         print("Unknown format: %s" % conf.outform)
         exit(1)
-
-
-@op('plot', optargs=['save'])
-def plot_trace_set(trace_set, result, conf=None, params=None):
-    """
-    Plot each trace in a trace set using Matplotlib
-    """
-    logger.info("plot %s" % (str(params) if not params is None else ""))
-    if not params is None:
-        if len(params) == 1 and not 'save' in params:
-            maxplots = int(params[0])
-        elif len(params) == 2:
-            maxplots = int(params[0])
-    else:
-        maxplots = 32
-
-    count = 0
-    for trace in trace_set.traces:
-        plt.plot(range(0, len(trace.signal)), trace.signal)
-        count += 1
-        if count >= maxplots:
-            break
-    plt.plot(range(0, len(conf.reference_signal)), conf.reference_signal, linewidth=2, linestyle='dashed')
-
-    plt.title(trace_set.name)
-
-    if (not params is None) and 'save' in params:
-        visualizations.plt_save_pdf('/tmp/%s.pdf' % trace_set.name)
-        plt.clf()
-    else:
-        plt.show()
 
 
 @op('attack')
@@ -594,10 +545,10 @@ def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=
     # Perform actions
     for action in conf.actions:
         op, params = get_action_op_params(action)
-        if op in ops:
-            ops[op](trace_set, result, conf=conf, params=params)
+        if op in registry.operations:
+            registry.operations[op](trace_set, result, conf=conf, params=params)
         else:
-            if not ('train' in action):
+            if op not in registry.activities:
                 logger.warning("Ignoring unknown op '%s'." % op)
 
     # Store result
@@ -793,6 +744,7 @@ def salvis(self, trace_set_paths, model_type, vis_type, conf):
     :param self:
     :param trace_set_paths: List of trace set paths to be used as possible examples for the saliency visualization.
     :param model_type: Type of model to load for this configuration.
+    :param vis_type: Visualization type.
     :param conf: Configuration of the model (required preprocessing actions, architecture, etc.).
     :return:
     """
@@ -827,4 +779,3 @@ def salvis(self, trace_set_paths, model_type, vis_type, conf):
         saliency.plot_saliency_2d_overlayold(conf, model, examples_batch)
     else:
         logger.error("Unknown visualization type: %s" % vis_type)
-

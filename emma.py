@@ -4,8 +4,6 @@
 # Copyright 2017, Pieter Robyns
 # ----------------------------------------------------
 
-from ops import ops, ops_optargs
-from activities import activities
 from emma_worker import app
 from celery.utils.log import get_task_logger
 
@@ -14,6 +12,7 @@ import subprocess
 import emutils
 import emio
 import configparser
+import registry
 
 logger = get_task_logger(__name__)
 
@@ -23,11 +22,11 @@ def args_epilog():
     Build epilog for the help instructions of EMMA.
     """
     result = "Actions can take the following parameters between square brackets ('[]'):\n"
-    for op in ops.keys():
+    for op in registry.operations.keys():
         result += "{:>20s} ".format(op)
-        if op in ops_optargs:
+        if op in registry.operations_optargs:
             result += "["
-            for optarg in ops_optargs[op]:
+            for optarg in registry.operations_optargs[op]:
                 result += "{:s}, ".format(optarg)
             result = result.strip().rstrip(',')
             result += "]"
@@ -96,15 +95,15 @@ class EMMAHost:
 
         for action in self.conf.actions:
             op, params = emutils.get_action_op_params(action)
-            if op in activities.keys():
-                activity = activities[op]
+            if op in registry.activities.keys():
+                activity = registry.activities[op]
                 num_activities += 1
 
         if num_activities > 1:
-            raise Exception("Only one activity can be executed at a time. Choose from: %s" % str(activities.keys()))
+            raise Exception("Only one activity can be executed at a time. Choose from: %s" % str(registry.activities.keys()))
 
         if activity is None:
-            activity = activities['default']
+            activity = registry.activities['default']
         if params is None:
             params = []
 
@@ -117,7 +116,7 @@ class EMMAHost:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('actions', type=str, help='Action to perform. Choose from %s' % str(ops.keys()), nargs='+')
+    parser.add_argument('actions', type=str, help='Action to perform. Choose from %s' % str(registry.operations.keys()), nargs='+')
     parser.add_argument('dataset', type=str, help='Identifier of dataset to use')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw', 'sigmf', 'gnuradio'], default='sigmf', help='Output format to use when saving')
     parser.add_argument('--outpath', '-O', dest='outpath', type=str, default='./export/', help='Output path to use when saving')

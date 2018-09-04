@@ -5,15 +5,16 @@
 
 import time
 import emutils
+import ops
+import numpy as np
+import visualizations
 
-from ops import *
 from celery import group, chord
 from celery.result import AsyncResult, GroupResult
 from celery.utils.log import get_task_logger
-from functools import wraps
+from registry import activity
 
 logger = get_task_logger(__name__)  # Logger
-activities = {}
 
 
 def submit_task(task, *args, remote=True, message="Working", **kwargs):
@@ -23,21 +24,6 @@ def submit_task(task, *args, remote=True, message="Working", **kwargs):
     else:
         logger.info(message)
         task(*args)
-
-
-def activity(name):
-    """
-    Defines the @activity decorator
-    """
-    def decorator(func):
-        activities[name] = func
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-        return wrapper
-
-    return decorator
 
 
 def wait_until_completion(async_result, message="Task"):
@@ -75,15 +61,15 @@ def parallel_actions(trace_set_paths, conf, merge_results=False):
     num_partitions = min(conf.max_subtasks, len(trace_set_paths))
     result = []
     for part in emutils.partition(trace_set_paths, num_partitions):
-        result.append(work.si(part, conf))
+        result.append(ops.work.si(part, conf))
     if merge_results:  # Merge correlation subresult from all workers into one final result
-        return chord(result, body=merge.s(conf))()
+        return chord(result, body=ops.merge.s(conf))()
     else:
         return group(result)()
 
 
 @activity('attack')
-def perform_cpa_attack(emma):
+def __perform_cpa_attack(emma):
     """
     Attack that predicts the best subkey guess using the maximum correlation with the key value.
     :param emma:
@@ -105,13 +91,13 @@ def perform_cpa_attack(emma):
         most_likely_bytes = np.argmax(max_correlations, axis=1)
         print(emutils.numpy_to_hex(most_likely_bytes))
 
-    _attack_subkeys(emma, update_correlations, print_results)
+    __attack_subkeys(emma, update_correlations, print_results)
 
     if emma.dataset_val is None:
         emma.dataset_val = emma.dataset
 
 
-def _attack_subkeys(emma, subkey_score_cb, final_score_cb):
+def __attack_subkeys(emma, subkey_score_cb, final_score_cb):
     score = np.zeros([emma.conf.key_high, 256])
 
     # Determine dataset to attack
@@ -136,7 +122,7 @@ def _attack_subkeys(emma, subkey_score_cb, final_score_cb):
 
 
 @activity('dattack')
-def perform_dis_attack(emma):
+def __perform_dis_attack(emma):
     """
     Attack that predicts the best subkey guess using the minimum absolute distance to the key value.
     :param emma:
@@ -161,14 +147,14 @@ def perform_dis_attack(emma):
         most_likely_bytes = np.argmin(min_distances, axis=1)
         print(emutils.numpy_to_hex(most_likely_bytes))
 
-    _attack_subkeys(emma, update_distances, print_results)
+    __attack_subkeys(emma, update_distances, print_results)
 
 
 @activity('corrtrain')
 @activity('ascadtrain')
 @activity('shacputrain')
 @activity('shacctrain')
-def perform_ml_attack(emma):
+def __perform_ml_attack(emma):
     """
     Trains a machine learning algorithm on the training samples from a dataset.
     """
@@ -189,20 +175,29 @@ def perform_ml_attack(emma):
     logger.info("Training set: %s" % str(training_split))
     logger.info("Validation set: %s" % str(validation_split))
 
-    submit_task(aitrain,
+    submit_task(ops.aitrain,
                 training_split, validation_split, emma.conf,
                 remote=emma.conf.remote,
                 message="Training neural network")
 
 
+@activity('plot')
+def __perform_plot(emma, *params):
+    async_result = ops.work.si(emma.dataset.trace_set_paths[0:1], emma.conf, keep_trace_sets=True, keep_correlations=False).delay()
+    em_result = wait_until_completion(async_result, message="Performing actions")
+
+    for trace_set in em_result.trace_sets:
+        visualizations.plot_trace_set(emma.conf, trace_set, params=params)
+
+
 @activity('basetest')
-def perform_base_test(emma):
-    async_result = basetest.si(emma.dataset.trace_set_paths, emma.conf).delay()
+def __perform_base_test(emma):
+    async_result = ops.basetest.si(emma.dataset.trace_set_paths, emma.conf).delay()
     wait_until_completion(async_result, message="Performing base test")
 
 
 @activity('default')
-def perform_actions(emma, message="Performing actions"):
+def __perform_actions(emma, message="Performing actions"):
     """
     Default activity: split trace_set_paths in partitions and let each node execute the actions on its assigned partition.
     :param emma:
@@ -213,11 +208,11 @@ def perform_actions(emma, message="Performing actions"):
         async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf)
         return wait_until_completion(async_result, message=message)
     else:
-        work(emma.dataset.trace_set_paths, emma.conf)
+        ops.work(emma.dataset.trace_set_paths, emma.conf)
 
 
 @activity('classify')
-def perform_classification_attack(emma):
+def __perform_classification_attack(emma):
     async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf)
     celery_results = wait_until_completion(async_result, message="Classifying")
 
@@ -233,9 +228,9 @@ def perform_classification_attack(emma):
     # Get results from all workers and store in prediction dictionary
     for celery_result in celery_results:
         em_result = celery_result.get()
-        for i in range(0, len(em_result._data['labels'])):
-            label = em_result._data['labels'][i]
-            prediction = em_result._data['predictions'][i]
+        for i in range(0, len(em_result.labels)):
+            label = em_result.labels[i]
+            prediction = em_result.predictions[i]
             if label == prediction:
                 accuracy += 1
             predict_count[prediction] += 1
@@ -252,13 +247,13 @@ def perform_classification_attack(emma):
 
 
 @activity('salvis')
-def visualize_model(emma, model_type, vis_type='2doverlay', *args, **kwargs):
+def __visualize_model(emma, model_type, vis_type='2doverlay', *args, **kwargs):
     if emma.dataset_val is not None:
         trace_sets = emma.dataset_val.trace_set_paths
     else:
         trace_sets = emma.dataset.trace_set_paths
 
-    submit_task(salvis,
+    submit_task(ops.salvis,
                 trace_sets,
                 model_type,
                 vis_type.lower(),
