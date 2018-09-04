@@ -101,7 +101,7 @@ def perform_cpa_attack(emma):
         print("{:02x}".format(np.argmax(max_correlations[subkey_index])))
 
     def print_results(max_correlations):
-        emutils.pretty_print_correlations(max_correlations, limit_rows=20)
+        emutils.pretty_print_subkey_scores(max_correlations, limit_rows=20)
         most_likely_bytes = np.argmax(max_correlations, axis=1)
         print(emutils.numpy_to_hex(most_likely_bytes))
 
@@ -157,7 +157,7 @@ def perform_dis_attack(emma):
         print("{:02x}".format(np.argmin(min_distances[subkey_index])))
 
     def print_results(min_distances):
-        emutils.pretty_print_correlations(min_distances, limit_rows=20, reverse=False)
+        emutils.pretty_print_subkey_scores(min_distances, limit_rows=20, descending=False)
         most_likely_bytes = np.argmin(min_distances, axis=1)
         print(emutils.numpy_to_hex(most_likely_bytes))
 
