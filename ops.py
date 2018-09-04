@@ -22,6 +22,7 @@ import visualizations
 from emma_worker import app, broker
 from dsp import *
 from correlationlist import CorrelationList
+from distancelist import DistanceList
 from functools import wraps
 from os.path import join, basename
 from emutils import Window, conf_to_id, get_action_op_params
@@ -42,7 +43,8 @@ def op(name, optargs=None):
         ops[name] = func
         if not optargs is None:
             ops_optargs[name] = optargs
-        @wraps(func)
+
+        @wraps(func)  # Copy function metadata to wrapper()
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
         return wrapper
@@ -365,6 +367,50 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
             # Update correlation
             result.correlations.update((subkey_guess,j), hypotheses[subkey_guess,:], measurements)
 
+# TODO: Duplicate code, fix me
+@op('dattack')
+def dattack_trace_set(trace_set, result, conf=None, params=None):
+    """
+    Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
+    """
+    logger.info("dattack %s" % (str(params) if not params is None else ""))
+
+    # Init if first time
+    if result.distances is None:
+        result.distances = DistanceList([256, trace_set.window.size])
+
+    if not trace_set.windowed:
+        logger.warning("Trace set not windowed. Skipping attack.")
+        return
+
+    if trace_set.num_traces <= 0:
+        logger.warning("Skipping empty trace set.")
+        return
+
+    hypotheses = np.empty([256, trace_set.num_traces])
+
+    # 1. Build hypotheses for all 256 possibilities of the key and all traces
+    for subkey_guess in range(0, 256):
+        for i in range(0, trace_set.num_traces):
+            if conf.nomodel:
+                hypotheses[subkey_guess, i] = sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]
+            elif conf.nomodelpt:
+                hypotheses[subkey_guess, i] = subkey_guess
+            else:
+                hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]]  # Model of the power consumption
+
+    # 2. Given point j of trace i, calculate the distance between all hypotheses
+    for j in range(0, trace_set.window.size):
+        # Get measurements (columns) from all traces
+        measurements = np.empty(trace_set.num_traces)
+        for i in range(0, trace_set.num_traces):
+            measurements[i] = trace_set.traces[i].signal[j]
+
+        # Correlate measurements with 256 hypotheses
+        for subkey_guess in range(0, 256):
+            # Update distamces
+            result.distances.update((subkey_guess, j), hypotheses[subkey_guess, :], measurements)
+
 
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None, params=None):
@@ -522,6 +568,12 @@ def merge(self, to_merge, conf):
             # Start merging
             for m in to_merge:
                 result.correlations.merge(m.correlations)
+        elif 'dattack' in conf.actions:  # TODO just check for presence of to_merge.distances instead of doing this
+            shape = to_merge[0].distances._n.shape
+            result.distances = DistanceList(shape)
+            # Start merging
+            for m in to_merge:
+                result.distances.merge(m.distances)
 
         # Clean up tasks
         for m in to_merge:

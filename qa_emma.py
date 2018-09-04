@@ -12,6 +12,7 @@ import rank
 import ops
 
 from correlationlist import CorrelationList
+from distancelist import DistanceList
 from traceset import TraceSet
 from argparse import Namespace
 from aiiterators import AICorrSignalIterator
@@ -87,6 +88,72 @@ class TestCorrelationList(unittest.TestCase):
         self.assertAlmostEqual(c3[0], np.corrcoef(x_check, y_check)[1,0], places=13)
 
 
+class TestDistanceList(unittest.TestCase):
+    def test_update(self):
+        test_array = np.array([
+            [1, 2],
+            [3, 5],
+            [4, 5],
+            [4, 8]
+        ])
+        x = test_array[:, 0]
+        y = test_array[:, 1]
+
+        clist1 = DistanceList(1)
+        clist1.update(0, x, y)
+        clist2 = DistanceList([1, 1])
+        clist2.update((0, 0), x, y)
+
+        # Checks
+        self.assertAlmostEqual(clist1[0], np.sum(np.abs(x - y)), places=13)
+        self.assertAlmostEqual(clist2[0, 0], np.sum(np.abs(x - y)), places=13)
+
+    def test_merge(self):
+        test_array_1 = np.array([
+            [1, 2],
+            [3, 5],
+            [4, 5],
+            [4, 8]
+        ])
+
+        test_array_2 = np.array([
+            [4, 3],
+            [5, 4],
+            [6, 1],
+            [8, 8]
+        ])
+
+        test_array_check = np.array([
+            [1, 2],
+            [3, 5],
+            [4, 5],
+            [4, 8],
+            [4, 3],
+            [5, 4],
+            [6, 1],
+            [8, 8]
+        ])
+
+        x1 = test_array_1[:, 0]
+        y1 = test_array_1[:, 1]
+        x2 = test_array_2[:, 0]
+        y2 = test_array_2[:, 1]
+        x_check = test_array_check[:, 0]
+        y_check = test_array_check[:, 1]
+
+        c1 = DistanceList(1)
+        c1.update(0, x1, y1)
+
+        c2 = DistanceList(1)
+        c2.update(0, x2, y2)
+
+        c3 = DistanceList(1)
+        c3.merge(c1)
+        c3.merge(c2)
+
+        self.assertAlmostEqual(c3[0], np.sum(np.abs(x_check - y_check)), places=13)
+
+
 class TestUtils(unittest.TestCase):
     pass
 
@@ -147,6 +214,7 @@ class TestAI(unittest.TestCase):
             ptinput=False,
             cnn=False,
             nomodel=False,
+            nomodelpt=False,
             n_hidden_layers=1,
             activation='leakyrelu',
             metric_freq=100,
@@ -158,6 +226,7 @@ class TestAI(unittest.TestCase):
             hamming=False,
             key_low=2,
             key_high=3,
+            loss_type='correlation',
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
@@ -274,7 +343,7 @@ class TestOps(unittest.TestCase):
         ts = TraceSet(traces=traces)
         ops.spectogram_trace_set(ts, None, None, None)
 
-        self.assertListEqual([int(x) for x in list(ts.traces[0].signal)], [9, 3, 3])
+        self.assertListEqual([round(x, 8) for x in list(ts.traces[0].signal)], [9., 3., 3.])
 
     def test_normalize_trace_set(self):
         traces = np.array([[10, 16, 19],])

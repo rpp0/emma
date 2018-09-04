@@ -51,7 +51,7 @@ class AI:
         self.hamming = conf.hamming
         self.key_low = conf.key_low
         self.key_high = conf.key_high
-        self.correlation_loss = get_correlation_loss(conf.key_low, conf.key_high)
+        self.loss = get_loss(conf.key_low, conf.key_high, loss_type=conf.loss_type)
 
         self.suffix = "" if conf.model_suffix is None else '-' + conf.model_suffix  # Added to name later
         self.name = self.conf_to_name(name, conf)
@@ -254,7 +254,7 @@ class AI:
 
     def load(self):
         print("Loading model %s" % self.model_path)
-        self.model = load_model(self.model_path, custom_objects={'correlation_loss': self.correlation_loss, 'cc_loss': cc_loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
+        self.model = load_model(self.model_path, custom_objects={self.loss.__name__: self.loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
 
     def get_output_gradients(self, neuron_index, examples_batch, mean_of_gradients=False, square_gradients=False):
         """
@@ -316,28 +316,49 @@ class AIMemCopyDirect():
         pass
 
 
-def get_correlation_loss(key_low, key_high):
-    def correlation_loss(y_true_raw, y_pred_raw):
-        """
-        Custom loss function that calculates the Pearson correlation of the prediction with
-        the true values over a number of batches.
-        """
-        # y_true_raw = K.print_tensor(y_true_raw, message='y_true_raw = ')  # Note: print truncating is incorrect in the print_tensor function
-        # y_pred_raw = K.print_tensor(y_pred_raw, message='y_pred_raw = ')
-        y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
-        y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
+def get_loss(key_low, key_high, loss_type='correlation'):
+    if loss_type == 'correlation':
+        def correlation_loss(y_true_raw, y_pred_raw):
+            """
+            Custom loss function that calculates the Pearson correlation of the prediction with
+            the true values over a number of batches.
+            """
+            # y_true_raw = K.print_tensor(y_true_raw, message='y_true_raw = ')  # Note: print truncating is incorrect in the print_tensor function
+            # y_pred_raw = K.print_tensor(y_pred_raw, message='y_pred_raw = ')
+            y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
+            y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
 
-        loss = K.variable(0.0)
-        for key_col in range(key_low, key_high):  # 0 - 16
-            y_key = K.expand_dims(y_true[:, key_col], axis=1)  # [?, 16] -> [?, 1]
-            y_keypred = K.expand_dims(y_pred[:, key_col-key_low], axis=1)  # [?, 16] -> [?, 1]
-            denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
-            denom = K.maximum(denom, K.epsilon())
-            correlation = K.dot(K.transpose(y_key), y_keypred) / denom
-            loss += 1.0 - correlation
+            loss = K.variable(0.0)
+            for key_col in range(key_low, key_high):  # 0 - 16
+                y_key = K.expand_dims(y_true[:, key_col], axis=1)  # [?, 16] -> [?, 1]
+                y_keypred = K.expand_dims(y_pred[:, key_col - key_low], axis=1)  # [?, 16] -> [?, 1]
+                denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
+                denom = K.maximum(denom, K.epsilon())
+                correlation = K.dot(K.transpose(y_key), y_keypred) / denom
+                loss += 1.0 - correlation
 
-        return loss
-    return correlation_loss
+            return loss
+
+        return correlation_loss
+    elif loss_type == 'abs_distance' or loss_type == 'squared_distance':
+        squared = True if loss_type == 'squared_distance' else False
+
+        def distance_loss(y_true_raw, y_pred_raw):
+            y_true = y_true_raw
+            y_pred = y_pred_raw
+
+            loss = K.variable(0.0)
+            for key_col in range(key_low, key_high):  # 0 - 16
+                y_key = y_true[:, key_col]  # [?, 16] -> [?,]
+                y_keypred = y_pred[:, key_col - key_low]  # [?, 16] -> [?,]
+                if squared:
+                    loss += K.sum(K.square(y_key - y_keypred))
+                else:
+                    loss += K.sum(K.abs(y_key - y_keypred))
+
+            return loss
+
+        return distance_loss
 
 
 class LossHistory(keras.callbacks.Callback):
@@ -531,7 +552,7 @@ class AICorrNet(AI):
             self.model = cnn_best_nosoftmax(input_shape=(input_dim, 1), classes=conf.key_high - conf.key_low)
 
         # Compile model
-        self.model.compile(optimizer=optimizer, loss=self.correlation_loss, metrics=[])
+        self.model.compile(optimizer=optimizer, loss=self.loss, metrics=[])
 
         # Custom callbacks
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=self.metric_freq)

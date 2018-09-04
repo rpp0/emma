@@ -85,38 +85,83 @@ def parallel_actions(trace_set_paths, conf, merge_results=False):
 @activity('attack')
 def perform_cpa_attack(emma):
     """
-    Activity that performs a regular Correlation Power Analysis attack on the dataset.
+    Attack that predicts the best subkey guess using the maximum correlation with the key value.
     :param emma:
     :return:
     """
+
+    def update_correlations(max_correlations, em_result, subkey_index):
+        corr_result = em_result.correlations
+        print("Num correlation entries: %d" % corr_result._n[0][0])
+
+        # Get maximum correlations over all points
+        for subkey_guess in range(0, 256):
+            max_correlations[subkey_index, subkey_guess] = np.max(np.abs(corr_result[subkey_guess, :]))
+
+        print("{:02x}".format(np.argmax(max_correlations[subkey_index])))
+
+    def print_results(max_correlations):
+        emutils.pretty_print_correlations(max_correlations, limit_rows=20)
+        most_likely_bytes = np.argmax(max_correlations, axis=1)
+        print(emutils.numpy_to_hex(most_likely_bytes))
+
+    _attack_subkeys(emma, update_correlations, print_results)
+
     if emma.dataset_val is None:
         emma.dataset_val = emma.dataset
 
-    logger.info("Attacking traces: %s" % str(emma.dataset_val.trace_set_paths))
-    max_correlations = np.zeros([emma.conf.key_high, 256])
 
+def _attack_subkeys(emma, subkey_score_cb, final_score_cb):
+    score = np.zeros([emma.conf.key_high, 256])
+
+    # Determine dataset to attack
+    if emma.dataset_val is None:
+        emma.dataset_val = emma.dataset
+    logger.info("Attacking traces: %s" % str(emma.dataset_val.trace_set_paths))
+
+    # Attack each subkey separately
     for subkey in range(emma.conf.key_low, min(emma.conf.key_high, 16)):
-        emma.conf.subkey = subkey
+        emma.conf.subkey = subkey  # Set in conf, so the workers know which subkey to attack
 
         # Execute task
         async_result = parallel_actions(emma.dataset_val.trace_set_paths, emma.conf, merge_results=True)
         em_result = wait_until_completion(async_result, message="Attacking subkey %d" % emma.conf.subkey)
 
         # Parse results
-        if not em_result is None:
-            corr_result = em_result.correlations
-            print("Num entries: %d" % corr_result._n[0][0])
-
-            # Get maximum correlations over all points
-            for subkey_guess in range(0, 256):
-                max_correlations[emma.conf.subkey, subkey_guess] = np.max(np.abs(corr_result[subkey_guess,:]))
-
-            print("{:02x}".format(np.argmax(max_correlations[emma.conf.subkey])))
+        if em_result is not None:
+            subkey_score_cb(score, em_result, subkey)
 
     # Print results to stdout
-    emutils.pretty_print_correlations(max_correlations, limit_rows=20)
-    most_likely_bytes = np.argmax(max_correlations, axis=1)
-    print(emutils.numpy_to_hex(most_likely_bytes))
+    final_score_cb(score)
+
+
+@activity('dattack')
+def perform_dis_attack(emma):
+    """
+    Attack that predicts the best subkey guess using the minimum absolute distance to the key value.
+    :param emma:
+    :return:
+    """
+
+    # Define callbacks
+    def update_distances(min_distances, em_result, subkey_index):
+        # Get score for this subkey determined by the workers
+        dis_result = em_result.distances
+        print("Num distance entries: %d" % dis_result._n[0][0])
+
+        # Get minimum distances over all points in the trace or encoding
+        for subkey_guess in range(0, 256):
+            min_distances[subkey_index, subkey_guess] = np.min(dis_result[subkey_guess, :])
+
+        # Print best subkey guess for this subkey index
+        print("{:02x}".format(np.argmin(min_distances[subkey_index])))
+
+    def print_results(min_distances):
+        emutils.pretty_print_correlations(min_distances, limit_rows=20, reverse=False)
+        most_likely_bytes = np.argmin(min_distances, axis=1)
+        print(emutils.numpy_to_hex(most_likely_bytes))
+
+    _attack_subkeys(emma, update_distances, print_results)
 
 
 @activity('corrtrain')

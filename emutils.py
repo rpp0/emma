@@ -53,7 +53,7 @@ def numpy_to_hex(np_array):
     return result
 
 
-def pretty_print_correlations(np_array, limit_rows=20):
+def pretty_print_correlations(np_array, limit_rows=20, reverse=True):
     if type(np_array) != np.ndarray:
         print("Warning: pretty_print_table: not a numpy array!")
         return
@@ -66,7 +66,7 @@ def pretty_print_correlations(np_array, limit_rows=20):
         num_subkeys = np_array.shape[0]
         sorted_correlations = []
         for subkey in range(0, num_subkeys):
-            sorted_subkey = sorted(zip(np_array[subkey,:], range(256)), key=lambda f: f[0], reverse=True)[0:limit_rows]
+            sorted_subkey = sorted(zip(np_array[subkey,:], range(256)), key=lambda f: f[0], reverse=reverse)[0:limit_rows]
             sorted_correlations.append(sorted_subkey)
 
         for subkey in range(0, num_subkeys):

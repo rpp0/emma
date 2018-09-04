@@ -46,6 +46,7 @@ class AISignalIteratorBase():
             self.num_total_examples = len(self.trace_set_paths) * self.traces_per_set
 
             # TODO fixme, hack for getting ASCAD to report correct number of samples
+            # TODO total examples should be determined in the dataset class rather than here
             if 'ASCAD' in conf.dataset_id:
                 if self.trace_set_paths:
                     if '-val' in self.trace_set_paths[0]:
@@ -211,19 +212,24 @@ class AICorrSignalIterator(AISignalIteratorBase):
             signals = np.array([np.concatenate((trace.signal,trace.plaintext)) for trace in trace_set.traces], dtype=float)
         else:
             signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
-        if self.conf.cnn == True:
+
+        # CNNs expect a channel dimension
+        if self.conf.cnn:
             signals = np.expand_dims(signals, axis=-1)
 
         # Get model labels (key bytes to correlate)
         values = np.zeros((len(trace_set.traces), 16), dtype=float)
         for i in range(len(trace_set.traces)):
             for j in range(16):
-                if self.conf.nomodel:
+                if self.conf.nomodel:  # No Hamming weight assumption
                     values[i, j] = sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]
-                else:
+                elif self.conf.nomodelpt:  # No assumptions; just use the key
+                    values[i, j] = trace_set.traces[i].key[j]
+                else:  # Assume Hamming weight model and plaintext known
                     values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
 
         return signals, values
+
 
 class AISHACPUSignalIterator(AISignalIteratorBase):
     def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None, hamming=True, subtype='vgg16'):

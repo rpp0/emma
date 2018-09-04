@@ -149,6 +149,7 @@ if __name__ == "__main__":
     parser.add_argument('--reglambda', type=float, default=0.001, help='Regularizer lambda.')
     parser.add_argument('--nomodel', default=False, action='store_true', help='Do not assume power consumption model.')
     parser.add_argument('--ptinput', default=False, action='store_true', help='Also use plaintext as inputs to neural net.')
+    parser.add_argument('--nomodelpt', default=False, action='store_true', help='Do not assume power consumption model or knowledge of plaintext.')  # TODO Should conflict with --nomodel
     parser.add_argument('--batch-size', type=int, default=512, help='Batch size.')
     parser.add_argument('--metric-freq', type=int, default=10, help='Frequency of calculating metrics (e.g. rank) of model.')
     parser.add_argument('--use-bias', default=True, action='store_true', help='Use a bias term.')  # TODO: It's impossible to disable this now; fix
@@ -156,6 +157,7 @@ if __name__ == "__main__":
     parser.add_argument('--saliency-remove-bias', default=False, action='store_true', help='Remove first samples when using the salvis activity.')
     parser.add_argument('--saliency-mean-gradient', default=True, action='store_true', help='Get the mean gradient of the batch instead of individual gradients when visualizing saliency.')  # TODO: Impossible to disable
     parser.add_argument('--saliency-num-traces', type=int, default=512, help='Maxmimum number of traces to show in saliency plots.')
+    parser.add_argument('--loss-type', dest='loss_type', type=str, choices=['correlation', 'abs_distance', 'squared_distance'], default='correlation', help='Loss function to use when training.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
     assert(args.key_low < args.key_high)
