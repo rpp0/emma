@@ -483,28 +483,23 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
 def corrtest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
-        if result._data['state'] is None:
-            result._data['state'] = ai.AI(conf, "aicorrnet")
-            result._data['state'].load()
+        if result.ai is None:
+            result.ai = ai.AI(conf, "aicorrnet")
+            result.ai.load()
 
         # Fetch signals from traces
         if conf.ptinput:
-            x = np.array([np.concatenate((trace.signal,trace.plaintext)) for trace in trace_set.traces], dtype=float)
+            x = np.array([np.concatenate((trace.signal, trace.plaintext)) for trace in trace_set.traces], dtype=float)
         else:
             x = np.array([trace.signal for trace in trace_set.traces])
-        #import keras.backend as K
-        #get_output = K.function([result._data['state'].model.layers[0].input, K.learning_phase()], [result._data['state'].model.layers[-1].output])
-        #encodings = get_output([x, 1])[0]
-        #encoding_dimensions = result._data['state'].model.layers[-1].output_shape[1]
 
         # Get encodings of signals
-        encodings = result._data['state'].predict(x)
+        encodings = result.ai.predict(x)
 
         # Replace original signal with encoding
         assert(encodings.shape[0] == len(trace_set.traces))
         for i in range(0, len(trace_set.traces)):
             trace_set.traces[i].signal = encodings[i]
-            #trace_set.traces[i].signal = result._data['state'].predict(np.array([trace_set.traces[i].signal]))  # Without copy, but somewhat slower
 
         # Adjust window size
         trace_set.window = Window(begin=0, end=encodings.shape[1])
@@ -517,35 +512,35 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
 def shacputest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("shacputest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
-        if result._data['state'] is None:
-            result._data['state'] = ai.AI(conf, "aishacpu")
-            result._data['state'].load()
+        if result.ai is None:
+            result.ai = ai.AI(conf, "aishacpu")
+            result.ai.load()
 
         for trace in trace_set.traces:
             if conf.hamming:
-                result._data['labels'].append(hw[trace.plaintext[0] ^ 0x36])
+                result.labels.append(hw[trace.plaintext[0] ^ 0x36])
             else:
-                result._data['labels'].append(trace.plaintext[0] ^ 0x36)
-            result._data['predictions'].append(np.argmax(result._data['state'].predict(np.array([trace.signal], dtype=float))))
+                result.labels.append(trace.plaintext[0] ^ 0x36)
+            result.predictions.append(np.argmax(result.ai.predict(np.array([trace.signal], dtype=float))))
 
 
 @op('shacctest')
 def shacctest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("shacctest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
-        if result._data['state'] is None:
-            result._data['state'] = ai.AI(conf, "aishacc")
-            result._data['state'].load()
+        if result.ai is None:
+            result.ai = ai.AI(conf, "aishacc")
+            result.ai.load()
 
         for trace in trace_set.traces:
             if conf.hamming:
-                result._data['labels'].append(hw[trace.plaintext[0] ^ 0x36])
+                result.labels.append(hw[trace.plaintext[0] ^ 0x36])
             else:
-                result._data['labels'].append(trace.plaintext[0] ^ 0x36)
+                result.labels.append(trace.plaintext[0] ^ 0x36)
 
-            cc_out = result._data['state'].predict(np.array([trace.signal], dtype=float))
+            cc_out = result.ai.predict(np.array([trace.signal], dtype=float))
             predicted_classes = np.argmax(cc_out, axis=1)
-            result._data['predictions'].append(predicted_classes[0])
+            result.predictions.append(predicted_classes[0])
 
 
 @app.task(bind=True)
@@ -661,7 +656,7 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
             result.trace_sets = None
         if not keep_correlations:  # Do not return correlations
             result.correlations = None
-        result._data['state'] = None  # Never return state
+        result.ai = None  # Do not return AI object
 
         return result
     else:
