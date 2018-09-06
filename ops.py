@@ -27,7 +27,7 @@ from os.path import join, basename
 from emutils import Window, conf_to_id, get_action_op_params
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
-from emresult import EMResult
+from emresult import EMResult, SalvisResult
 from registry import op
 
 logger = get_task_logger(__name__)  # Logger
@@ -591,7 +591,7 @@ def resolve_paths(trace_set_paths):
 
 
 @app.task(bind=True)
-def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=True):
+def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_scores=True, keep_ai=False):
     """
     Actions to be performed by workers on the trace set given in trace_set_path.
     """
@@ -605,9 +605,11 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_correlations=T
 
         if not keep_trace_sets:  # Do not return processed traces
             result.trace_sets = None
-        if not keep_correlations:  # Do not return correlations
+        if not keep_scores:  # Do not return attack scores
             result.correlations = None
-        result.ai = None  # Do not return AI object
+            result.distances = None
+        if not keep_ai:
+            result.ai = None  # Do not return AI object
 
         return result
     else:
@@ -744,7 +746,6 @@ def salvis(self, trace_set_paths, model_type, vis_type, conf):
     :param self:
     :param trace_set_paths: List of trace set paths to be used as possible examples for the saliency visualization.
     :param model_type: Type of model to load for this configuration.
-    :param vis_type: Visualization type.
     :param conf: Configuration of the model (required preprocessing actions, architecture, etc.).
     :return:
     """
@@ -764,18 +765,6 @@ def salvis(self, trace_set_paths, model_type, vis_type, conf):
 
     if conf.saliency_remove_bias:
         examples_batch = examples_batch[:, 1:]
+    kerasvis = True if vis_type == 'kerasvis' else False
 
-    logger.info("Getting saliency of %d traces" % examples_batch.shape[0])
-
-    if vis_type == '1d':
-        saliency.plot_saliency_1d(conf, model, examples_batch)
-    elif vis_type == '2d':
-        saliency.plot_saliency_2d(conf, model, examples_batch)
-    elif vis_type == '2doverlay':
-        saliency.plot_saliency_2d_overlay(conf, model, examples_batch)
-    elif vis_type == 'kerasvis':
-        saliency.plot_saliency_kerasvis(conf, model, examples_batch)
-    elif vis_type == '2doverlayold':
-        saliency.plot_saliency_2d_overlayold(conf, model, examples_batch)
-    else:
-        logger.error("Unknown visualization type: %s" % vis_type)
+    return SalvisResult(examples_batch=examples_batch, gradients=saliency.get_gradients(conf, model, examples_batch, kerasvis=kerasvis))

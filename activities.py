@@ -8,6 +8,7 @@ import emutils
 import ops
 import numpy as np
 import visualizations
+import saliency
 
 from celery import group, chord
 from celery.result import AsyncResult, GroupResult
@@ -252,15 +253,31 @@ def __perform_classification_attack(emma):
 
 @activity('salvis')
 def __visualize_model(emma, model_type, vis_type='2doverlay', *args, **kwargs):
+    vis_type = vis_type.lower()
     if emma.dataset_val is not None:
         trace_sets = emma.dataset_val.trace_set_paths
     else:
         trace_sets = emma.dataset.trace_set_paths
 
-    submit_task(ops.salvis,
-                trace_sets,
-                model_type,
-                vis_type.lower(),
-                emma.conf,
-                remote=emma.conf.remote,
-                message="Visualizing neural net %s" % str(trace_sets))
+    salvis_result = submit_task(ops.salvis,
+                                trace_sets,
+                                model_type,
+                                vis_type,
+                                emma.conf,
+                                remote=emma.conf.remote,
+                                message="Getting trace set gradients %s" % str(trace_sets))
+
+    logger.info("Getting saliency of %d traces" % salvis_result.examples_batch.shape[0])
+
+    if vis_type == '1d':
+        saliency.plot_saliency_1d(emma.conf, salvis_result)
+    elif vis_type == '2d':
+        saliency.plot_saliency_2d(emma.conf, salvis_result)
+    elif vis_type == '2doverlay':
+        saliency.plot_saliency_2d_overlay(emma.conf, salvis_result)
+    elif vis_type == 'kerasvis':
+        saliency.plot_saliency_kerasvis(emma.conf, salvis_result)
+    elif vis_type == '2doverlayold':
+        saliency.plot_saliency_2d_overlayold(emma.conf, salvis_result)
+    else:
+        logger.error("Unknown visualization type: %s" % vis_type)

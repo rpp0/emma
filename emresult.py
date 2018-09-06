@@ -1,4 +1,5 @@
 import argparse
+from collections import namedtuple
 
 
 class EMResult(argparse.Namespace):
@@ -18,3 +19,6 @@ class EMResult(argparse.Namespace):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+
+
+SalvisResult = namedtuple('SalvisResult', ['examples_batch', 'gradients'])

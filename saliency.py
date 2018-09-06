@@ -3,27 +3,44 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plot_saliency_2d_overlay(conf, model, examples_batch):
+def get_gradients(conf, model, examples_batch, kerasvis=False):
+    if kerasvis:
+        from vis.visualization import visualize_saliency
+    else:
+        visualize_saliency = None  # Get rid of PyCharm warning
+    subkey_gradients = []
+
+    # Get gradients for each subkey
+    for subkey in range(conf.key_low, conf.key_high):
+        if kerasvis is False:
+            gradients = model.get_output_gradients(subkey - conf.key_low,
+                                                   examples_batch,
+                                                   square_gradients=True,
+                                                   mean_of_gradients=conf.saliency_mean_gradient)
+        else:
+            gradients = np.zeros(examples_batch.shape)
+            for i in range(0, examples_batch.shape[0]):
+                gradients[i, :] = visualize_saliency(model.model, -1, filter_indices=subkey, seed_input=examples_batch[i, :])
+
+        subkey_gradients.append(gradients)
+    return subkey_gradients
+
+
+def plot_saliency_2d_overlay(conf, salvis_result):
     """
     Plot saliency over a gray colormap of the EM traces, seperately for each subkey.
     :param conf:
-    :param model:
-    :param examples_batch:
+    :param salvis_result:
     :return:
     """
     for subkey in range(conf.key_low, conf.key_high):
-        gradients = model.get_output_gradients(subkey - conf.key_low,
-                                               examples_batch,
-                                               square_gradients=True,
-                                               mean_of_gradients=conf.saliency_mean_gradient)
-
         # Plot the result
-        visualizations.plot_colormap(examples_batch,
+        visualizations.plot_colormap(salvis_result.examples_batch,
                                      cmap='gray',
                                      show=False,
                                      draw_axis=False,
                                      alpha=1.0)
-        visualizations.plot_colormap(gradients,
+        visualizations.plot_colormap(salvis_result.gradients[subkey - conf.key_low],
                                      cmap='inferno',
                                      show=True,
                                      draw_axis=False,
@@ -33,47 +50,38 @@ def plot_saliency_2d_overlay(conf, model, examples_batch):
                                      ylabel='Trace index')
 
 
-def plot_saliency_2d(conf, model, examples_batch):
+def plot_saliency_2d(conf, salvis_result):
     """
     First plots the input batch using a color map, and then plots the saliency color maps
     for each subkey separately.
     :param conf:
-    :param model:
-    :param examples_batch:
+    :param salvis_result:
     :return:
     """
-    visualizations.plot_colormap(examples_batch, cmap='plasma')
+    visualizations.plot_colormap(salvis_result.examples_batch, cmap='plasma')
 
     for subkey in range(conf.key_low, conf.key_high):
-        gradients = model.get_output_gradients(subkey - conf.key_low,
-                                               examples_batch,
-                                               square_gradients=True,
-                                               mean_of_gradients=conf.saliency_mean_gradient)
-        visualizations.plot_colormap(gradients)
+        visualizations.plot_colormap(salvis_result.gradients[subkey - conf.key_low])
 
 
-def plot_saliency_1d(conf, model, examples_batch):
+def plot_saliency_1d(conf, salvis_result):
     """
     Takes the mean signal of a batch and then plots a time series of this signal, overlayed
     with the saliency for each subkey.
     :param conf:
-    :param model:
-    :param examples_batch:
+    :param salvis_result:
     :return:
     """
     from dsp import normalize
 
     # Get mean signal of examples batch
-    mean_signal = np.mean(examples_batch, axis=0)
+    mean_signal = np.mean(salvis_result.examples_batch, axis=0)
 
     plt.plot(normalize(mean_signal), color='tab:blue', label='Mean signal (normalized)')
 
     for subkey in range(conf.key_low, conf.key_high):
         # Get gradient of mean signal
-        gradients = model.get_output_gradients(subkey - conf.key_low,
-                                               [mean_signal],
-                                               square_gradients=True,
-                                               mean_of_gradients=False)
+        gradients = salvis_result.gradients[subkey - conf.key_low]
         mean_gradient = gradients[0]
 
         # Visualize mean gradients
@@ -82,29 +90,20 @@ def plot_saliency_1d(conf, model, examples_batch):
     plt.show()
 
 
-def plot_saliency_kerasvis(conf, model, examples_batch):
-    from vis.visualization import visualize_saliency
-
+def plot_saliency_kerasvis(conf, salvis_result):
     for subkey in range(conf.key_low, conf.key_high):
-        gradients = np.zeros(examples_batch.shape)
-        for i in range(0, examples_batch.shape[0]):
-            gradients[i, :] = visualize_saliency(model.model, -1, filter_indices=subkey, seed_input=examples_batch[i, :])
-
-        visualizations.plot_colormap(gradients)
+        visualizations.plot_colormap(salvis_result.gradients[subkey - conf.key_low])
 
 
-def plot_saliency_2d_overlayold(conf, model, examples_batch):
+def plot_saliency_2d_overlayold(conf, salvis_result):
     from matplotlib.colors import ListedColormap
 
-    visualizations.plot_colormap(examples_batch, cmap='gray', show=False, draw_axis=False)
+    visualizations.plot_colormap(salvis_result.examples_batch, cmap='gray', show=False, draw_axis=False)
 
     colormaps = ['Purples', 'Blues', 'Greens', 'Oranges', 'Reds']
     #  colormaps = ['inferno', 'inferno', 'inferno', 'inferno', 'inferno']
     for subkey in range(conf.key_low, conf.key_high):
-        gradients = model.get_output_gradients(subkey - conf.key_low,
-                                               examples_batch,
-                                               square_gradients=True,
-                                               mean_of_gradients=conf.saliency_mean_gradient)
+        gradients = salvis_result.gradients[subkey - conf.key_low]
 
         # Plot
         cmap_orig = plt.get_cmap(colormaps.pop(0))
