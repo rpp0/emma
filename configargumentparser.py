@@ -33,56 +33,41 @@ class ConfigArgumentParser(argparse.ArgumentParser):
     in the following override priorities: default arguments < config arguments < CLI arguments.
     """
     def __init__(self, *args, config_path='settings.conf', config_section='DEFAULT', **kwargs):
-        super().__init__(*args, **kwargs)
         self.config_path = config_path
         self.config_section = config_section
+        self.emma_conf = {}
+        super().__init__(*args, **kwargs)
 
-    def update_args_with_conf(self, args, given_args):
-        """
-        Updates args with items listed in the config file under self.config_section, unless they are in given_args.
-        :param args:
-        :param given_args:
-        :return:
-        """
         if os.path.exists(self.config_path):
             settings = configparser.ConfigParser()
             settings.read(self.config_path)
-            emma_conf = settings.items(self.config_section)
+            emma_conf_tuples = settings.items(self.config_section)
 
-            for k, v in emma_conf:
-                if k in given_args:
-                    continue
-                setattr(args, k, _config_string_to_type(v))
+            for k, v in emma_conf_tuples:
+                self.emma_conf[k] = v
         else:
             logger.warning("%s does not exist; ignoring" % self.config_path)
 
-        return args
-
-    def _get_given_args(self):
+    def _remove_prefix_chars(self, string):
         """
-        Hack to get optional arguments that were explicitly specified by the user.
+        Does conversion from '--foo-bar' to 'foo_bar'.
+        :param string:
         :return:
         """
-        given_args = set()
+        result = string.lstrip(self.prefix_chars)
+        result = result.replace('-', '_')
+        return result
 
-        for action in self._actions:
-            for option_string in action.option_strings:
-                if option_string in sys.argv[1:]:
-                    if option_string.startswith('--'):
-                        given_args.add(option_string[2:].replace("-", "_"))
-                    elif option_string.startswith('-'):
-                        given_args.add(option_string[1:].replace("-", "_"))
-                    else:
-                        given_args.add(option_string.replace("-", "_"))
+    def add_argument(self, *args, **kwargs):
+        """
+        Modified add_argument that overrides the 'default' parameter with the value in the config file if present.
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        for arg in args:
+            arg_key = self._remove_prefix_chars(arg)
+            if arg_key in self.emma_conf:
+                kwargs['default'] = self.emma_conf[arg_key]  # Override default with value from config file
+        super().add_argument(*args, **kwargs)
 
-        return given_args
-
-    def parse_known_args(self, *args, **kwargs):
-        # Parse arguments along with defaults
-        known_args, unknown_args = super().parse_known_args(*args, **kwargs)
-
-        # Get args given by user via CLI
-        given_args = self._get_given_args()
-
-        # Update the known_args with args specified in settings.conf
-        return self.update_args_with_conf(known_args, given_args), unknown_args
