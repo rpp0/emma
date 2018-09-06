@@ -6,6 +6,7 @@
 
 from emma_worker import app
 from celery.utils.log import get_task_logger
+from configargumentparser import ConfigArgumentParser
 
 import argparse
 import subprocess
@@ -47,26 +48,23 @@ def clear_redis():
 
 class EMMAHost:
     def __init__(self, args):
-        settings = configparser.RawConfigParser()
-        settings.read('settings.conf')  # TODO Make it so the settings are first loaded with the settings file and then can be overwritten by CLI args
-        self.remote = settings.getboolean("Host", "remote")
-
         self.dataset, self.dataset_ref, self.dataset_val = self._get_datasets(args)
         self.conf = self._generate_conf(args)
 
-    def _get_datasets(self, args):
+    @staticmethod
+    def _get_datasets(args):
         # Load dataset from worker node
-        dataset = emio.get_dataset(dataset=args.dataset, conf=args, remote=self.remote)
+        dataset = emio.get_dataset(dataset=args.dataset, conf=args, remote=args.remote)
 
-        # Load reference set if applicable. Otherwise just use reference from dataset
-        if not args.refset is None:
-            dataset_ref = emio.get_dataset(dataset=args.refset, conf=args, remote=self.remote)
+        # Load reference set if applicable. Otherwise just use a reference from the standard dataset
+        if args.refset is not None:
+            dataset_ref = emio.get_dataset(dataset=args.refset, conf=args, remote=args.remote)
         else:
             dataset_ref = dataset
 
         # Load validation set if applicable
-        if not args.valset is None:
-            dataset_val = emio.get_dataset(dataset=args.valset, conf=args, remote=self.remote)
+        if args.valset is not None:
+            dataset_val = emio.get_dataset(dataset=args.valset, conf=args, remote=args.remote)
         else:
             dataset_val = None
 
@@ -83,7 +81,6 @@ class EMMAHost:
             datasets_path=self.dataset.root,
             dataset_id=self.dataset.id,
             subkey=0,
-            remote=self.remote,
             **args.__dict__
         )
 
@@ -92,6 +89,7 @@ class EMMAHost:
     def _determine_activity(self):  # TODO put under activities.py
         num_activities = 0
         activity = None
+        params = None
 
         for action in self.conf.actions:
             op, params = emutils.get_action_op_params(action)
@@ -115,7 +113,7 @@ class EMMAHost:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = ConfigArgumentParser(description='Electromagnetic Mining Array (EMMA)', epilog=args_epilog(), formatter_class=argparse.RawDescriptionHelpFormatter, config_section='EMMA')
     parser.add_argument('actions', type=str, help='Action to perform. Choose from %s' % str(registry.operations.keys()), nargs='+')
     parser.add_argument('dataset', type=str, help='Identifier of dataset to use')
     parser.add_argument('--outform', dest='outform', type=str, choices=['cw', 'sigmf', 'gnuradio'], default='sigmf', help='Output format to use when saving')
@@ -132,6 +130,7 @@ if __name__ == "__main__":
     parser.add_argument('--augment-noise', default=False, action='store_true', help='Add noise to the signal during data augmentation.')
     parser.add_argument('--update', default=False, action='store_true', help='Update existing AI model instead of replacing.')
     parser.add_argument('--online', default=False, action='store_true', help='Fetch samples from remote EMcap instance online (without storing to disk).')
+    parser.add_argument('--remote', default=False, action='store_true', help='Send processing tasks to remote Celery workers for faster processing.')
     parser.add_argument('--refset', type=str, default=None, help='Dataset to take reference signal from for alignment (default = same as dataset argument)')
     parser.add_argument('--valset', type=str, default=None, help='Dataset to take validation set traces from (default = same as dataset argument)')
     parser.add_argument('--model-suffix', type=str, default=None, help='Suffix for model name.')

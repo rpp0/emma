@@ -19,11 +19,13 @@ logger = get_task_logger(__name__)  # Logger
 
 def submit_task(task, *args, remote=True, message="Working", **kwargs):
     if remote:
-        async_result = task.si(*args).delay()
-        wait_until_completion(async_result, message=message + " (remote)")
+        async_result = task.si(*args, **kwargs).delay()
+        em_result = wait_until_completion(async_result, message=message + " (remote)")
     else:
         logger.info(message)
-        task(*args)
+        em_result = task(*args, **kwargs)
+
+    return em_result
 
 
 def wait_until_completion(async_result, message="Task"):
@@ -48,7 +50,7 @@ def wait_until_completion(async_result, message="Task"):
         raise TypeError
 
 
-def parallel_actions(trace_set_paths, conf, merge_results=False):
+def parallel_work(trace_set_paths, conf, merge_results=False):
     """
     Divide the trace set paths into `conf.max_subtasks` partitions that are distributed to available workers. The
     actions are performed in parallel on these partitions. Optionally, after processing is completed by all workers,
@@ -62,7 +64,7 @@ def parallel_actions(trace_set_paths, conf, merge_results=False):
     result = []
     for part in emutils.partition(trace_set_paths, num_partitions):
         result.append(ops.work.si(part, conf))
-    if merge_results:  # Merge correlation subresult from all workers into one final result
+    if merge_results:  # Merge subresults from all workers into one final result
         return chord(result, body=ops.merge.s(conf))()
     else:
         return group(result)()
@@ -110,7 +112,7 @@ def __attack_subkeys(emma, subkey_score_cb, final_score_cb):
         emma.conf.subkey = subkey  # Set in conf, so the workers know which subkey to attack
 
         # Execute task
-        async_result = parallel_actions(emma.dataset_val.trace_set_paths, emma.conf, merge_results=True)
+        async_result = parallel_work(emma.dataset_val.trace_set_paths, emma.conf, merge_results=True)
         em_result = wait_until_completion(async_result, message="Attacking subkey %d" % emma.conf.subkey)
 
         # Parse results
@@ -183,8 +185,10 @@ def __perform_ml_attack(emma):
 
 @activity('plot')
 def __perform_plot(emma, *params):
-    async_result = ops.work.si(emma.dataset.trace_set_paths[0:1], emma.conf, keep_trace_sets=True, keep_correlations=False).delay()
-    em_result = wait_until_completion(async_result, message="Performing actions")
+    em_result = submit_task(ops.work,  # Op
+                            emma.dataset.trace_set_paths[0:1], emma.conf, keep_trace_sets=True, keep_correlations=False,  # Op parameters
+                            remote=emma.conf.remote,
+                            message="Performing actions")
 
     for trace_set in em_result.trace_sets:
         visualizations.plot_trace_set(emma.conf, trace_set, params=params)
@@ -205,7 +209,7 @@ def __perform_actions(emma, message="Performing actions"):
     :return:
     """
     if emma.conf.remote:
-        async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf)
+        async_result = parallel_work(emma.dataset.trace_set_paths, emma.conf)
         return wait_until_completion(async_result, message=message)
     else:
         ops.work(emma.dataset.trace_set_paths, emma.conf)
@@ -213,7 +217,7 @@ def __perform_actions(emma, message="Performing actions"):
 
 @activity('classify')
 def __perform_classification_attack(emma):
-    async_result = parallel_actions(emma.dataset.trace_set_paths, emma.conf)
+    async_result = parallel_work(emma.dataset.trace_set_paths, emma.conf)
     celery_results = wait_until_completion(async_result, message="Classifying")
 
     if emma.conf.hamming:

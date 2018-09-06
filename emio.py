@@ -17,7 +17,7 @@ def get_dataset(dataset, conf=None, remote=True):
     Wrapper function for getting dataset properties, either from the local or remote worker.
     :param dataset:
     :param conf:
-    :param remote:
+    :param remote: Override for configured remote parameter.
     :return:
     """
     if remote:
@@ -32,7 +32,7 @@ def get_trace_set(trace_set_path, format, ignore_malformed=True, remote=True):
     :param trace_set_path:
     :param format:
     :param ignore_malformed:
-    :param remote:
+    :param remote: Override for configured remote parameter.
     :return:
     """
     if remote:
