@@ -7,7 +7,6 @@ import argparse
 import configparser
 import logging
 import os
-import sys
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ class ConfigArgumentParser(argparse.ArgumentParser):
             emma_conf_tuples = settings.items(self.config_section)
 
             for k, v in emma_conf_tuples:
-                self.emma_conf[k] = v
+                self.emma_conf[k] = _config_string_to_type(v)
         else:
             logger.warning("%s does not exist; ignoring" % self.config_path)
 
