@@ -1,8 +1,46 @@
+import logging
 from functools import wraps
 
+logger = logging.getLogger(__name__)
 activities = {}
 operations = {}  # Op registry
 operations_optargs = {}
+
+
+class PluginRegistry:
+    def __init__(self, plugins_file='plugins.conf'):
+        """
+        Class that imports modules based on newline-seperated list of module names.
+        :param plugins_file:
+        """
+        self.plugins_file = plugins_file
+        self.loaded = False
+
+    def load(self):
+        if not self.loaded:
+            plugin_list = []
+            # Read plugins
+            try:
+                with open(self.plugins_file, 'r') as f:
+                    plugin_list = [line.rstrip() for line in f]
+            except FileNotFoundError:
+                pass
+
+            # Add default plugins
+            plugin_list.append('ops')
+            plugin_list.append('activities')
+
+            # Load plugins
+            for plugin_name in plugin_list:
+                if not plugin_name:
+                    continue
+                try:
+                    exec('from %s import *' % plugin_name)
+                    logger.info("Loaded plugins '%s'" % plugin_name)
+                except Exception as e:
+                    logger.error("Failed to load plugin '%s': %s" % (plugin_name, str(e)))
+
+            self.loaded = True
 
 
 def op(name, optargs=None):
@@ -37,5 +75,5 @@ def activity(name):
 
 
 # Register all activities and ops
-from activities import *
-from ops import *
+plugins = PluginRegistry()
+plugins.load()
