@@ -111,7 +111,7 @@ class SDR(gr.top_block):
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        if hw == "usrp":
+        if self.hw == "usrp":
             self.sdr_source.set_samp_rate(self.samp_rate)
         else:
             self.sdr_source.set_sample_rate(self.sample_rate)
@@ -178,7 +178,7 @@ class EMCap():
             self.clear_domain_socket(unix_domain_socket)
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
         elif ctrl_socket_type == CtrlType.UDP:
-            self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.15.48', 3884), self.cb_ctrl)
+            self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.15.21', 3884), self.cb_ctrl)
         elif ctrl_socket_type == CtrlType.SERIAL:
             self.ctrl_socket = TTYWrapper("/dev/ttyUSB0", self.cb_ctrl)
         else:
@@ -328,14 +328,14 @@ class EMCap():
                         self.emma_client.send(stream_hdr + stream_payload)
                         self.online_counter += 1
                     else: # Save to disk
-                        # Write metadata to sigmf file
-                        # if sigmf
-                        #with open(test_meta_path, 'w') as f:
-                        #    test_sigmf = SigMFFile(data_file=test_data_path, global_info=copy.deepcopy(self.global_meta))
-                        #    test_sigmf.add_capture(0, metadata=capture_meta)
-                        #    test_sigmf.dump(f, pretty=True)
-                        # elif chipwhisperer:
                         if not self.kwargs['dry']:
+                            # Write metadata to sigmf file
+                            # if sigmf
+                            #with open(test_meta_path, 'w') as f:
+                            #    test_sigmf = SigMFFile(data_file=test_data_path, global_info=copy.deepcopy(self.global_meta))
+                            #    test_sigmf.add_capture(0, metadata=capture_meta)
+                            #    test_sigmf.dump(f, pretty=True)
+                            # elif chipwhisperer:
                             logger.info("Dumping %d traces to file" % len(self.trace_set))
                             filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
                             output_dir = self.kwargs['output_dir']
