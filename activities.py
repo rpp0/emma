@@ -192,7 +192,7 @@ def __perform_plot(emma, *params):
                             message="Performing actions")
 
     for trace_set in em_result.trace_sets:
-        visualizations.plot_trace_set(emma.conf, trace_set, params=params)
+        visualizations.plot_trace_set(em_result.reference_signal, trace_set, params=params)
 
 
 @activity('basetest')

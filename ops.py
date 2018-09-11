@@ -119,6 +119,7 @@ def magnitude_trace_set(trace_set, result, conf, params=None):
 
     for trace in trace_set.traces:
         trace.signal = np.abs(trace.signal)
+    conf.reference_signal = np.abs(conf.reference_signal)
 
 
 @op('norm')
@@ -553,6 +554,9 @@ def remote_get_trace_set(trace_set_path, format, ignore_malformed):
 
 
 def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=False):
+    # Keep copy of reference signal
+    original_reference_signal = conf.reference_signal.copy()
+
     # Perform actions
     for action in conf.actions:
         op, params = get_action_op_params(action)
@@ -565,6 +569,11 @@ def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=
     # Store result
     if keep_trace_sets:
         result.trace_sets.append(trace_set)
+        result.reference_signal = conf.reference_signal
+
+    # Restore reference signal for next trace set
+    # This is required because changes to the reference need to happen in lockstep (crucial for alignment for example).
+    conf.reference_signal = original_reference_signal
 
 
 def process_trace_set_paths(result, trace_set_paths, conf, request_id=None, keep_trace_sets=False):
@@ -616,6 +625,7 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_scores=True, k
 
         if not keep_trace_sets:  # Do not return processed traces
             result.trace_sets = None
+            result.reference_signal = None
         if not keep_scores:  # Do not return attack scores
             result.correlations = None
             result.distances = None
