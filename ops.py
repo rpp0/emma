@@ -110,6 +110,17 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
         #    trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
 
 
+@op('abs')
+def magnitude_trace_set(trace_set, result, conf, params=None):
+    """
+    Calculate the magnitude of the signals in trace_set
+    """
+    logger.info("abs %s" % (str(params) if not params is None else ""))
+
+    for trace in trace_set.traces:
+        trace.signal = np.abs(trace.signal)
+
+
 @op('norm')
 def normalize_trace_set(trace_set, result, conf, params=None):
     """
