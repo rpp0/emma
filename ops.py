@@ -358,7 +358,7 @@ def dattack_trace_set(trace_set, result, conf=None, params=None):
             if conf.nomodel:
                 hypotheses[subkey_guess, i] = sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]
             elif conf.nomodelpt:
-                hypotheses[subkey_guess, i] = subkey_guess
+                hypotheses[subkey_guess, i] = subkey_guess / 255.0
             else:
                 hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]]  # Model of the power consumption
 
@@ -453,6 +453,8 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
         # Fetch signals from traces
         if conf.ptinput:
             x = np.array([np.concatenate((trace.signal, trace.plaintext)) for trace in trace_set.traces], dtype=float)
+        elif conf.kinput:
+            x = np.array([np.concatenate((trace.signal, trace.key)) for trace in trace_set.traces], dtype=float)
         else:
             x = np.array([trace.signal for trace in trace_set.traces])
 

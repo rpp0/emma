@@ -209,7 +209,9 @@ class AICorrSignalIterator(AISignalIteratorBase):
 
         # Get training data
         if self.conf.ptinput:
-            signals = np.array([np.concatenate((trace.signal,trace.plaintext)) for trace in trace_set.traces], dtype=float)
+            signals = np.array([np.concatenate((trace.signal, trace.plaintext)) for trace in trace_set.traces], dtype=float)
+        elif self.conf.kinput:
+            signals = np.array([np.concatenate((trace.signal, trace.key)) for trace in trace_set.traces], dtype=float)
         else:
             signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
 
@@ -224,7 +226,7 @@ class AICorrSignalIterator(AISignalIteratorBase):
                 if self.conf.nomodel:  # No Hamming weight assumption
                     values[i, j] = sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]
                 elif self.conf.nomodelpt:  # No assumptions; just use the key
-                    values[i, j] = trace_set.traces[i].key[j]
+                    values[i, j] = trace_set.traces[i].key[j] / 255.0
                 else:  # Assume Hamming weight model and plaintext known
                     values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
 

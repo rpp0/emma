@@ -141,6 +141,8 @@ if __name__ == "__main__":
     parser.add_argument('--normalize', default=False, action='store_true', help='Normalize input data before feeding to NN')
     parser.add_argument('--tfold', default=False, action='store_true', help='Train using t-fold cross-validation')
     parser.add_argument('--n-hidden-layers', type=int, default=1, help='Number of hidden layers in model.')
+    parser.add_argument('--n-hidden-nodes', type=int, default=256, help='Number of hidden nodes per hidden layer in model.')
+    parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate.')
     parser.add_argument('--activation', type=str, default='leakyrelu', help='Activation function of model.')
     parser.add_argument('--cnn', default=False, action='store_true', help='Use ASCAD CNN for AICorrNet')
     parser.add_argument('--testrank', default=False, action='store_true', help='Load model and test rank for varying test set sizes.')
@@ -148,6 +150,7 @@ if __name__ == "__main__":
     parser.add_argument('--reglambda', type=float, default=0.001, help='Regularizer lambda.')
     parser.add_argument('--nomodel', default=False, action='store_true', help='Do not assume power consumption model.')
     parser.add_argument('--ptinput', default=False, action='store_true', help='Also use plaintext as inputs to neural net.')
+    parser.add_argument('--kinput', default=False, action='store_true', help='Also use key as input to neural net (for testing purposes).')
     parser.add_argument('--nomodelpt', default=False, action='store_true', help='Do not assume power consumption model or knowledge of plaintext.')  # TODO Should conflict with --nomodel
     parser.add_argument('--batch-size', type=int, default=512, help='Batch size.')
     parser.add_argument('--metric-freq', type=int, default=10, help='Frequency of calculating metrics (e.g. rank) of model.')

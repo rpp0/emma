@@ -42,7 +42,6 @@ class AI:
         self.batch_norm = conf.batch_norm
         self.activation = conf.activation
         self.cnn = conf.cnn
-        self.ptinput = conf.ptinput
         self.metric_freq = conf.metric_freq
         self.reg = conf.regularizer
         self.regfinal = conf.regularizer
@@ -228,7 +227,16 @@ class AI:
             self.model.save("%s-last.h5" % self.base_path)
 
     def predict(self, x):
-        return self.model.predict(x, batch_size=10000, verbose=0)
+        # return self.model.predict(x, batch_size=10000, verbose=0)
+        # TODO can we move this to child classes instead? i.e. in this case AICorrNet
+        outputs = self.model.predict(x, batch_size=10000, verbose=0)
+        num_encodings = self.conf.key_high - self.conf.key_low
+        encodings = outputs[:, 0:num_encodings]
+        if self.conf.loss_type == 'correlation_special':
+            weights = np.mean(outputs[:, num_encodings], axis=0)
+            return np.multiply(encodings, weights)
+        else:
+            return encodings
 
     def conf_to_name(self, model_type, conf):
         name = model_type
@@ -473,9 +481,9 @@ class AICorrNet(AI):
         #optimizer = keras.optimizers.SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
         #optimizer = keras.optimizers.Adam(lr=0.00001, beta_1=0.9, beta_2=0.999, decay=0.0)
         if self.cnn:
-            optimizer = keras.optimizers.Nadam(lr=0.00001)
+            optimizer = keras.optimizers.Nadam(lr=conf.lr / 10.0)
         else:
-            optimizer = keras.optimizers.Nadam(lr=0.0001)
+            optimizer = keras.optimizers.Nadam(lr=conf.lr)
         #optimizer = keras.optimizers.Adadelta()
 
         if not self.cnn:
@@ -491,7 +499,7 @@ class AICorrNet(AI):
 
             # Hidden layers
             for i in range(0, self.n_hidden_layers):
-                hidden_nodes = 256
+                hidden_nodes = conf.n_hidden_nodes
                 self.model.add(Dense(hidden_nodes, input_dim=input_dim, use_bias=self.use_bias, activation=None, kernel_initializer=initializer, kernel_regularizer=str_to_reg(self.reg, self.reg_lambda)))
                 input_dim=hidden_nodes
                 if self.batch_norm:
@@ -499,7 +507,8 @@ class AICorrNet(AI):
                 self.model.add(str_to_activation(self.activation))
 
             # Output layer
-            self.model.add(Dense(conf.key_high - conf.key_low, input_dim=input_dim, use_bias=self.use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(self.regfinal, self.reg_lambda)))
+            extra_outputs = 1 if conf.loss_type == 'correlation_special' else 0
+            self.model.add(Dense(conf.key_high - conf.key_low + extra_outputs, input_dim=input_dim, use_bias=self.use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(self.regfinal, self.reg_lambda)))
             if self.batch_norm:
                 self.model.add(BatchNormalization(momentum=0.1))
             self.model.add(str_to_activation(self.activation))

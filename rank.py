@@ -34,6 +34,7 @@ class RankCallbackBase(keras.callbacks.Callback):
         self.nomodel = conf.nomodel
         self.key_low = conf.key_low
         self.key_high = conf.key_high
+        self.conf = conf
 
         if not save_path is None:
             self.save_path = "%s-bestrank.h5" % save_path.rpartition('.')[0]
@@ -122,11 +123,13 @@ class CorrRankCallback(RankCallbackBase):
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
 
-        if epoch % self.metric_freq != 0:
+        if epoch % self.metric_freq != 0 and epoch != 0:
             return
         if not self.trace_set is None:
-            if self.ptinput:
+            if self.ptinput:  # TODO duplicate code from aiiterator!
                 x = np.array([np.concatenate((trace.signal, trace.plaintext)) for trace in self.trace_set.traces])
+            elif self.conf.kinput:
+                x = np.array([np.concatenate((trace.signal, trace.key)) for trace in self.trace_set.traces])
             else:
                 x = np.array([trace.signal for trace in self.trace_set.traces])
             if self.cnn:

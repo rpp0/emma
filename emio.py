@@ -93,8 +93,8 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
             keys = np.load(key_set_path, encoding="bytes")
             existing_properties.append(keys)
         except FileNotFoundError:
-            keys = np.array([[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]]*traces.shape[0])
-            print("No key file found! Using 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16")
+            keys = np.array([[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]]*traces.shape[0])
+            print("No key file found! Using 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15")
             #keys = None
 
         masks = None  # No masks for Arduino experiments
