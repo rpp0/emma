@@ -4,6 +4,7 @@ from functools import wraps
 logger = logging.getLogger(__name__)
 activities = {}
 operations = {}  # Op registry
+lossfunctions = {}
 operations_optargs = {}
 
 
@@ -29,6 +30,7 @@ class PluginRegistry:
             # Add default plugins
             plugin_list.append('ops')
             plugin_list.append('activities')
+            plugin_list.append('lossfunctions')
 
             # Load plugins
             for plugin_name in plugin_list:
@@ -65,6 +67,21 @@ def activity(name):
     """
     def decorator(func):
         activities[name] = func
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        return wrapper
+
+    return decorator
+
+
+def lossfunction(name):
+    """
+    Defines the @lossfunction decorator
+    """
+    def decorator(func):
+        lossfunctions[name] = func
 
         @wraps(func)
         def wrapper(*args, **kwargs):

@@ -131,6 +131,7 @@ if __name__ == "__main__":
     parser.add_argument('--update', default=False, action='store_true', help='Update existing AI model instead of replacing.')
     parser.add_argument('--online', default=False, action='store_true', help='Fetch samples from remote EMcap instance online (without storing to disk).')
     parser.add_argument('--remote', default=False, action='store_true', help='Send processing tasks to remote Celery workers for faster processing.')
+    parser.add_argument('--local', dest='remote', action='store_false', help='')
     parser.add_argument('--refset', type=str, default=None, help='Dataset to take reference signal from for alignment (default = same as dataset argument)')
     parser.add_argument('--valset', type=str, default=None, help='Dataset to take validation set traces from (default = same as dataset argument)')
     parser.add_argument('--model-suffix', type=str, default=None, help='Suffix for model name.')
@@ -155,7 +156,7 @@ if __name__ == "__main__":
     parser.add_argument('--saliency-remove-bias', default=False, action='store_true', help='Remove first samples when using the salvis activity.')
     parser.add_argument('--saliency-mean-gradient', default=True, action='store_true', help='Get the mean gradient of the batch instead of individual gradients when visualizing saliency.')  # TODO: Impossible to disable
     parser.add_argument('--saliency-num-traces', type=int, default=512, help='Maxmimum number of traces to show in saliency plots.')
-    parser.add_argument('--loss-type', dest='loss_type', type=str, choices=['correlation', 'abs_distance', 'squared_distance'], default='correlation', help='Loss function to use when training.')
+    parser.add_argument('--loss-type', dest='loss_type', type=str, choices=registry.lossfunctions.keys(), default='correlation', help='Loss function to use when training.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
     assert(args.key_low < args.key_high)

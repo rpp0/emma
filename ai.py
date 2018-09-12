@@ -12,6 +12,7 @@ import traceset
 import emutils
 import rank
 import visualizations
+import lossfunctions
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU
 from keras.layers.normalization import BatchNormalization
@@ -51,7 +52,7 @@ class AI:
         self.hamming = conf.hamming
         self.key_low = conf.key_low
         self.key_high = conf.key_high
-        self.loss = get_loss(conf.key_low, conf.key_high, loss_type=conf.loss_type)
+        self.loss = lossfunctions.get_loss(conf.key_low, conf.key_high, loss_type=conf.loss_type)
 
         self.suffix = "" if conf.model_suffix is None else '-' + conf.model_suffix  # Added to name later
         self.name = self.conf_to_name(name, conf)
@@ -254,7 +255,7 @@ class AI:
 
     def load(self):
         print("Loading model %s" % self.model_path)
-        self.model = load_model(self.model_path, custom_objects={self.loss.__name__: self.loss, 'CCLayer': CCLayer, 'cc_catcross_loss': cc_catcross_loss})
+        self.model = load_model(self.model_path, custom_objects={self.loss.__name__: self.loss, 'CCLayer': CCLayer})
 
     def get_output_gradients(self, neuron_index, examples_batch, mean_of_gradients=False, square_gradients=False):
         """
@@ -314,51 +315,6 @@ class AIMemCopyDirect():
 
     def test(self, x):
         pass
-
-
-def get_loss(key_low, key_high, loss_type='correlation'):
-    if loss_type == 'correlation':
-        def correlation_loss(y_true_raw, y_pred_raw):
-            """
-            Custom loss function that calculates the Pearson correlation of the prediction with
-            the true values over a number of batches.
-            """
-            # y_true_raw = K.print_tensor(y_true_raw, message='y_true_raw = ')  # Note: print truncating is incorrect in the print_tensor function
-            # y_pred_raw = K.print_tensor(y_pred_raw, message='y_pred_raw = ')
-            y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
-            y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
-
-            loss = K.variable(0.0)
-            for key_col in range(key_low, key_high):  # 0 - 16
-                y_key = K.expand_dims(y_true[:, key_col], axis=1)  # [?, 16] -> [?, 1]
-                y_keypred = K.expand_dims(y_pred[:, key_col - key_low], axis=1)  # [?, 16] -> [?, 1]
-                denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
-                denom = K.maximum(denom, K.epsilon())
-                correlation = K.dot(K.transpose(y_key), y_keypred) / denom
-                loss += 1.0 - correlation
-
-            return loss
-
-        return correlation_loss
-    elif loss_type == 'abs_distance' or loss_type == 'squared_distance':
-        squared = True if loss_type == 'squared_distance' else False
-
-        def distance_loss(y_true_raw, y_pred_raw):
-            y_true = y_true_raw
-            y_pred = y_pred_raw
-
-            loss = K.variable(0.0)
-            for key_col in range(key_low, key_high):  # 0 - 16
-                y_key = y_true[:, key_col]  # [?, 16] -> [?,]
-                y_keypred = y_pred[:, key_col - key_low]  # [?, 16] -> [?,]
-                if squared:
-                    loss += K.sum(K.square(y_key - y_keypred))
-                else:
-                    loss += K.sum(K.abs(y_key - y_keypred))
-
-            return loss
-
-        return distance_loss
 
 
 class LossHistory(keras.callbacks.Callback):
@@ -693,26 +649,6 @@ class AISHACC(AI):
         optimizer = keras.optimizers.Adam(lr=0.1, beta_1=0.9, beta_2=0.999, decay=0.0)
 
         self.model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-
-
-def cc_loss(y_true, y_pred):
-    # y_true: [batch, 256]
-    # y_pred: [batch, correlations, filter_nr]
-    loss = K.variable(0.0)
-
-    # A higher correlation for the filter at the true class is good
-    #filter_score = tf.reduce_mean(y_pred, axis=1, keepdims=False) * y_true
-    filter_score = y_pred * y_true
-    filter_loss = tf.reduce_sum(-filter_score, axis=1)
-    #loss += tf.reduce_sum(filter_loss, axis=0, keepdims=False)
-    #loss += tf.reduce_max(filter_loss, axis=0, keep_dims=False)
-    loss += tf.reduce_mean(filter_loss, axis=0, keep_dims=False)  # TODO try me
-
-    return loss
-
-
-def cc_catcross_loss(y_true, y_pred):
-    return tf.nn.softmax_cross_entropy_with_logits(labels=y_true, logits=y_pred)
 
 
 class AIASCAD(AI):
