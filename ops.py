@@ -33,13 +33,14 @@ from registry import op
 logger = get_task_logger(__name__)  # Logger
 
 
-@op('align', optargs=['ref_window_begin', 'ref_window_end'])
+@op('align', optargs=['ref_window_begin', 'ref_window_end', 'prefilter'])
 def align_trace_set(trace_set, result, conf, params=None):
     """
     Align a set of traces based on a single reference trace using cross-correlation.
     If a trace is empty, it is discarded.
     """
     logger.info("align %s" % (str(params) if not params is None else ""))
+    prefilter = False
     if params is None:  # If no parameters provided, assume percent% max offset
         percent = 0.30
         length = len(conf.reference_signal)
@@ -48,6 +49,8 @@ def align_trace_set(trace_set, result, conf, params=None):
         window = Window(begin=begin, end=end)
     else:
         window = Window(begin=int(params[0]), end=int(params[1]))
+        if len(params) > 2:
+            prefilter = bool(params[2])
 
     logger.info("Aligning %d traces" % len(trace_set.traces))
     aligned_trace_set = []
@@ -55,7 +58,7 @@ def align_trace_set(trace_set, result, conf, params=None):
 
     discarded = 0
     for trace in trace_set.traces:
-        aligned_trace = align(trace.signal, reference)
+        aligned_trace = align(trace.signal, reference, prefilter=prefilter)
         if not aligned_trace is None:
             trace.signal = aligned_trace
             aligned_trace_set.append(trace)
@@ -781,7 +784,7 @@ def salvis(self, trace_set_paths, model_type, vis_type, conf):
     examples_iterator, _ = aiiterators.get_iterators_for_model(model_type, trace_set_paths, [], conf, hamming=conf.hamming, subtype=None, request_id=self.request.id)
 
     logger.info("Retrieving batch of examples")
-    examples_batch = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=2).traces])
+    examples_batch = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=int(conf.saliency_num_traces/256)).traces])
     examples_batch = examples_batch[0:conf.saliency_num_traces, :]
     if len(examples_batch.shape) != 2:
         raise ValueError("Expected 2D examples batch for saliency visualization.")

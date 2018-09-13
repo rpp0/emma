@@ -33,7 +33,7 @@ def butter_filter(trace, order=1, cutoff=0.01, filter_type='low'):
     return trace_filtered
 
 
-def align(trace, reference):
+def align(trace, reference, prefilter=False):
     """
     Determine their offset using cross-correlation. This offset is then used to
     align the original signals.
@@ -42,8 +42,14 @@ def align(trace, reference):
     try:
         trace = np.array(trace)
         reference = np.array(reference)
-        processed_trace = normalize_p2p(trace)  # normalize() seems to work pretty well too
-        processed_reference = normalize_p2p(reference)
+        if prefilter:
+            processed_trace = butter_filter(trace)
+            processed_reference = butter_filter(reference)
+            processed_trace = normalize_p2p(processed_trace)  # normalize() seems to work pretty well too
+            processed_reference = normalize_p2p(processed_reference)
+        else:
+            processed_trace = normalize_p2p(trace)  # normalize() seems to work pretty well too
+            processed_reference = normalize_p2p(reference)
     except ValueError:  # Something is wrong with the signal
         return None
 

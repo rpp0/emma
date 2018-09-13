@@ -55,7 +55,7 @@ def _get_special_correlation_loss(key_low, key_high):
             correlation = K.dot(K.transpose(y_key), y_keypred) / denom
             loss += 1.0 - correlation
 
-            alpha = 0.0001
+            alpha = 0.001
             exact_pwr = tf.multiply(weight, y_pred_raw[:, key_col - key_low])
             loss += alpha * K.sum(K.square(y_true_raw[:, key_col] - exact_pwr))
 

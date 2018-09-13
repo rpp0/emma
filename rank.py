@@ -123,7 +123,7 @@ class CorrRankCallback(RankCallbackBase):
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
 
-        if epoch % self.metric_freq != 0 and epoch != 0:
+        if epoch % self.metric_freq != 0 or epoch == 0:
             return
         if not self.trace_set is None:
             if self.ptinput:  # TODO duplicate code from aiiterator!

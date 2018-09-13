@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from traceset import TraceSet
-
+import numpy as np
 
 def plt_save_pdf(path):
     """
@@ -38,6 +38,9 @@ def plot_colormap(inputs,
     :param kwargs:
     :return:
     """
+    if inputs.dtype == np.complex64 or inputs.dtype == np.complex128:
+        inputs = np.real(inputs)
+        print("Warning: converting colormap to np.real(complex)")
     vmin = inputs.min()
     vmax = inputs.max()
     colorplot = plt.imshow(inputs,
@@ -47,7 +50,12 @@ def plot_colormap(inputs,
                            cmap=cmap,
                            **kwargs)
     if draw_axis:
-        plt.colorbar(colorplot)
+        # https://stackoverflow.com/questions/18195758/set-matplotlib-colorbar-size-to-match-graph
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        axis = plt.gca()
+        divider = make_axes_locatable(axis)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(colorplot, cax=cax)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.title(title)
@@ -89,7 +97,10 @@ def plot_trace_set(reference_signal, trace_set, params=None):
             break
     plt.plot(range(0, len(reference_signal)), reference_signal, linewidth=2, linestyle='dashed')
 
-    plt.title(trace_set.name)
+    title = trace_set.name
+    if reference_signal.dtype == np.complex64 or reference_signal.dtype == np.complex128:
+        title += " (complex, only real values plotted)"
+    plt.title(title)
 
     if saveplot:
         plt_save_pdf('/tmp/%s.pdf' % trace_set.name)
