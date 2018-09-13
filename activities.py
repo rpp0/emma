@@ -195,6 +195,17 @@ def __perform_plot(emma, *params):
         visualizations.plot_trace_set(em_result.reference_signal, trace_set, params=params)
 
 
+@activity('specgram')
+def __perform_specgram(emma, *params):
+    em_result = submit_task(ops.work,
+                            emma.dataset.trace_set_paths[0:1], emma.conf, keep_trace_sets=True, keep_scores=False,  # Op parameters
+                            remote=emma.conf.remote,
+                            message="Performing actions")
+
+    for trace_set in em_result.trace_sets:
+        visualizations.plot_spectogram(trace_set, 8000000, params=params)  # TODO get sample rate from dataset?
+
+
 @activity('basetest')
 def __perform_base_test(emma):
     async_result = ops.basetest.si(emma.dataset.trace_set_paths, emma.conf).delay()
