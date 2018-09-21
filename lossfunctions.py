@@ -44,7 +44,8 @@ def _get_special_correlation_loss(key_low, key_high):
     def correlation_loss(y_true_raw, y_pred_raw):
         """
         Custom loss function that calculates the Pearson correlation of the prediction with
-        the true values over a number of batches.
+        the true values over a number of batches, with the addition of a weight parameter that
+        is used to approximate the true key byte value.
         """
         y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
         y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))

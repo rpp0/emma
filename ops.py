@@ -304,7 +304,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     hypotheses = np.empty([256, trace_set.num_traces])
 
     # 1. Build hypotheses for all 256 possibilities of the key and all traces
-    leakage_model = LeakageModel(conf.leakage_model)
+    leakage_model = LeakageModel(conf)
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
             hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
@@ -344,7 +344,7 @@ def dattack_trace_set(trace_set, result, conf=None, params=None):
     hypotheses = np.empty([256, trace_set.num_traces])
 
     # 1. Build hypotheses for all 256 possibilities of the key and all traces
-    leakage_model = LeakageModel(conf.leakage_model)
+    leakage_model = LeakageModel(conf)
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
             hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)

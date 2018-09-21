@@ -221,7 +221,7 @@ class AICorrSignalIterator(AISignalIteratorBase):
             signals = np.expand_dims(signals, axis=-1)
 
         # Get model labels (key byte leakage values to correlate / analyze)
-        leakage_model = LeakageModel(self.conf.leakage_model)
+        leakage_model = LeakageModel(self.conf)
         values = leakage_model.get_trace_set_leakages(trace_set)
 
         return signals, values

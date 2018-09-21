@@ -43,13 +43,9 @@ class LeakageModelMeta(type):
 
     def __new__(mcs, name, bases, class_dict):
         if bases != (object,):  # Do not validate LeakageModel class
-            if 'leakage_type' not in class_dict or 'num_outputs' not in class_dict:
+            if 'leakage_type' not in class_dict:
                 raise LeakageModelMeta.BadLeakageModelClassException
             if class_dict['leakage_type'] not in LeakageModelType.choices():
-                raise LeakageModelMeta.InvalidModelTypeException
-            if type(class_dict['num_outputs']) is not tuple:
-                raise LeakageModelMeta.InvalidModelTypeException
-            if len(class_dict['num_outputs']) < 1:
                 raise LeakageModelMeta.InvalidModelTypeException
         return type.__new__(mcs, name, bases, class_dict)
 
@@ -58,22 +54,24 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
     """
     Leakage model base class.
     """
-    num_outputs = None
-
     class UnknownLeakageModelException(EMMAException):
         pass
 
-    def __new__(cls, leakage_type):
+    def __new__(cls, conf):
         """
         Called when instantiating a LeakageModel object. Returns an instance of the appropriate class depending on the
         leakage_type parameter.
-        :param leakage_type:
+        :param conf:
         :return:
         """
         for subclass in cls._get_subclasses():
-            if subclass.leakage_type == leakage_type:
+            if subclass.leakage_type == conf.leakage_model:
                 return object.__new__(subclass)  # Avoid recursion by calling object.__new__ instead of cls.__new__
         raise LeakageModel.UnknownLeakageModelException
+
+    def __init__(self, conf):
+        self.conf = conf
+        self.num_outputs = 16  # TODO depend on key_low and key_high
 
     @classmethod
     def _get_subclasses(cls):
@@ -87,10 +85,15 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
         raise NotImplementedError
 
     def get_trace_set_leakages(self, trace_set):
-        values = np.zeros((len(trace_set.traces), *self.__class__.num_outputs), dtype=float)  # [num_traces, num_key_bytes]
+        """
+        Return numpy array containing the leakage model for [trace_index, key_byte_index]
+        :param trace_set:
+        :return:
+        """
+        values = np.zeros((len(trace_set.traces), self.num_outputs), dtype=float)  # [num_traces, num_key_bytes]
 
         for i in range(len(trace_set.traces)):
-            for j in range(self.__class__.num_outputs[0]):
+            for j in range(self.num_outputs):
                 values[i, j] = self.get_trace_leakages(trace_set.traces[i], j)
 
         return values
@@ -98,7 +101,6 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
 
 class HammingWeightSboxLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.HAMMING_WEIGHT_SBOX
-    num_outputs = (16,)  # TODO Number of key bytes should not be specified here. Rather, in conf passed to LeakageModel
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         plaintext_byte = trace.plaintext[key_byte_index]
@@ -108,7 +110,6 @@ class HammingWeightSboxLeakageModel(LeakageModel):
 
 class HammingWeightMaskedSboxLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.HAMMING_WEIGHT_MASKED_SBOX
-    num_outputs = (16,)
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         plaintext_byte = trace.plaintext[key_byte_index]
@@ -119,7 +120,6 @@ class HammingWeightMaskedSboxLeakageModel(LeakageModel):
 
 class SboxLeakageModel(LeakageModel):  # No Hamming weight assumption
     leakage_type = LeakageModelType.HAMMING_WEIGHT_SBOX
-    num_outputs = (16,)
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         plaintext_byte = trace.plaintext[key_byte_index]
@@ -129,7 +129,6 @@ class SboxLeakageModel(LeakageModel):  # No Hamming weight assumption
 
 class NoLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.NONE
-    num_outputs = (16,)
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
