@@ -45,7 +45,6 @@ class AI:
         self.metric_freq = conf.metric_freq
         self.reg = conf.regularizer
         self.regfinal = conf.regularizer
-        self.nomodel = conf.nomodel
         self.reg_lambda = conf.reglambda
         self.momentum = 0.1
         self.hamming = conf.hamming
@@ -155,7 +154,7 @@ class AI:
                 fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
                 fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
                 fake_ts.windowed = True
-                r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf.nomodel)
+                r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf.leakage_model)
                 ranks[i][j] = r
                 confidences[i][j] = c
                 print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
@@ -199,7 +198,7 @@ class AI:
             fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
             fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
             fake_ts.windowed = True
-            r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf.nomodel)
+            r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf.leakage_model)
             ranks[j] = r
             confidences[j] = c
             print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
@@ -241,8 +240,7 @@ class AI:
     def conf_to_name(self, model_type, conf):
         name = model_type
 
-        if conf.nomodel:
-            name += "-nomodel"
+        name += "-" + conf.leakage_model.replace("_", "-")
         name += "-h" + str(conf.n_hidden_layers)
         if not conf.cnn:
             if not conf.use_bias:
@@ -281,7 +279,7 @@ class AI:
         # Get gradients of this batch
         gradients = get_gradients([examples_batch])[0]
 
-        # Square gradient (we don't care about the sign or about low values)
+        # Square gradient (if we don't care about the sign or about low values)
         if square_gradients:
             gradients = np.square(gradients)
 

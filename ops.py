@@ -29,6 +29,7 @@ from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from emresult import EMResult, SalvisResult
 from registry import op
+from leakagemodels import LeakageModel
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -288,13 +289,6 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     """
     logger.info("attack %s" % (str(params) if not params is None else ""))
 
-    # Use mask?
-    usemask = False
-    if not params is None:
-        if len(params) == 1:
-            if params[0] == 'usemask':
-                usemask = True
-
     # Init if first time
     if result.correlations is None:
         result.correlations = CorrelationList([256, trace_set.window.size])
@@ -310,16 +304,10 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     hypotheses = np.empty([256, trace_set.num_traces])
 
     # 1. Build hypotheses for all 256 possibilities of the key and all traces
+    leakage_model = LeakageModel(conf.leakage_model)
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            if usemask:
-                mask = trace_set.traces[i].mask[conf.subkey] if not trace_set.traces[i].mask is None else 0
-            else:
-                mask = 0
-            if conf.nomodel:
-                hypotheses[subkey_guess, i] = sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]
-            else:
-                hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess] ^ mask]  # Model of the power consumption
+            hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for j in range(0, trace_set.window.size):
@@ -356,14 +344,10 @@ def dattack_trace_set(trace_set, result, conf=None, params=None):
     hypotheses = np.empty([256, trace_set.num_traces])
 
     # 1. Build hypotheses for all 256 possibilities of the key and all traces
+    leakage_model = LeakageModel(conf.leakage_model)
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            if conf.nomodel:
-                hypotheses[subkey_guess, i] = sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]
-            elif conf.nomodelpt:
-                hypotheses[subkey_guess, i] = subkey_guess / 255.0
-            else:
-                hypotheses[subkey_guess, i] = hw[sbox[trace_set.traces[i].plaintext[conf.subkey] ^ subkey_guess]]  # Model of the power consumption
+            hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
 
     # 2. Given point j of trace i, calculate the distance between all hypotheses
     for j in range(0, trace_set.window.size):

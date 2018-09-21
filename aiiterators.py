@@ -7,7 +7,6 @@
 # ----------------------------------------------------
 
 from emresult import EMResult
-from lut import hw, sbox
 from streamserver import StreamServer
 from celery.utils.log import get_task_logger
 from ASCAD_train_models import load_ascad
@@ -15,6 +14,7 @@ from keras.utils import to_categorical
 from traceset import TraceSet
 from os.path import join
 from dataset import get_dataset_normalization_mean_std
+from leakagemodels import LeakageModel
 
 import numpy as np
 import ops
@@ -198,6 +198,7 @@ class AISignalIteratorBase():
     def __next__(self):
         return self.next()
 
+
 class AICorrSignalIterator(AISignalIteratorBase):
     def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None):
         super(AICorrSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id, stream_server)
@@ -219,16 +220,9 @@ class AICorrSignalIterator(AISignalIteratorBase):
         if self.conf.cnn:
             signals = np.expand_dims(signals, axis=-1)
 
-        # Get model labels (key bytes to correlate)
-        values = np.zeros((len(trace_set.traces), 16), dtype=float)
-        for i in range(len(trace_set.traces)):
-            for j in range(16):
-                if self.conf.nomodel:  # No Hamming weight assumption
-                    values[i, j] = sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]
-                elif self.conf.nomodelpt:  # No assumptions; just use the key
-                    values[i, j] = trace_set.traces[i].key[j] / 255.0
-                else:  # Assume Hamming weight model and plaintext known
-                    values[i, j] = hw[sbox[trace_set.traces[i].plaintext[j] ^ trace_set.traces[i].key[j]]]
+        # Get model labels (key byte leakage values to correlate / analyze)
+        leakage_model = LeakageModel(self.conf.leakage_model)
+        values = leakage_model.get_trace_set_leakages(trace_set)
 
         return signals, values
 

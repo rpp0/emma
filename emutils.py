@@ -1,6 +1,6 @@
 # ----------------------------------------------------
 # Electromagnetic Mining Array (EMMA)
-# Copyright 2017, Pieter Robyns
+# Copyright 2017-2018, Pieter Robyns
 # ----------------------------------------------------
 
 import numpy as np
@@ -163,3 +163,7 @@ class Window(object):
             self.size = end - begin
         else:
             self.size = None
+
+
+class EMMAException(Exception):
+    pass

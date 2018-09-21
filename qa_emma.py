@@ -16,6 +16,7 @@ from distancelist import DistanceList
 from traceset import TraceSet
 from argparse import Namespace
 from aiiterators import AICorrSignalIterator
+from leakagemodels import LeakageModelType
 
 
 class UnitTestSettings:
@@ -213,9 +214,9 @@ class TestAI(unittest.TestCase):
             dataset_id='qa',
             ptinput=False,
             cnn=False,
-            nomodel=False,
-            nomodelpt=False,
+            leakage_model=LeakageModelType.HAMMING_WEIGHT_SBOX,
             n_hidden_layers=1,
+            n_hidden_nodes=256,
             activation='leakyrelu',
             metric_freq=100,
             regularizer=None,
@@ -227,6 +228,8 @@ class TestAI(unittest.TestCase):
             key_low=2,
             key_high=3,
             loss_type='correlation',
+            kinput=False,
+            lr=0.0001,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
