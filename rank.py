@@ -143,7 +143,7 @@ class CorrRankCallback(RankCallbackBase):
             fake_ts.windowed = True
 
             for i in range(self.key_low, self.key_high):
-                rank, confidence = calculate_traceset_rank(fake_ts, i, keys[0][i], self.conf.leakage_model)  # TODO: It is assumed here that all true keys of the test set are the same
+                rank, confidence = calculate_traceset_rank(fake_ts, i, keys[0][i], self.conf)  # TODO: It is assumed here that all true keys of the test set are the same
                 self._save_best_rank_model(rank, confidence)
                 logs['rank %d' % i] = rank
                 logs['confidence %d' % i] = confidence
@@ -152,8 +152,8 @@ class CorrRankCallback(RankCallbackBase):
             print("Warning: no trace_set supplied to RankCallback")
 
 
-def calculate_traceset_rank(trace_set, key_index, true_key, leakage_model):
-    conf = Namespace(subkey=key_index, leakage_model=leakage_model)
+def calculate_traceset_rank(trace_set, key_index, true_key, orig_conf):
+    conf = Namespace(subkey=key_index, leakage_model=orig_conf.leakage_model, key_low=orig_conf.key_low, key_high=orig_conf.key_high)
     result = EMResult(task_id=None)
     ops.attack_trace_set(trace_set, result, conf, params=None)
 

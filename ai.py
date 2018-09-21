@@ -154,7 +154,7 @@ class AI:
                 fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
                 fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
                 fake_ts.windowed = True
-                r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf.leakage_model)
+                r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf)
                 ranks[i][j] = r
                 confidences[i][j] = c
                 print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
@@ -198,7 +198,7 @@ class AI:
             fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
             fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
             fake_ts.windowed = True
-            r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf.leakage_model)
+            r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf)
             ranks[j] = r
             confidences[j] = c
             print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))

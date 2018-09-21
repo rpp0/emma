@@ -270,11 +270,11 @@ class TestAI(unittest.TestCase):
 
         # Manually calculate the loss using numpy to verify that we are learning a correct correlation
         calculated_loss = 0
-        for i in range(conf.key_low, conf.key_high):
-            print("Subkey %d HWs   : %s" % (i, str(y[:, i])))
-            print("Subkey %d encodings: %s" % (i, str(result[:, i-conf.key_low])))
+        for i in range(0, conf.key_high - conf.key_low):
+            print("Subkey %d HWs   : %s" % (i + conf.key_low, str(y[:, i])))
+            print("Subkey %d encodings: %s" % (i + conf.key_low, str(result[:, i])))
             y_key = y[:, i].reshape([-1, 1])
-            y_pred = result[:, i-conf.key_low].reshape([-1, 1])
+            y_pred = result[:, i].reshape([-1, 1])
 
             # Calculate correlation (vector approach)
             # y_key_norm = y_key - np.mean(y_key, axis=0)

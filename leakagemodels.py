@@ -17,6 +17,7 @@ class LeakageModelType:
     HAMMING_WEIGHT_SBOX = 'hamming_weight_sbox'
     HAMMING_WEIGHT_MASKED_SBOX = 'hamming_weight_masked_sbox'
     SBOX = 'sbox'
+    AES_TEST = 'aes_test'
 
     @classmethod
     def choices(cls):
@@ -71,7 +72,7 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
 
     def __init__(self, conf):
         self.conf = conf
-        self.num_outputs = 16  # TODO depend on key_low and key_high
+        self.num_outputs = (conf.key_high - conf.key_low, 1)  # [num_key_bytes, num_outputs_per_key_byte]
 
     @classmethod
     def _get_subclasses(cls):
@@ -90,13 +91,13 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
         :param trace_set:
         :return:
         """
-        values = np.zeros((len(trace_set.traces), self.num_outputs), dtype=float)  # [num_traces, num_key_bytes]
+        values = np.zeros((len(trace_set.traces), *self.num_outputs), dtype=float)  # [num_traces, num_key_bytes]
 
         for i in range(len(trace_set.traces)):
-            for j in range(self.num_outputs):
-                values[i, j] = self.get_trace_leakages(trace_set.traces[i], j)
+            for j in range(self.num_outputs[0]):
+                values[i, j] = self.get_trace_leakages(trace_set.traces[i], j + self.conf.key_low)
 
-        return values
+        return values.reshape((len(trace_set.traces), -1))
 
 
 class HammingWeightSboxLeakageModel(LeakageModel):
@@ -133,3 +134,16 @@ class NoLeakageModel(LeakageModel):
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
         return key_byte / 255.0
+
+
+class AESMultiLeakageTestModel(LeakageModel):
+    leakage_type = LeakageModelType.AES_TEST
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.num_outputs = (self.num_outputs[0], 2)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        return [hw[key_byte],
+                hw[sbox[key_byte]]]

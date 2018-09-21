@@ -684,7 +684,7 @@ def basetest(self, trace_set_paths, conf, rank_trace_step=1000, t=10):
                 subset.set_traces(validation_traces[0:(j+1)*rank_trace_step])
                 subset.window = Window(begin=0, end=len(subset.traces[0].signal))
                 subset.windowed = True
-                r, c = rank.calculate_traceset_rank(subset, 2, subset.traces[0].key[2])
+                r, c = rank.calculate_traceset_rank(subset, 2, subset.traces[0].key[2], conf)
                 ranks[i][j] = r
                 confidences[i][j] = c
                 print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
