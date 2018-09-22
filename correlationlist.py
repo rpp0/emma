@@ -1,7 +1,8 @@
 import numpy as np
 import pickle
 
-class CorrelationList():
+
+class CorrelationList:
     def __init__(self, shape):
         self._sumx = np.zeros(shape, dtype=float)
         self._sumy = np.zeros(shape, dtype=float)

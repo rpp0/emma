@@ -82,6 +82,11 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
                     yield subsubclass
             yield subclass
 
+    @classmethod
+    def get_num_outputs(cls, conf):
+        instance = cls(conf)
+        return int(np.product(instance.num_outputs))
+
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         raise NotImplementedError
 
@@ -144,6 +149,8 @@ class AESMultiLeakageTestModel(LeakageModel):
         self.num_outputs = (self.num_outputs[0], 2)
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
         return [hw[key_byte],
-                hw[sbox[key_byte]]]
+                hw[sbox[plaintext_byte ^ key_byte]],
+                ]

@@ -71,6 +71,7 @@ def parallel_work(trace_set_paths, conf, merge_results=False):
         return group(result)()
 
 
+@activity('spattack')
 @activity('attack')
 def __perform_cpa_attack(emma):
     """

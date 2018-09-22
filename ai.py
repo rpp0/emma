@@ -20,6 +20,7 @@ from keras.models import load_model
 from keras.callbacks import TensorBoard, History
 from keras.applications.vgg16 import VGG16
 from keras import regularizers
+from leakagemodels import LeakageModel
 
 K.set_epsilon(1e-15)
 
@@ -50,7 +51,7 @@ class AI:
         self.hamming = conf.hamming
         self.key_low = conf.key_low
         self.key_high = conf.key_high
-        self.loss = lossfunctions.get_loss(conf.key_low, conf.key_high, loss_type=conf.loss_type)
+        self.loss = lossfunctions.get_loss(conf)
 
         self.suffix = "" if conf.model_suffix is None else '-' + conf.model_suffix  # Added to name later
         self.name = self.conf_to_name(name, conf)
@@ -229,7 +230,7 @@ class AI:
         # return self.model.predict(x, batch_size=10000, verbose=0)
         # TODO can we move this to child classes instead? i.e. in this case AICorrNet
         outputs = self.model.predict(x, batch_size=10000, verbose=0)
-        num_encodings = self.conf.key_high - self.conf.key_low
+        num_encodings = self.model.output.shape[1]
         encodings = outputs[:, 0:num_encodings]
         if self.conf.loss_type == 'correlation_special':
             weights = np.mean(outputs[:, num_encodings], axis=0)
@@ -292,6 +293,14 @@ class AI:
             gradients = np.array(gradients)
 
         return gradients
+
+    def info(self):
+        result = ""
+        result += "Model  : %s (%s)\n" % (self.name, self.__class__)
+        result += "Loss   : %s\n" % self.loss.__name__
+        result += "Inputs : %d\n" % self.model.input.shape[1]
+        result += "Outputs: %d\n" % self.model.output.shape[1]
+        return result
 
 
 class AIMemCopyDirect():
@@ -506,7 +515,7 @@ class AICorrNet(AI):
 
             # Output layer
             extra_outputs = 1 if conf.loss_type == 'correlation_special' else 0
-            self.model.add(Dense(conf.key_high - conf.key_low + extra_outputs, input_dim=input_dim, use_bias=self.use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(self.regfinal, self.reg_lambda)))
+            self.model.add(Dense(LeakageModel.get_num_outputs(conf) + extra_outputs, input_dim=input_dim, use_bias=self.use_bias, activation=None, kernel_initializer=initializer, kernel_constraint=constraint, kernel_regularizer=str_to_reg(self.regfinal, self.reg_lambda)))
             if self.batch_norm:
                 self.model.add(BatchNormalization(momentum=0.1))
             self.model.add(str_to_activation(self.activation))

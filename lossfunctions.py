@@ -6,27 +6,35 @@
 import keras.backend as K
 import tensorflow as tf
 from registry import lossfunctions, lossfunction
+from leakagemodels import LeakageModel
 
 
-def get_loss(key_low, key_high, loss_type='correlation'):
-    f = lossfunctions[loss_type]
-    return f(key_low, key_high)
+def get_loss(conf):
+    f = lossfunctions[conf.loss_type]
+    return f(conf)
 
 
 @lossfunction('correlation')
-def _get_correlation_loss(key_low, key_high):
+def _get_correlation_loss(conf):
+    num_outputs = LeakageModel.get_num_outputs(conf)
+    num_keys = conf.key_high - conf.key_low
+
     def correlation_loss(y_true_raw, y_pred_raw):
         """
         Custom loss function that calculates the Pearson correlation of the prediction with
         the true values over a number of batches.
         """
+        if num_outputs > num_keys:
+            y_true_raw = K.reshape(y_true_raw, (-1, num_keys))
+            y_pred_raw = K.reshape(y_pred_raw, (-1, num_keys))
+
         # y_true_raw = K.print_tensor(y_true_raw, message='y_true_raw = ')  # Note: print truncating is incorrect in the print_tensor function
         # y_pred_raw = K.print_tensor(y_pred_raw, message='y_pred_raw = ')
         y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
         y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
 
         loss = K.variable(0.0)
-        for key_col in range(0, key_high - key_low):  # 0 - 16
+        for key_col in range(0, conf.key_high - conf.key_low):  # 0 - 16
             y_key = K.expand_dims(y_true[:, key_col], axis=1)  # [?, 16] -> [?, 1]
             y_keypred = K.expand_dims(y_pred[:, key_col], axis=1)  # [?, 16] -> [?, 1]
             denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
@@ -40,7 +48,7 @@ def _get_correlation_loss(key_low, key_high):
 
 
 @lossfunction('correlation_special')
-def _get_special_correlation_loss(key_low, key_high):
+def _get_special_correlation_loss(conf):
     def correlation_loss(y_true_raw, y_pred_raw):
         """
         Custom loss function that calculates the Pearson correlation of the prediction with
@@ -49,11 +57,11 @@ def _get_special_correlation_loss(key_low, key_high):
         """
         y_true = (y_true_raw - K.mean(y_true_raw, axis=0, keepdims=True))  # We are taking correlation over columns, so normalize columns
         y_pred = (y_pred_raw - K.mean(y_pred_raw, axis=0, keepdims=True))
-        weight_index = key_high - key_low
+        weight_index = conf.key_high - conf.key_low
 
         loss = K.variable(0.0)
         weight = K.mean(y_pred_raw[:, weight_index], axis=0)
-        for key_col in range(0, key_high - key_low):  # 0 - 16
+        for key_col in range(0, conf.key_high - conf.key_low):  # 0 - 16
             y_key = K.expand_dims(y_true[:, key_col], axis=1)  # [?, 16] -> [?, 1]
             y_keypred = K.expand_dims(y_pred[:, key_col], axis=1)  # [?, 16] -> [?, 1]
             denom = K.sqrt(K.dot(K.transpose(y_keypred), y_keypred)) * K.sqrt(K.dot(K.transpose(y_key), y_key))
@@ -71,22 +79,22 @@ def _get_special_correlation_loss(key_low, key_high):
 
 
 @lossfunction('abs_distance')
-def _get_abs_distance_loss(key_low, key_high):
-    return __get_distance_loss(key_low, key_high, False)
+def _get_abs_distance_loss(conf):
+    return __get_distance_loss(conf, False)
 
 
 @lossfunction('squared_distance')
-def _get_squared_distance_loss(key_low, key_high):
-    return __get_distance_loss(key_low, key_high, True)
+def _get_squared_distance_loss(conf):
+    return __get_distance_loss(conf, True)
 
 
-def __get_distance_loss(key_low, key_high, squared):
+def __get_distance_loss(conf, squared):
     def distance_loss(y_true_raw, y_pred_raw):
         y_true = y_true_raw
         y_pred = y_pred_raw
 
         loss = K.variable(0.0)
-        for key_col in range(0, key_high - key_low):  # 0 - 16
+        for key_col in range(0, conf.key_high - conf.key_low):  # 0 - 16
             y_key = y_true[:, key_col]  # [?, 16] -> [?,]
             y_keypred = y_pred[:, key_col]  # [?, 16] -> [?,]
             if squared:

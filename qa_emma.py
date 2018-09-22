@@ -238,6 +238,7 @@ class TestAI(unittest.TestCase):
         # Train and obtain encodings
         # ------------------------------
         model = ai.AICorrNet(conf, input_dim=4, name="test")
+        print(model.info())
         rank_cb = rank.CorrRankCallback(conf, '/tmp/deleteme/', save_best=False, save_path=None)
         rank_cb.set_trace_set(trace_set)
 

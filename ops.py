@@ -362,6 +362,45 @@ def dattack_trace_set(trace_set, result, conf=None, params=None):
             result.distances.update((subkey_guess, j), hypotheses[subkey_guess, :], measurements)
 
 
+@op('spattack')
+def spattack_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("spattack %s" % (str(params) if not params is None else ""))
+
+    num_outputs = LeakageModel.get_num_outputs(conf)
+    num_keys = conf.key_high - conf.key_low
+
+    # Init if first time
+    if result.correlations is None:
+        result.correlations = CorrelationList([256, int(trace_set.window.size / num_outputs)])
+
+    if not trace_set.windowed:
+        logger.warning("Trace set not windowed. Skipping attack.")
+        return
+
+    if trace_set.num_traces <= 0:
+        logger.warning("Skipping empty trace set.")
+        return
+
+    hypotheses = np.empty([256, trace_set.num_traces, num_outputs])
+
+    # 1. Build hypotheses for all 256 possibilities of the key and all traces
+    leakage_model = LeakageModel(conf)
+    for subkey_guess in range(0, 256):
+        for i in range(0, trace_set.num_traces):
+            hypotheses[subkey_guess, i, :] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
+
+    # 2. Given point j of trace i, calculate the correlation between all hypotheses
+    for i in range(0, trace_set.num_traces):
+        for k in range(0, num_keys):
+            # Get measurements (columns) from all traces
+            measurements = trace_set.traces[i].signal[num_outputs*k:num_outputs*(k+1)]
+
+            # Correlate measurements with 256 hypotheses
+            for subkey_guess in range(0, 256):
+                # Update correlation
+                result.correlations.update((subkey_guess, k), hypotheses[subkey_guess, i, :], measurements)
+
+
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("memattack %s" % (str(params) if not params is None else ""))
@@ -505,7 +544,7 @@ def merge(self, to_merge, conf):
         result = EMResult(task_id=self.request.id)
 
         # If we are attacking, merge the correlations
-        if 'attack' in conf.actions or 'memattack' in conf.actions:
+        if 'attack' in conf.actions or 'memattack' in conf.actions or 'spattack' in conf.actions:
             # Get size of correlations
             shape = to_merge[0].correlations._n.shape  # TODO fixme init hetzelfde als in attack
 
@@ -740,6 +779,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
             model = ai.AISHACC(conf, input_shape=input_shape)
         elif model_type == 'aiascad':
             model = ai.AIASCAD(conf, input_shape=input_shape)
+    logger.info(model.info())
 
     if conf.tfold:  # Train t times and generate tfold rank summary
         model.train_t_fold(training_iterator, batch_size=conf.batch_size, epochs=conf.epochs, num_train_traces=45000, t=10, rank_trace_step=10, conf=conf)
