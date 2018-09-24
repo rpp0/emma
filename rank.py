@@ -14,6 +14,7 @@ from traceset import TraceSet
 from argparse import Namespace
 from emutils import Window
 from emresult import EMResult
+from leakagemodels import LeakageModelType
 
 
 class RankCallbackBase(keras.callbacks.Callback):
@@ -155,7 +156,11 @@ class CorrRankCallback(RankCallbackBase):
 def calculate_traceset_rank(trace_set, key_index, true_key, orig_conf):
     conf = Namespace(subkey=key_index, leakage_model=orig_conf.leakage_model, key_low=orig_conf.key_low, key_high=orig_conf.key_high)
     result = EMResult(task_id=None)
-    ops.attack_trace_set(trace_set, result, conf, params=None)
+
+    if conf.leakage_model == LeakageModelType.AES_MULTI or conf.leakage_model == LeakageModelType.AES_MULTI_TEST:
+        ops.spattack_trace_set(trace_set, result, conf, params=None)
+    else:
+        ops.attack_trace_set(trace_set, result, conf, params=None)
 
     corr_result = result.correlations
     print("Num entries: %d" % corr_result._n[0][0])
