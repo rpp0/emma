@@ -146,11 +146,21 @@ class AESMultiLeakageTestModel(LeakageModel):
 
     def __init__(self, conf):
         super().__init__(conf)
-        self.num_outputs = (self.num_outputs[0], 2)
+        self.num_outputs = (self.num_outputs[0], 11)
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         plaintext_byte = trace.plaintext[key_byte_index]
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
-        return [hw[key_byte],
-                hw[sbox[plaintext_byte ^ key_byte]],
+
+        return [hw[key_byte & 0x01],
+                hw[key_byte & 0x02],
+                hw[key_byte & 0x04],
+                hw[key_byte & 0x08],
+                hw[key_byte & 0x10],
+                hw[key_byte & 0x20],
+                hw[key_byte & 0x40],
+                hw[key_byte & 0x80],
+                hw[key_byte & 0xf0],
+                hw[key_byte & 0x0f],
+                hw[key_byte],
                 ]

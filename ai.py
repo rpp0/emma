@@ -230,13 +230,13 @@ class AI:
         # return self.model.predict(x, batch_size=10000, verbose=0)
         # TODO can we move this to child classes instead? i.e. in this case AICorrNet
         outputs = self.model.predict(x, batch_size=10000, verbose=0)
-        num_encodings = self.model.output.shape[1]
-        encodings = outputs[:, 0:num_encodings]
         if self.conf.loss_type == 'correlation_special':
+            num_encodings = self.model.output.shape[1]-1
+            encodings = outputs[:, 0:num_encodings]
             weights = np.mean(outputs[:, num_encodings], axis=0)
             return np.multiply(encodings, weights)
         else:
-            return encodings
+            return outputs
 
     def conf_to_name(self, model_type, conf):
         name = model_type

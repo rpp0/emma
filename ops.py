@@ -366,12 +366,12 @@ def dattack_trace_set(trace_set, result, conf=None, params=None):
 def spattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("spattack %s" % (str(params) if not params is None else ""))
 
-    num_outputs = LeakageModel.get_num_outputs(conf)
     num_keys = conf.key_high - conf.key_low
+    num_outputs_per_key = LeakageModel.get_num_outputs(conf) // num_keys
 
     # Init if first time
     if result.correlations is None:
-        result.correlations = CorrelationList([256, int(trace_set.window.size / num_outputs)])
+        result.correlations = CorrelationList([256, num_keys])
 
     if not trace_set.windowed:
         logger.warning("Trace set not windowed. Skipping attack.")
@@ -381,7 +381,7 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
         logger.warning("Skipping empty trace set.")
         return
 
-    hypotheses = np.empty([256, trace_set.num_traces, num_outputs])
+    hypotheses = np.empty([256, trace_set.num_traces, num_outputs_per_key])
 
     # 1. Build hypotheses for all 256 possibilities of the key and all traces
     leakage_model = LeakageModel(conf)
@@ -393,7 +393,7 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
     for i in range(0, trace_set.num_traces):
         for k in range(0, num_keys):
             # Get measurements (columns) from all traces
-            measurements = trace_set.traces[i].signal[num_outputs*k:num_outputs*(k+1)]
+            measurements = trace_set.traces[i].signal[num_outputs_per_key*k:num_outputs_per_key*(k+1)]
 
             # Correlate measurements with 256 hypotheses
             for subkey_guess in range(0, 256):
