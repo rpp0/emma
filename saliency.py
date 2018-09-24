@@ -10,17 +10,20 @@ def get_gradients(conf, model, examples_batch, kerasvis=False):
         visualize_saliency = None  # Get rid of PyCharm warning
     subkey_gradients = []
 
+    # Get number of outputs
+    num_outputs = model.model.output.shape[1]
+
     # Get gradients for each subkey
-    for subkey in range(conf.key_low, conf.key_high):
+    for neuron_index in range(0, num_outputs):
         if kerasvis is False:
-            gradients = model.get_output_gradients(subkey - conf.key_low,
+            gradients = model.get_output_gradients(neuron_index,
                                                    examples_batch,
                                                    square_gradients=True,
                                                    mean_of_gradients=conf.saliency_mean_gradient)
         else:
             gradients = np.zeros(examples_batch.shape)
             for i in range(0, examples_batch.shape[0]):
-                gradients[i, :] = visualize_saliency(model.model, -1, filter_indices=subkey, seed_input=examples_batch[i, :])
+                gradients[i, :] = visualize_saliency(model.model, -1, filter_indices=neuron_index, seed_input=examples_batch[i, :])
 
         subkey_gradients.append(gradients)
     return subkey_gradients
@@ -33,19 +36,19 @@ def plot_saliency_2d_overlay(conf, salvis_result):
     :param salvis_result:
     :return:
     """
-    for subkey in range(conf.key_low, conf.key_high):
+    for neuron_index in range(len(salvis_result.gradients)):
         # Plot the result
         visualizations.plot_colormap(salvis_result.examples_batch,
                                      cmap='gray',
                                      show=False,
                                      draw_axis=False,
                                      alpha=1.0)
-        visualizations.plot_colormap(salvis_result.gradients[subkey - conf.key_low],
+        visualizations.plot_colormap(salvis_result.gradients[neuron_index],
                                      cmap='inferno',
                                      show=True,
                                      draw_axis=False,
                                      alpha=0.8,
-                                     title='%d' % subkey,
+                                     title='Neuron: %d' % neuron_index,
                                      xlabel='Time (samples)',
                                      ylabel='Trace index')
 
@@ -60,8 +63,8 @@ def plot_saliency_2d(conf, salvis_result):
     """
     visualizations.plot_colormap(salvis_result.examples_batch, cmap='plasma')
 
-    for subkey in range(conf.key_low, conf.key_high):
-        visualizations.plot_colormap(salvis_result.gradients[subkey - conf.key_low])
+    for neuron_index in range(len(salvis_result.gradients)):
+        visualizations.plot_colormap(salvis_result.gradients[neuron_index])
 
 
 def plot_saliency_1d(conf, salvis_result):
@@ -79,20 +82,20 @@ def plot_saliency_1d(conf, salvis_result):
 
     plt.plot(normalize(mean_signal), color='tab:blue', label='Mean signal (normalized)')
 
-    for subkey in range(conf.key_low, conf.key_high):
+    for neuron_index in range(len(salvis_result.gradients)):
         # Get gradient of mean signal
-        gradients = salvis_result.gradients[subkey - conf.key_low]
+        gradients = salvis_result.gradients[neuron_index]
         mean_gradient = gradients[0]
 
         # Visualize mean gradients
-        plt.plot(normalize(mean_gradient), label='Mean subkey %d gradient (normalized)' % subkey, alpha=0.6)
+        plt.plot(normalize(mean_gradient), label='Mean neuron %d gradient (normalized)' % neuron_index, alpha=0.6)
     plt.legend()
     plt.show()
 
 
 def plot_saliency_kerasvis(conf, salvis_result):
-    for subkey in range(conf.key_low, conf.key_high):
-        visualizations.plot_colormap(salvis_result.gradients[subkey - conf.key_low])
+    for neuron_index in range(len(salvis_result.gradients)):
+        visualizations.plot_colormap(salvis_result.gradients[neuron_index])
 
 
 def plot_saliency_2d_overlayold(conf, salvis_result):
@@ -102,8 +105,8 @@ def plot_saliency_2d_overlayold(conf, salvis_result):
 
     colormaps = ['Purples', 'Blues', 'Greens', 'Oranges', 'Reds']
     #  colormaps = ['inferno', 'inferno', 'inferno', 'inferno', 'inferno']
-    for subkey in range(conf.key_low, conf.key_high):
-        gradients = salvis_result.gradients[subkey - conf.key_low]
+    for neuron_index in range(len(salvis_result.gradients)):
+        gradients = salvis_result.gradients[neuron_index]
 
         # Plot
         cmap_orig = plt.get_cmap(colormaps.pop(0))

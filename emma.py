@@ -158,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch-norm', default=True, action='store_true', help='Use batch normalization.')  # TODO: It's impossible to disable this now; fix
     parser.add_argument('--saliency-remove-bias', default=False, action='store_true', help='Remove first samples when using the salvis activity.')
     parser.add_argument('--saliency-mean-gradient', default=True, action='store_true', help='Get the mean gradient of the batch instead of individual gradients when visualizing saliency.')  # TODO: Impossible to disable
-    parser.add_argument('--saliency-num-traces', type=int, default=2048, help='Maxmimum number of traces to show in saliency plots.')
+    parser.add_argument('--saliency-num-traces', type=int, default=1024, help='Maxmimum number of traces to show in saliency plots.')
     parser.add_argument('--loss-type', type=str, choices=registry.lossfunctions.keys(), default='correlation', help='Loss function to use when training.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)

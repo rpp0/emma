@@ -17,7 +17,8 @@ class LeakageModelType:
     HAMMING_WEIGHT_SBOX = 'hamming_weight_sbox'
     HAMMING_WEIGHT_MASKED_SBOX = 'hamming_weight_masked_sbox'
     SBOX = 'sbox'
-    AES_TEST = 'aes_test'
+    AES_MULTI_TEST = 'aes_test'
+    AES_MULTI = 'aes_multi'
 
     @classmethod
     def choices(cls):
@@ -141,8 +142,25 @@ class NoLeakageModel(LeakageModel):
         return key_byte / 255.0
 
 
-class AESMultiLeakageTestModel(LeakageModel):
-    leakage_type = LeakageModelType.AES_TEST
+class AESTestLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.AES_MULTI_TEST
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.num_outputs = (self.num_outputs[0], 3)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+
+        return [hw[sbox[plaintext_byte ^ key_byte]],
+                hw[sbox[plaintext_byte ^ key_byte]],
+                hw[sbox[plaintext_byte ^ key_byte]],
+                ]
+
+
+class AESMultiLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.AES_MULTI
 
     def __init__(self, conf):
         super().__init__(conf)
