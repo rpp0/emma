@@ -385,11 +385,11 @@ class SaveLowestValLoss(keras.callbacks.Callback):
 
         if self.lowest is None:
             self.lowest = val_loss
-        else:
-            if val_loss < self.lowest:
-                self.lowest = val_loss
-                self.lowest_epoch = epoch
-                self.model.save(self.path)
+
+        if val_loss <= self.lowest:
+            self.lowest = val_loss
+            self.lowest_epoch = epoch
+            self.model.save(self.path)
 
     def on_train_end(self, logs=None):
         print("Found lowest val_loss of %f at epoch %d" % (self.lowest, self.lowest_epoch))
