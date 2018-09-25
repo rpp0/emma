@@ -8,6 +8,7 @@ from emma_worker import app
 from celery.utils.log import get_task_logger
 from configargumentparser import ConfigArgumentParser
 from leakagemodels import LeakageModelType
+from emutils import conf_has_action, EMMAConfException
 
 import argparse
 import subprocess
@@ -71,6 +72,15 @@ class EMMAHost:
 
         return dataset, dataset_ref, dataset_val
 
+    def _resolve_conflicts(self, conf):
+        # Overrides
+        if conf_has_action(conf, 'rwindow'):
+            conf.max_cache = 0  # rwindow randomly shifts traces, so we cannot cache these traces during training
+
+        # Sanity checks
+        if conf.refset and not conf_has_action(conf, 'align'):
+            raise EMMAConfException("Refset specified, but no align action")
+
     def _generate_conf(self, args):
         if self.dataset is None or self.dataset_ref is None:
             raise Exception("Tried to generate configuration without loading datasets.")
@@ -84,6 +94,8 @@ class EMMAHost:
             subkey=0,
             **args.__dict__
         )
+
+        self._resolve_conflicts(conf)
 
         return conf
 

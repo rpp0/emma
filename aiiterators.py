@@ -15,6 +15,7 @@ from traceset import TraceSet
 from os.path import join
 from dataset import get_dataset_normalization_mean_std
 from leakagemodels import LeakageModel
+from emutils import shuffle_random_multiple
 
 import numpy as np
 import ops
@@ -192,7 +193,7 @@ class AISignalIteratorBase():
             if self.augment_noise:
                 signals = self._augment_noise(signals, mean=0.0, std=0.01)
             if self.augment_shuffle:
-                np.random.shuffle(signals)
+                signals, values = shuffle_random_multiple([signals, values])
 
             # Concatenate arrays until batch obtained
             self.signals_batch.extend(signals)

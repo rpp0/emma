@@ -152,6 +152,44 @@ def conf_to_id(conf):
     return result
 
 
+def conf_has_action(conf, target_action):
+    """
+    Checks whether target_action is in conf.actions, ignoring params
+    :param conf:
+    :param target_action:
+    :return:
+    """
+    for action in conf.actions:
+        action_name, _, _ = action.rpartition('[')
+        if target_action == action_name:
+            return True
+    return False
+
+
+def shuffle_random_multiple(lists):
+    """
+    Shuffle n same-length lists in the same random order.
+    :param lists:
+    :return:
+    """
+    result = []
+    if len(lists) < 1:
+        raise EMMAException("shuffle_random_xy expects at least 1 array")
+
+    length = len(lists[0])
+    random_indices = np.arange(length)
+    np.random.shuffle(random_indices)
+
+    for l in lists:
+        if len(l) != length:
+            raise EMMAException("Array length %d != %d. Expecting same-size lists." % (len(l), length))
+        shuffled_l = np.take(l, random_indices, axis=0)
+        result.append(shuffled_l)
+
+    del lists
+    return result
+
+
 class Window(object):
     """
     Helper object for specifying a range between begin (inclusive) and end (exclusive).
@@ -166,4 +204,8 @@ class Window(object):
 
 
 class EMMAException(Exception):
+    pass
+
+
+class EMMAConfException(EMMAException):
     pass

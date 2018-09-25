@@ -91,6 +91,7 @@ class AI:
         steps_per_epoch = int(training_iterator.num_total_examples / training_iterator.batch_size)
 
         # Train model
+        print("Starting training. Training set: %s" % training_iterator.trace_set_paths)
         self.model.fit_generator(training_iterator,
                                  epochs=epochs,
                                  steps_per_epoch=steps_per_epoch,
