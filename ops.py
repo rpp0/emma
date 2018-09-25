@@ -266,20 +266,18 @@ def save_trace_set(trace_set, result, conf, params=None):
     Save the trace set to a file using the output format specified in the conf object.
     """
     logger.info("save %s" % (str(params) if not params is None else ""))
-    if conf.outform == 'cw':
-        # Save back to output file
-        np.save(join(conf.outpath, trace_set.name + '_traces.npy'), trace_set.traces)
 
+    output_path = os.path.join(conf.datasets_path, conf.dataset_id + "-pre")
+
+    logger.info("Saving trace set %s to: %s" % (trace_set.name, output_path))
+    os.makedirs(output_path, exist_ok=True)
+    trace_set.save(output_path, fmt=conf.outform)
+
+    if conf.outform == 'cw':
         # Update the corresponding config file
-        emio.update_cw_config(conf.outpath, trace_set, {"numPoints": len(conf.reference_signal)})
-    elif conf.outform == 'sigmf':  # TODO make SigMF compliant
-        count = 1
-        for trace in trace_set.traces:
-            trace.tofile(join(conf.outpath, "%s-%d.rf32_le" % (trace_set.name, count)))
-            count += 1
-    else:
-        print("Unknown format: %s" % conf.outform)
-        exit(1)
+        # Deprecated
+        # emio.update_cw_config(conf.outpath, trace_set, {"numPoints": len(conf.reference_signal)})
+        pass
 
 
 @op('attack')

@@ -4,6 +4,8 @@
 # ----------------------------------------------------
 
 import numpy as np
+import os.path
+
 
 class Trace(object):
     def __init__(self, signal, plaintext, ciphertext, key, mask):
@@ -12,6 +14,7 @@ class Trace(object):
         self.ciphertext = ciphertext
         self.key = key
         self.mask = mask
+
 
 class TraceSet(object):
     def __init__(self, name=None, traces=None, plaintexts=None, ciphertexts=None, keys=None, masks=None):
@@ -65,10 +68,12 @@ class TraceSet(object):
 
     def save(self, path, fmt='cw'):
         if fmt == 'cw':
-            # Largely untested / debug feature
-            np.save(path + self.name + "_p_traces.npy", np.array([t.signal for t in self.traces]))
-            np.save(path + self.name + "_p_keys.npy", np.array([t.key for t in self.traces]))
-            np.save(path + self.name + "_p_plaintexts.npy", np.array([t.plaintext for t in self.traces]))
+            filename = os.path.basename(self.name)
+            full_path = os.path.join(path, filename)
+            np.save(full_path + "_traces.npy", np.array([t.signal for t in self.traces]))
+            np.save(full_path + "_knownkey.npy", np.array([t.key for t in self.traces]))
+            np.save(full_path + "_textin.npy", np.array([t.plaintext for t in self.traces]))
+            np.save(full_path + "_textout.npy", np.array([t.ciphertext for t in self.traces]))
         elif fmt == 'sigmf':
             raise NotImplementedError
         elif fmt == 'pickle':
