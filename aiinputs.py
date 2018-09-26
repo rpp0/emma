@@ -5,6 +5,7 @@
 
 import numpy as np
 from emutils import EMMAException, int_to_one_hot
+from leakagemodels import LeakageModel
 
 
 class AIInputType:
@@ -14,10 +15,13 @@ class AIInputType:
     """
     SIGNAL = 'signal'
     SIGNAL_PLAINTEXT = 'signal_plaintext'
+
+    # For testing purposes
     SIGNAL_KEY = 'signal_key'
     SIGNAL_PLAINTEXT_KEY = 'signal_plaintext_key'
     PLAINTEXT_KEY = 'plaintext_key'
     PLAINTEXT_KEY_OH = 'plaintext_key_oh'
+    SIGNAL_LEAKAGE = 'signal_leakage'
 
     @classmethod
     def choices(cls):
@@ -143,3 +147,24 @@ class PlaintextKeyOHAIInput(AIInput):
         for k in trace.key:
             result.append(int_to_one_hot(k, 256))
         return np.concatenate(result)
+
+
+class SignalLeakageAIInput(AIInput):
+    input_type = AIInputType.SIGNAL_LEAKAGE
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.leakage_model = LeakageModel(conf)
+
+    def get_trace_inputs(self, trace):
+        leakages = []
+
+        for k in range(16):
+            leakage = self.leakage_model.get_trace_leakages(trace, k)
+            if isinstance(leakage, list) or isinstance(leakage, np.ndarray):
+                leakages.extend(list(leakage))
+            else:
+                leakages.append(leakage)
+        leakages = np.array(leakages)
+
+        return np.concatenate((trace.signal, leakages))
