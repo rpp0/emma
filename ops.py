@@ -805,7 +805,8 @@ def salvis(self, trace_set_paths, model_type, vis_type, conf):
     examples_iterator, _ = aiiterators.get_iterators_for_model(model_type, trace_set_paths, [], conf, hamming=conf.hamming, subtype=None, request_id=self.request.id)
 
     logger.info("Retrieving batch of examples")
-    examples_batch = np.array([x.signal for x in examples_iterator.get_all_as_trace_set(limit=int(conf.saliency_num_traces/256)).traces])
+    trace_set = examples_iterator.get_all_as_trace_set(limit=int(conf.saliency_num_traces/256))
+    examples_batch = AIInput(conf).get_trace_set_inputs(trace_set)
     examples_batch = examples_batch[0:conf.saliency_num_traces, :]
     if len(examples_batch.shape) != 2:
         raise ValueError("Expected 2D examples batch for saliency visualization.")
