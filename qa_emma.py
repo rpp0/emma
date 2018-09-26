@@ -17,6 +17,7 @@ from traceset import TraceSet
 from argparse import Namespace
 from aiiterators import AICorrSignalIterator
 from leakagemodels import LeakageModelType
+from aiinputs import AIInputType
 
 
 class UnitTestSettings:
@@ -212,9 +213,10 @@ class TestAI(unittest.TestCase):
             traces_per_set=4,
             online=False,
             dataset_id='qa',
-            ptinput=False,
             cnn=False,
             leakage_model=LeakageModelType.HAMMING_WEIGHT_SBOX,
+            input_type=AIInputType.SIGNAL,
+            augment_shuffle=True,
             n_hidden_layers=1,
             n_hidden_nodes=256,
             activation='leakyrelu',
@@ -228,7 +230,6 @@ class TestAI(unittest.TestCase):
             key_low=2,
             key_high=3,
             loss_type='correlation',
-            kinput=False,
             lr=0.0001,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
@@ -348,9 +349,10 @@ class TestAI(unittest.TestCase):
             traces_per_set=4,
             online=False,
             dataset_id='qa',
-            ptinput=False,
             cnn=False,
             leakage_model=LeakageModelType.AES_MULTI,
+            input_type = AIInputType.SIGNAL,
+            augment_shuffle=True,
             n_hidden_layers=1,
             n_hidden_nodes=256,
             activation='leakyrelu',
@@ -364,7 +366,6 @@ class TestAI(unittest.TestCase):
             key_low=2,
             key_high=3,
             loss_type='correlation',
-            kinput=False,
             lr=0.0001,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)

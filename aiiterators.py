@@ -15,6 +15,7 @@ from traceset import TraceSet
 from os.path import join
 from dataset import get_dataset_normalization_mean_std
 from leakagemodels import LeakageModel
+from aiinputs import AIInput
 from emutils import shuffle_random_multiple
 
 import numpy as np
@@ -208,25 +209,19 @@ class AICorrSignalIterator(AISignalIteratorBase):
         super(AICorrSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id, stream_server)
 
     def _preprocess_trace_set(self, trace_set):
-        '''
-        Preprocessing specifically for AICorrNet
-        '''
+        """
+        Preprocess trace_set specifically for AICorrNet
+        """
 
-        # Get training data
-        if self.conf.ptinput:
-            signals = np.array([np.concatenate((trace.signal, trace.plaintext)) for trace in trace_set.traces], dtype=float)
-        elif self.conf.kinput:
-            signals = np.array([np.concatenate((trace.signal, trace.key)) for trace in trace_set.traces], dtype=float)
-        else:
-            signals = np.array([trace.signal for trace in trace_set.traces], dtype=float)
+        # Get model inputs (usually the trace signal)
+        signals = AIInput(self.conf).get_trace_set_inputs(trace_set)
 
         # CNNs expect a channel dimension
         if self.conf.cnn:
             signals = np.expand_dims(signals, axis=-1)
 
         # Get model labels (key byte leakage values to correlate / analyze)
-        leakage_model = LeakageModel(self.conf)
-        values = leakage_model.get_trace_set_leakages(trace_set)
+        values = LeakageModel(self.conf).get_trace_set_leakages(trace_set)
 
         return signals, values
 

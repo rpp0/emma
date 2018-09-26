@@ -8,6 +8,7 @@ from emma_worker import app
 from celery.utils.log import get_task_logger
 from configargumentparser import ConfigArgumentParser
 from leakagemodels import LeakageModelType
+from aiinputs import AIInputType
 from emutils import conf_has_action, EMMAConfException
 
 import argparse
@@ -162,8 +163,7 @@ if __name__ == "__main__":
     parser.add_argument('--regularizer', type=str, default=None, help='Regularizer to use.')
     parser.add_argument('--reglambda', type=float, default=0.001, help='Regularizer lambda.')
     parser.add_argument('--leakage-model', type=str, choices=LeakageModelType.choices(), default=LeakageModelType.HAMMING_WEIGHT_SBOX, help='Assumed leakage model.')
-    parser.add_argument('--ptinput', default=False, action='store_true', help='Also use plaintext as inputs to neural net.')
-    parser.add_argument('--kinput', default=False, action='store_true', help='Also use key as input to neural net (for testing purposes).')
+    parser.add_argument('--input-type', type=str, choices=AIInputType.choices(), default=AIInputType.SIGNAL, help='Type of input to use for training ML models.')
     parser.add_argument('--batch-size', type=int, default=512, help='Batch size.')
     parser.add_argument('--metric-freq', type=int, default=10, help='Frequency of calculating metrics (e.g. rank) of model.')
     parser.add_argument('--use-bias', default=True, action='store_true', help='Use a bias term.')  # TODO: It's impossible to disable this now; fix

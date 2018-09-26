@@ -15,6 +15,7 @@ from argparse import Namespace
 from emutils import Window
 from emresult import EMResult
 from leakagemodels import LeakageModelType
+from aiinputs import AIInput
 
 
 class RankCallbackBase(keras.callbacks.Callback):
@@ -31,7 +32,6 @@ class RankCallbackBase(keras.callbacks.Callback):
 
         self.metric_freq = conf.metric_freq
         self.cnn = conf.cnn
-        self.ptinput = conf.ptinput
         self.key_low = conf.key_low
         self.key_high = conf.key_high
         self.conf = conf
@@ -125,16 +125,14 @@ class CorrRankCallback(RankCallbackBase):
 
         if epoch % self.metric_freq != 0 or epoch == 0:
             return
-        if not self.trace_set is None:
-            if self.ptinput:  # TODO duplicate code from aiiterator!
-                x = np.array([np.concatenate((trace.signal, trace.plaintext)) for trace in self.trace_set.traces])
-            elif self.conf.kinput:
-                x = np.array([np.concatenate((trace.signal, trace.key)) for trace in self.trace_set.traces])
-            else:
-                x = np.array([trace.signal for trace in self.trace_set.traces])
+        if self.trace_set is not None:
+            # Fetch inputs from trace_set
+            x = AIInput(self.conf).get_trace_set_inputs(self.trace_set)
+
             if self.cnn:
                 x = np.expand_dims(x, axis=-1)
-            encodings = self.model.predict(x) # Output: [?, 16]
+
+            encodings = self.model.predict(x)  # Output: [?, 16]
 
             # Store encodings as fake traceset
             keys = np.array([trace.key for trace in self.trace_set.traces])

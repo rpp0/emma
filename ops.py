@@ -30,6 +30,7 @@ from lut import hw, sbox
 from emresult import EMResult, SalvisResult
 from registry import op
 from leakagemodels import LeakageModel
+from aiinputs import AIInput
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -474,13 +475,11 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
             result.ai = ai.AI(conf, "aicorrnet")
             result.ai.load()
 
-        # Fetch signals from traces
-        if conf.ptinput:
-            x = np.array([np.concatenate((trace.signal, trace.plaintext)) for trace in trace_set.traces], dtype=float)
-        elif conf.kinput:
-            x = np.array([np.concatenate((trace.signal, trace.key)) for trace in trace_set.traces], dtype=float)
-        else:
-            x = np.array([trace.signal for trace in trace_set.traces])
+        # Fetch inputs from trace_set
+        x = AIInput(conf).get_trace_set_inputs(trace_set)
+
+        if conf.cnn:
+            x = np.expand_dims(x, axis=-1)
 
         # Get encodings of signals
         encodings = result.ai.predict(x)
