@@ -243,12 +243,17 @@ class AI:
         name = model_type
 
         name += "-" + conf.leakage_model.replace("_", "-")
+        name += "-" + conf.input_type.replace("_", "-")
+        name += "-" + conf.loss_type.replace("_", "-")
+        name += "-e" + str(conf.epochs)
         name += "-h" + str(conf.n_hidden_layers)
+        name += "-n" + str(conf.n_hidden_nodes)
+        name += "-lr" + str(conf.lr).replace(".", "-")
         if not conf.cnn:
             if not conf.use_bias:
                 name += "-nobias"
             if not conf.activation is None:
-                name += "-" + str(conf.activation)
+                name += "-" + str(conf.activation).replace("_", "-")
             if conf.batch_norm:
                 name += "-bn"
             if not conf.regularizer is None:

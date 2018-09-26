@@ -4,7 +4,7 @@
 # ----------------------------------------------------
 
 import numpy as np
-from emutils import EMMAException
+from emutils import EMMAException, int_to_one_hot
 from lut import hw, sbox
 
 
@@ -15,6 +15,7 @@ class LeakageModelType:
     """
     NONE = 'none'
     HAMMING_WEIGHT_SBOX = 'hamming_weight_sbox'
+    HAMMING_WEIGHT_SBOX_OH = 'hamming_weight_sbox_oh'
     HAMMING_WEIGHT_MASKED_SBOX = 'hamming_weight_masked_sbox'
     SBOX = 'sbox'
     AES_MULTI_TEST = 'aes_test'
@@ -113,6 +114,20 @@ class HammingWeightSboxLeakageModel(LeakageModel):
         plaintext_byte = trace.plaintext[key_byte_index]
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
         return hw[sbox[plaintext_byte ^ key_byte]]
+
+
+class HammingWeightSboxOHLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.HAMMING_WEIGHT_SBOX_OH
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.onehot_outputs = 9
+        self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        return int_to_one_hot(hw[sbox[plaintext_byte ^ key_byte]], self.onehot_outputs)
 
 
 class HammingWeightMaskedSboxLeakageModel(LeakageModel):

@@ -4,7 +4,7 @@
 # ----------------------------------------------------
 
 import numpy as np
-from emutils import EMMAException
+from emutils import EMMAException, int_to_one_hot
 
 
 class AIInputType:
@@ -16,6 +16,8 @@ class AIInputType:
     SIGNAL_PLAINTEXT = 'signal_plaintext'
     SIGNAL_KEY = 'signal_key'
     SIGNAL_PLAINTEXT_KEY = 'signal_plaintext_key'
+    PLAINTEXT_KEY = 'plaintext_key'
+    PLAINTEXT_KEY_OH = 'plaintext_key_oh'
 
     @classmethod
     def choices(cls):
@@ -122,3 +124,22 @@ class SignalPlaintextKeyAIInput(AIInput):
 
     def get_trace_inputs(self, trace):
         return np.concatenate((trace.signal, trace.plaintext, trace.key))
+
+
+class PlaintextKeyAIInput(AIInput):
+    input_type = AIInputType.PLAINTEXT_KEY
+
+    def get_trace_inputs(self, trace):
+        return np.concatenate((trace.plaintext, trace.key))
+
+
+class PlaintextKeyOHAIInput(AIInput):
+    input_type = AIInputType.PLAINTEXT_KEY_OH
+
+    def get_trace_inputs(self, trace):
+        result = []
+        for p in trace.plaintext:
+            result.append(int_to_one_hot(p, 256))
+        for k in trace.key:
+            result.append(int_to_one_hot(k, 256))
+        return np.concatenate(result)

@@ -190,6 +190,18 @@ def shuffle_random_multiple(lists):
     return result
 
 
+def int_to_one_hot(integer, num_classes):
+    """
+    Convert integer to one-hot vector with num_classes elements.
+    :param integer:
+    :param num_classes:
+    :return:
+    """
+    r = np.zeros(num_classes, dtype=np.float32)
+    r[integer] = 1.0
+    return r
+
+
 class Window(object):
     """
     Helper object for specifying a range between begin (inclusive) and end (exclusive).
