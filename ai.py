@@ -80,6 +80,16 @@ class AI:
             'save': SaveLowestValLoss(self.model_path),
         }
 
+    def _debug_batch(self, iterator, name):
+        print("Saving plot of debug batch %s" % name)
+        example_batch = next(iterator)
+        signals, values = example_batch
+        predictions = self.predict(signals)
+        pickle.dump(predictions, open("/tmp/predictions-%s.p" % name, "wb"))
+        pickle.dump(values, open("/tmp/values-%s.p" % name, "wb"))
+        visualizations.plot_correlations(predictions, values, label1="Predictions", label2="True values", show=False)
+        visualizations.plt_save_pdf("/tmp/correlations-plot-%s.pdf" % name)
+
     def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
         validation_batch = validation_iterator.next()  # Get one mini-batch from validation set to quickly test validation error
 
@@ -97,6 +107,10 @@ class AI:
                                  steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_batch,
                                  workers=workers, callbacks=list(self.callbacks.values()) + [SavingHistory(self.base_path)], verbose=1)
+
+        # Temporary debug stuff to validate models
+        self._debug_batch(training_iterator, "train")
+        self._debug_batch(validation_iterator, "test")
 
         # Get loss from callback
         self.last_loss = self.callbacks['lastloss'].value

@@ -14,6 +14,8 @@ def plt_save_pdf(path):
     pp = PdfPages(path)
     pp.savefig()
     pp.close()
+    plt.clf()
+    plt.cla()
 
 
 def plot_spectogram(trace_set,
@@ -132,4 +134,19 @@ def plot_trace_set(reference_signal, trace_set, params=None):
         plt_save_pdf('/tmp/%s.pdf' % trace_set.name)
         plt.clf()
     else:
+        plt.show()
+
+
+def plot_correlations(values1, values2, label1="", label2="", show=False):
+    values1 = np.reshape(values1, (-1,))  # TODO doesnt account for numkeys. Use only for a single key byte!
+    values2 = np.reshape(values2, (-1,))
+    correlation = np.corrcoef(values1, values2, rowvar=False)[1, 0]
+    mean_values1 = np.mean(values1, axis=0)
+    mean_values2 = np.mean(values2, axis=0)
+    plt.title("Correlation: " + str(correlation))
+    plt.plot(values1, "o", label=label1, markersize=5.0)
+    plt.plot(values2, "o", label=label2, markersize=5.0)
+    #plt.plot(values1, values2, "o", label=label2, markersize=5.0)
+    plt.gca().legend()
+    if show:
         plt.show()

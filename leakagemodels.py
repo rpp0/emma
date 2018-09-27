@@ -20,6 +20,7 @@ class LeakageModelType:
     SBOX = 'sbox'
     AES_MULTI_TEST = 'aes_test'
     AES_MULTI = 'aes_multi'
+    AES_BITS = 'aes_bits'
 
     @classmethod
     def choices(cls):
@@ -196,4 +197,26 @@ class AESMultiLeakageModel(LeakageModel):
                 hw[key_byte & 0xf0],
                 hw[key_byte & 0x0f],
                 hw[key_byte],
+                ]
+
+
+class AESBitsLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.AES_BITS
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.num_outputs = (self.num_outputs[0], 8)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+
+        return [(key_byte & 0x01) >> 0,
+                (key_byte & 0x02) >> 1,
+                (key_byte & 0x04) >> 2,
+                (key_byte & 0x08) >> 3,
+                (key_byte & 0x10) >> 4,
+                (key_byte & 0x20) >> 5,
+                (key_byte & 0x40) >> 6,
+                (key_byte & 0x80) >> 7,
                 ]
