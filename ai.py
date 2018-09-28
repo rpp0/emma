@@ -85,8 +85,10 @@ class AI:
         example_batch = next(iterator)
         signals, values = example_batch
         predictions = self.predict(signals)
+        loss = self.model.evaluate(signals, values, verbose=0)
         pickle.dump(predictions, open("/tmp/predictions-%s.p" % name, "wb"))
         pickle.dump(values, open("/tmp/values-%s.p" % name, "wb"))
+        pickle.dump(loss, open("/tmp/loss-%s.p" % name, "wb"))
         visualizations.plot_correlations(predictions, values, label1="Predictions", label2="True values", show=False)
         visualizations.plt_save_pdf("/tmp/correlations-plot-%s.pdf" % name)
 
