@@ -268,8 +268,10 @@ class AISHACPUSignalIterator(AISignalIteratorBase):
 
         return signals, values
 
-class ASCADSignalIterator():
+
+class ASCADSignalIterator:
     def __init__(self, set, meta=None, batch_size=200):
+        self.trace_set_paths = "ASCAD"
         self.set = set
         self.set_inputs, self.set_labels = set
         self.meta = meta
@@ -297,6 +299,7 @@ class ASCADSignalIterator():
 
     def __next__(self):
         return self.next()
+
 
 def get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, batch_size=512, hamming=False, subtype='custom', request_id=None):
     # Stream samples from other machine?

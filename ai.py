@@ -319,7 +319,7 @@ class AI:
     def info(self):
         result = ""
         result += "Model  : %s (%s)\n" % (self.name, self.__class__)
-        result += "Loss   : %s\n" % self.loss.__name__
+        result += "Loss   : %s\n" % self.model.loss if isinstance(self.model.loss, str) else self.model.loss.__name__
         result += "Inputs : %d\n" % self.model.input.shape[1]
         result += "Outputs: %d\n" % self.model.output.shape[1]
         return result

@@ -66,10 +66,15 @@ class TraceSet(object):
         self.traces = traces
         self.num_traces = traces.shape[0]
 
-    def save(self, path, fmt='cw'):
+    def save(self, path, fmt='cw', dry=False):
+        filename = os.path.basename(self.name)
+        full_path = os.path.join(path, filename)
+
+        if dry:
+            print(full_path)
+            return
+
         if fmt == 'cw':
-            filename = os.path.basename(self.name)
-            full_path = os.path.join(path, filename)
             np.save(full_path + "_traces.npy", np.array([t.signal for t in self.traces]))
             np.save(full_path + "_knownkey.npy", np.array([t.key for t in self.traces]))
             np.save(full_path + "_textin.npy", np.array([t.plaintext for t in self.traces]))

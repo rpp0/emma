@@ -81,6 +81,8 @@ class EMMAHost:
         # Sanity checks
         if conf.refset and not conf_has_action(conf, 'align'):
             raise EMMAConfException("Refset specified, but no align action")
+        if args.key_low >= args.key_high:
+            raise EMMAConfException("key_low should be < key_high")
 
     def _generate_conf(self, args):
         if self.dataset is None or self.dataset_ref is None:
@@ -174,7 +176,9 @@ if __name__ == "__main__":
     parser.add_argument('--loss-type', type=str, choices=registry.lossfunctions.keys(), default='correlation', help='Loss function to use when training.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
-    assert(args.key_low < args.key_high)
+
+    if len(unknown) > 0:
+        raise EMMAConfException("Unknown arguments: %s" % str(unknown))
 
     try:
         clear_redis()

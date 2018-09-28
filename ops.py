@@ -31,6 +31,7 @@ from emresult import EMResult, SalvisResult
 from registry import op
 from leakagemodels import LeakageModel
 from aiinputs import AIInput
+from sklearn.decomposition import PCA
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -288,10 +289,6 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     """
     logger.info("attack %s" % (str(params) if not params is None else ""))
 
-    # Init if first time
-    if result.correlations is None:
-        result.correlations = CorrelationList([256, trace_set.window.size])
-
     if not trace_set.windowed:
         logger.warning("Trace set not windowed. Skipping attack.")
         return
@@ -299,6 +296,10 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.num_traces <= 0:
         logger.warning("Skipping empty trace set.")
         return
+
+    # Init if first time
+    if result.correlations is None:
+        result.correlations = CorrelationList([256, trace_set.window.size])
 
     hypotheses = np.empty([256, trace_set.num_traces])
 
@@ -465,6 +466,27 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
 
     trace_set.windowed = True
     trace_set.window = Window(begin=0, end=1)
+
+
+@op('pca')
+def sum_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("pca %s" % (str(params) if not params is None else ""))
+
+    # Parse params
+    if params is None:
+        components = 16
+    else:
+        components = int(params[0])
+
+    pca = PCA(n_components=components)
+    pca.fit([trace.signal for trace in trace_set.traces])
+
+    for trace in trace_set.traces:
+        trace.signal = pca.transform([trace.signal])[0]
+        assert(len(trace.signal) == components)
+
+    trace_set.windowed = True
+    trace_set.window = Window(begin=0, end=components)
 
 
 @op('corrtest')
