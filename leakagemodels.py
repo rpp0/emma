@@ -14,6 +14,7 @@ class LeakageModelType:
     one of the values defined in this class.
     """
     NONE = 'none'
+    NONE_OH = 'none_oh'
     HAMMING_WEIGHT_SBOX = 'hamming_weight_sbox'
     HAMMING_WEIGHT_SBOX_OH = 'hamming_weight_sbox_oh'
     HAMMING_WEIGHT_MASKED_SBOX = 'hamming_weight_masked_sbox'
@@ -156,6 +157,19 @@ class NoLeakageModel(LeakageModel):
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
         return key_byte / 255.0
+
+
+class NoOHLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.NONE_OH
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.onehot_outputs = 256
+        self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        return int_to_one_hot(key_byte, num_classes=self.onehot_outputs)
 
 
 class AESTestLeakageModel(LeakageModel):

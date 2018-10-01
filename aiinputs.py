@@ -99,7 +99,13 @@ class AIInput(object, metaclass=AIInputMeta):
         for trace in trace_set.traces:
             inputs.append(self.get_trace_inputs(trace))
 
-        return np.array(inputs)
+        result = np.array(inputs)
+
+        # CNNs expect a channels dimension
+        if self.conf.cnn:
+            result = np.expand_dims(result, axis=-1)
+
+        return result
 
 
 class SignalAIInput(AIInput):

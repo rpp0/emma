@@ -500,9 +500,6 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
         # Fetch inputs from trace_set
         x = AIInput(conf).get_trace_set_inputs(trace_set)
 
-        if conf.cnn:
-            x = np.expand_dims(x, axis=-1)
-
         # Get encodings of signals
         encodings = result.ai.predict(x)
 
@@ -515,7 +512,29 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
         trace_set.window = Window(begin=0, end=encodings.shape[1])
         trace_set.windowed = True
     else:
-        logger.error("The trace set must be windowed before training can take place because a fixed-size input tensor is required by Tensorflow.")
+        logger.error("The trace set must be windowed before testing can take place because a fixed-size input tensor is required by Tensorflow.")
+
+
+@op('classify')  # TODO can be rewritten as corrtest[aiascad] classify
+def classify_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("classify %s" % (str(params) if not params is None else ""))
+    if trace_set.windowed:
+        if result.ai is None:
+            result.ai = ai.AI(conf, "aiascad")
+            result.ai.load()
+
+        inp = AIInput(conf)
+        lea = LeakageModel(conf)
+        for trace in trace_set.traces:
+            inputs = inp.get_trace_inputs(trace)
+            if conf.cnn:
+                inputs = np.expand_dims(inputs, axis=-1)
+            true_value = np.argmax(lea.get_trace_leakages(trace, conf.subkey))  # Get argmax of one-hot true label
+            predicted_value = np.argmax(result.ai.predict(np.array([inputs], dtype=float)))  # Get argmax of prediction
+            result.labels.append(true_value)
+            result.predictions.append(predicted_value)
+    else:
+        logger.error("The trace set must be windowed before classification can take place because a fixed-size input tensor is required by Tensorflow.")
 
 
 @op('shacputest')

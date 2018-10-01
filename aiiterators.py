@@ -312,7 +312,7 @@ def get_iterators_for_model(model_type, training_trace_set_paths, validation_tra
 
     training_iterator = None
     validation_iterator = None
-    if model_type == 'aicorrnet':
+    if model_type == 'aicorrnet' or model_type == 'aiascad':
         training_iterator = AICorrSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
         validation_iterator = AICorrSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
     elif model_type == 'aishacpu':
@@ -321,11 +321,11 @@ def get_iterators_for_model(model_type, training_trace_set_paths, validation_tra
     elif model_type == 'aishacc':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
         validation_iterator = AISHACPUSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
-    elif model_type == 'aiascad':
-        train_set, attack_set, metadata_set = load_ascad(join(conf.datasets_path, "ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"), load_metadata=True)
-        metadata_train, metadata_attack = metadata_set
-        training_iterator = ASCADSignalIterator(train_set, meta=metadata_train)
-        validation_iterator = ASCADSignalIterator(attack_set, meta=metadata_attack)
+        #elif model_type == 'aiascad':
+        #    train_set, attack_set, metadata_set = load_ascad(join(conf.datasets_path, "ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"), load_metadata=True)
+        #    metadata_train, metadata_attack = metadata_set
+        #    training_iterator = ASCADSignalIterator(train_set, meta=metadata_train)
+        #    validation_iterator = ASCADSignalIterator(attack_set, meta=metadata_attack)
     else:
         logger.error("Unknown training procedure specified.")
         exit(1)
