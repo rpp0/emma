@@ -24,7 +24,7 @@ from dsp import *
 from correlationlist import CorrelationList
 from distancelist import DistanceList
 from os.path import join, basename
-from emutils import Window, conf_to_id, get_action_op_params
+from emutils import Window, conf_to_id, conf_has_op
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from emresult import EMResult, SalvisResult
@@ -582,7 +582,7 @@ def merge(self, to_merge, conf):
         result = EMResult(task_id=self.request.id)
 
         # If we are attacking, merge the correlations
-        if 'attack' in conf.actions or 'memattack' in conf.actions or 'spattack' in conf.actions:
+        if conf_has_op(conf, 'attack') or conf_has_op(conf, 'memattack') or conf_has_op(conf, 'spattack'):
             # Get size of correlations
             shape = to_merge[0].correlations._n.shape  # TODO fixme init hetzelfde als in attack
 
@@ -592,7 +592,7 @@ def merge(self, to_merge, conf):
             # Start merging
             for m in to_merge:
                 result.correlations.merge(m.correlations)
-        elif 'dattack' in conf.actions:  # TODO just check for presence of to_merge.distances instead of doing this
+        elif conf_has_op(conf, 'dattack'):  # TODO just check for presence of to_merge.distances instead of doing this
             shape = to_merge[0].distances._n.shape
             result.distances = DistanceList(shape)
             # Start merging
@@ -625,12 +625,11 @@ def process_trace_set(result, trace_set, conf, request_id=None, keep_trace_sets=
 
     # Perform actions
     for action in conf.actions:
-        op, params = get_action_op_params(action)
-        if op in registry.operations:
-            registry.operations[op](trace_set, result, conf=conf, params=params)
+        if action.op in registry.operations:
+            registry.operations[action.op](trace_set, result, conf=conf, params=action.params)
         else:
-            if op not in registry.activities:
-                logger.warning("Ignoring unknown op '%s'." % op)
+            if action.op not in registry.activities:
+                logger.warning("Ignoring unknown op '%s'." % action.op)
 
     # Store result
     if keep_trace_sets:
@@ -705,13 +704,13 @@ def work(self, trace_set_paths, conf, keep_trace_sets=False, keep_scores=True, k
 
 
 def action_to_model_type(action):
-    if action == 'corrtrain':
+    if action.op == 'corrtrain':
         return 'aicorrnet'
-    elif action == 'shacputrain':
+    elif action.op == 'shacputrain':
         return 'aishacpu'
-    elif action == 'shacctrain':
+    elif action.op == 'shacctrain':
         return 'aishacc'
-    elif action == 'ascadtrain':
+    elif action.op == 'ascadtrain':
         return 'aiascad'
     else:
         return None

@@ -9,7 +9,8 @@ from celery.utils.log import get_task_logger
 from configargumentparser import ConfigArgumentParser
 from leakagemodels import LeakageModelType
 from aiinputs import AIInputType
-from emutils import conf_has_action, EMMAConfException
+from emutils import conf_has_op, EMMAConfException
+from action import Action
 
 import argparse
 import subprocess
@@ -51,6 +52,7 @@ def clear_redis():
 
 class EMMAHost:
     def __init__(self, args):
+        args.actions = Action.get_actions_from_conf(args)  # TODO dirty fix. The problem is datasets are being passed as string
         self.dataset, self.dataset_ref, self.dataset_val = self._get_datasets(args)
         self.conf = self._generate_conf(args)
 
@@ -75,11 +77,11 @@ class EMMAHost:
 
     def _resolve_conflicts(self, conf):
         # Overrides
-        if conf_has_action(conf, 'rwindow'):
+        if conf_has_op(conf, 'rwindow'):
             conf.max_cache = 0  # rwindow randomly shifts traces, so we cannot cache these traces during training
 
         # Sanity checks
-        if conf.refset and not conf_has_action(conf, 'align'):
+        if conf.refset and not conf_has_op(conf, 'align'):
             raise EMMAConfException("Refset specified, but no align action")
         if args.key_low >= args.key_high:
             raise EMMAConfException("key_low should be < key_high")
@@ -108,9 +110,9 @@ class EMMAHost:
         params = None
 
         for action in self.conf.actions:
-            op, params = emutils.get_action_op_params(action)
-            if op in registry.activities.keys():
-                activity = registry.activities[op]
+            if action.op in registry.activities.keys():
+                activity = registry.activities[action.op]
+                params = action.params
                 num_activities += 1
 
         if num_activities > 1:

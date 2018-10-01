@@ -7,6 +7,8 @@ import configparser
 import emio
 from os import listdir
 from os.path import isfile, join
+from emutils import conf_has_op
+
 
 class Dataset():
     def __init__(self, id, format, reference_index=0, conf=None):
@@ -53,7 +55,7 @@ class Dataset():
             training_set = join(self.root, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)
 
             # Make sure we never use training set when attacking or classifying
-            if not conf is None and ('attack' in conf.actions or 'classify' in conf.actions or 'dattack' in conf.actions or 'spattack' in conf.actions):
+            if conf is not None and (conf_has_op(conf, 'attack') or conf_has_op(conf, 'classify') or conf_has_op(conf, 'dattack') or conf_has_op(conf, 'spattack')):
                 self.trace_set_paths = [validation_set]
             else:
                 self.trace_set_paths = [validation_set, training_set]

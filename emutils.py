@@ -17,22 +17,6 @@ BANNER = """  _____ __  __ __  __    _
  ============================="""
 
 
-def get_action_op_params(action_string):
-    """
-    Convert action string to (op, parameters) tuple.
-    :param action_string:
-    :return:
-    """
-    params = None
-    if '[' in action_string:
-        op, _, params = action_string.rpartition('[')
-        params = params.rstrip(']').split(',')
-    else:
-        op = action_string
-
-    return op, params
-
-
 def chunks(input_list, chunk_size):
     """
     Divide a list into chunks of size 'chunk_size'.
@@ -130,11 +114,6 @@ def conf_to_id(conf):
     conf_dict = conf.__dict__
     result = ""
     first = True
-    translation_table = str.maketrans({
-        '[': None,
-        ']': None,
-        ',': '-'
-    })
 
     if 'actions' in conf_dict:
         for action in conf_dict['actions'][:-1]:
@@ -142,7 +121,7 @@ def conf_to_id(conf):
                 first = False
             else:
                 result += "-"
-            result += action.translate(translation_table)
+            result += action.id_name
     if 'dataset_id' in conf_dict:
         result += "-" + conf_dict['dataset_id']
 
@@ -152,16 +131,15 @@ def conf_to_id(conf):
     return result
 
 
-def conf_has_action(conf, target_action):
+def conf_has_op(conf, target_op):
     """
     Checks whether target_action is in conf.actions, ignoring params
     :param conf:
-    :param target_action:
+    :param target_op:
     :return:
     """
     for action in conf.actions:
-        action_name, _, _ = action.rpartition('[')
-        if target_action == action_name:
+        if target_op == action.op:
             return True
     return False
 

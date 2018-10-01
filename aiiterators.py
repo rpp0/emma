@@ -327,7 +327,7 @@ def get_iterators_for_model(model_type, training_trace_set_paths, validation_tra
         #    training_iterator = ASCADSignalIterator(train_set, meta=metadata_train)
         #    validation_iterator = ASCADSignalIterator(attack_set, meta=metadata_attack)
     else:
-        logger.error("Unknown training procedure specified.")
+        logger.error("Unknown training procedure %s specified." % model_type)
         exit(1)
 
     return training_iterator, validation_iterator
