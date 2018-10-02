@@ -216,10 +216,6 @@ class AICorrSignalIterator(AISignalIteratorBase):
         # Get model inputs (usually the trace signal)
         signals = AIInput(self.conf).get_trace_set_inputs(trace_set)
 
-        # CNNs expect a channel dimension
-        if self.conf.cnn:
-            signals = np.expand_dims(signals, axis=-1)
-
         # Get model labels (key byte leakage values to correlate / analyze)
         values = LeakageModel(self.conf).get_trace_set_leakages(trace_set)
 

@@ -646,8 +646,8 @@ def process_trace_set_paths(result, trace_set_paths, conf, request_id=None, keep
     num_done = 0
     for trace_set_path in trace_set_paths:
         # Get trace name from path
-        trace_set_name = basename(trace_set_path)
-        logger.info("Processing '%s' (%d/%d)" % (trace_set_name, num_done, num_todo))
+        # trace_set_name = basename(trace_set_path)
+        logger.info("Processing '%s' (%d/%d)" % (trace_set_path, num_done, num_todo))
 
         # Load trace
         trace_set = emio.get_trace_set(trace_set_path, conf.format, ignore_malformed=False, remote=False)

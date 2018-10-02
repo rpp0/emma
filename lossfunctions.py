@@ -10,8 +10,11 @@ from leakagemodels import LeakageModel
 
 
 def get_loss(conf):
-    f = lossfunctions[conf.loss_type]
-    return f(conf)
+    if conf.loss_type in lossfunctions:
+        f = lossfunctions[conf.loss_type]
+        return f(conf)
+    else:
+        return conf.loss_type
 
 
 @lossfunction('correlation')
@@ -107,7 +110,7 @@ def __get_distance_loss(conf, squared):
     return distance_loss
 
 
-@lossfunction('crossentropy')
+@lossfunction('softmax_crossentropy')
 def _get_crossentropy_loss(*_):
     def crossentropy_loss(y_true, y_pred):
         return tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_true, logits=y_pred)

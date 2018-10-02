@@ -284,7 +284,12 @@ class AI:
 
     def load(self):
         print("Loading model %s" % self.model_path)
-        self.model = load_model(self.model_path, custom_objects={self.loss.__name__: self.loss, 'CCLayer': CCLayer})
+        custom_objects = dict()
+        if not isinstance(self.loss, str):
+            custom_objects[self.loss.__name__] = self.loss
+        custom_objects['CCLayer'] = CCLayer
+
+        self.model = load_model(self.model_path, custom_objects=custom_objects)
 
     def get_output_gradients(self, neuron_index, examples_batch, mean_of_gradients=False, square_gradients=False):
         """
@@ -318,10 +323,11 @@ class AI:
 
     def info(self):
         result = ""
-        result += "Model  : %s (%s)\n" % (self.name, self.__class__)
-        result += "Loss   : %s\n" % self.model.loss if isinstance(self.model.loss, str) else self.model.loss.__name__
-        result += "Inputs : %d\n" % self.model.input.shape[1]
-        result += "Outputs: %d\n" % self.model.output.shape[1]
+        result += "Model    : %s (%s)\n" % (self.name, self.__class__)
+        result += "Loss     : %s\n" % self.model.loss if isinstance(self.model.loss, str) else self.model.loss.__name__
+        result += "Optimizer: %s\n" % self.model.optimizer if isinstance(self.model.optimizer, str) else str(self.model.optimizer)
+        result += "Inputs   : %d\n" % self.model.input.shape[1]
+        result += "Outputs  : %d\n" % self.model.output.shape[1]
         return result
 
 

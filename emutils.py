@@ -181,6 +181,14 @@ def int_to_one_hot(integer, num_classes):
     return r
 
 
+def get_default_keras_loss_names():
+    """
+    Get the default available losses from Keras and return them as list of strings.
+    :return:
+    """
+    return ['categorical_crossentropy']
+
+
 class Window(object):
     """
     Helper object for specifying a range between begin (inclusive) and end (exclusive).

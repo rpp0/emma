@@ -230,37 +230,40 @@ def __perform_actions(emma, message="Performing actions"):
 
 @activity('classify')
 def __perform_classification_attack(emma):
-    async_result = parallel_work(emma.dataset.trace_set_paths, emma.conf)
-    celery_results = wait_until_completion(async_result, message="Classifying")
+    for subkey in range(emma.conf.key_low, min(emma.conf.key_high, 16)):
+        emma.conf.subkey = subkey  # Set in conf, so the workers know which subkey to attack
 
-    if emma.conf.hamming:
-        predict_count = np.zeros(9, dtype=int)
-        label_count = np.zeros(9, dtype=int)
-    else:
-        predict_count = np.zeros(256, dtype=int)
-        label_count = np.zeros(256, dtype=int)
-    accuracy = 0
-    num_samples = 0
+        async_result = parallel_work(emma.dataset_val.trace_set_paths, emma.conf, merge_results=False)
+        celery_results = wait_until_completion(async_result, message="Classifying")
 
-    # Get results from all workers and store in prediction dictionary
-    for celery_result in celery_results:
-        em_result = celery_result.get()
-        for i in range(0, len(em_result.labels)):
-            label = em_result.labels[i]
-            prediction = em_result.predictions[i]
-            if label == prediction:
-                accuracy += 1
-            predict_count[prediction] += 1
-            label_count[label] += 1
-            num_samples += 1
-    accuracy /= float(num_samples)
+        if emma.conf.hamming:
+            predict_count = np.zeros(9, dtype=int)
+            label_count = np.zeros(9, dtype=int)
+        else:
+            predict_count = np.zeros(256, dtype=int)
+            label_count = np.zeros(256, dtype=int)
+        accuracy = 0
+        num_samples = 0
 
-    print("Labels")
-    print(label_count)
-    print("Predictions")
-    print(predict_count)
-    print("Best prediction: %d" % np.argmax(predict_count))
-    print("Accuracy: %.4f" % accuracy)
+        # Get results from all workers and store in prediction dictionary
+        for celery_result in celery_results:
+            em_result = celery_result.get()
+            for i in range(0, len(em_result.labels)):
+                label = em_result.labels[i]
+                prediction = em_result.predictions[i]
+                if label == prediction:
+                    accuracy += 1
+                predict_count[prediction] += 1
+                label_count[label] += 1
+                num_samples += 1
+        accuracy /= float(num_samples)
+
+        print("Labels")
+        print(label_count)
+        print("Predictions")
+        print(predict_count)
+        print("Best prediction: %d" % np.argmax(predict_count))
+        print("Accuracy: %.4f" % accuracy)
 
 
 @activity('salvis')
