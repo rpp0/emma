@@ -101,6 +101,35 @@ def __perform_cpa_attack(emma):
         emma.dataset_val = emma.dataset
 
 
+# TODO: Duplicate code, fix me
+@activity('pattack')
+def __perform_prob_cpa_attack(emma):
+    """
+    Attack that predicts the best subkey guess using the maximum probability of the key value.
+    :param emma:
+    :return:
+    """
+
+    def update_probabilities(max_probs, em_result, subkey_index):
+        prob_result = em_result.probabilities
+
+        # Get maximum correlations over all points
+        for subkey_guess in range(0, 256):
+            max_probs[subkey_index, subkey_guess] = np.max(prob_result[subkey_guess, :])
+
+        print("{:02x}".format(np.argmax(max_probs[subkey_index])))
+
+    def print_results(max_probs):
+        emutils.pretty_print_subkey_scores(max_probs, limit_rows=20)
+        most_likely_bytes = np.argmax(max_probs, axis=1)
+        print(emutils.numpy_to_hex(most_likely_bytes))
+
+    __attack_subkeys(emma, update_probabilities, print_results)
+
+    if emma.dataset_val is None:
+        emma.dataset_val = emma.dataset
+
+
 def __attack_subkeys(emma, subkey_score_cb, final_score_cb):
     score = np.zeros([emma.conf.key_high, 256])
 

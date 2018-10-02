@@ -231,6 +231,8 @@ class TestAI(unittest.TestCase):
             key_high=3,
             loss_type='correlation',
             lr=0.0001,
+            epochs=1000,
+            batch_size=512,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
@@ -254,7 +256,7 @@ class TestAI(unittest.TestCase):
         print("When feeding x through the model without training, the encodings become:")
         print(model.predict(x))
         print("Training now")
-        model.train_set(x, y, save=False, epochs=1010, extra_callbacks=[rank_cb])
+        model.train_set(x, y, save=False, epochs=conf.epochs, extra_callbacks=[rank_cb])
         print("Done training")
 
         # Get the encodings of the input data using the same approach used in ops.py corrtest (iterate over rows)
@@ -367,6 +369,8 @@ class TestAI(unittest.TestCase):
             key_high=3,
             loss_type='correlation',
             lr=0.0001,
+            epochs=30000,
+            batch_size=512,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
@@ -390,7 +394,7 @@ class TestAI(unittest.TestCase):
         print("When feeding x through the model without training, the encodings become:")
         print(model.predict(x))
         print("Training now")
-        model.train_set(x, y, save=False, epochs=30000, extra_callbacks=[rank_cb])
+        model.train_set(x, y, save=False, epochs=conf.epochs, extra_callbacks=[rank_cb])
         print("Done training")
 
         # Get the encodings of the input data using the same approach used in ops.py corrtest (iterate over rows)

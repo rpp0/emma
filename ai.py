@@ -246,7 +246,7 @@ class AI:
     def predict(self, x):
         # return self.model.predict(x, batch_size=10000, verbose=0)
         # TODO can we move this to child classes instead? i.e. in this case AICorrNet
-        outputs = self.model.predict(x, batch_size=10000, verbose=0)
+        outputs = self.model.predict(x, batch_size=self.conf.batch_size, verbose=0)
         if self.conf.loss_type == 'correlation_special':
             num_encodings = self.model.output.shape[1]-1
             encodings = outputs[:, 0:num_encodings]

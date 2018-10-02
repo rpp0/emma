@@ -55,7 +55,7 @@ class Dataset():
             training_set = join(self.root, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)
 
             # Make sure we never use training set when attacking or classifying
-            if conf is not None and (conf_has_op(conf, 'attack') or conf_has_op(conf, 'classify') or conf_has_op(conf, 'dattack') or conf_has_op(conf, 'spattack')):
+            if conf is not None and (conf_has_op(conf, 'attack') or conf_has_op(conf, 'classify') or conf_has_op(conf, 'dattack') or conf_has_op(conf, 'spattack') or conf_has_op(conf, 'pattack')):
                 self.trace_set_paths = [validation_set]
             else:
                 self.trace_set_paths = [validation_set, training_set]

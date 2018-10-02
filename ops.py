@@ -321,6 +321,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
             # Update correlation
             result.correlations.update((subkey_guess,j), hypotheses[subkey_guess,:], measurements)
 
+
 # TODO: Duplicate code, fix me
 @op('dattack')
 def dattack_trace_set(trace_set, result, conf=None, params=None):
@@ -399,6 +400,52 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
             for subkey_guess in range(0, 256):
                 # Update correlation
                 result.correlations.update((subkey_guess, k), hypotheses[subkey_guess, i, :], measurements)
+
+
+# TODO: Duplicate code, fix me
+@op('pattack')
+def pattack_trace_set(trace_set, result, conf=None, params=None):
+    logger.info("pattack %s" % (str(params) if not params is None else ""))
+
+    num_keys = conf.key_high - conf.key_low
+    num_outputs_per_key = LeakageModel.get_num_outputs(conf) // num_keys
+
+    # Init if first time
+    if result.probabilities is None:
+        result.probabilities = np.zeros([256, num_keys])
+
+    if not trace_set.windowed:
+        logger.warning("Trace set not windowed. Skipping attack.")
+        return
+
+    if trace_set.num_traces <= 0:
+        logger.warning("Skipping empty trace set.")
+        return
+
+    hypotheses = np.empty([256, trace_set.num_traces, num_outputs_per_key])
+
+    # 1. Build hypotheses for all 256 possibilities of the key and all traces
+    leakage_model = LeakageModel(conf)
+    for subkey_guess in range(0, 256):
+        for i in range(0, trace_set.num_traces):
+            hypotheses[subkey_guess, i, :] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
+
+    # 2. Given point j of trace i, calculate the correlation between all hypotheses
+    for i in range(0, trace_set.num_traces):
+        for k in range(0, num_keys):
+            # Get measurements (columns) from all traces
+            measurements = trace_set.traces[i].signal[num_outputs_per_key*k:num_outputs_per_key*(k+1)]
+
+            # Correlate measurements with 256 hypotheses
+            for subkey_guess in range(0, 256):
+                # Get sbox[p ^ guess]
+                hypo = np.argmax(hypotheses[subkey_guess, i])
+
+                # Get probability of this hypothesis
+                proba = measurements[hypo]
+
+                # Update probabilities
+                result.probabilities[subkey_guess, k] += np.log(proba + 0.000001)
 
 
 @op('memattack')
@@ -493,8 +540,14 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
 def corrtest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
+        # Get params
+        if params is None:
+            model_type = "aicorrnet"
+        else:
+            model_type = str(params[0])
+
         if result.ai is None:
-            result.ai = ai.AI(conf, "aicorrnet")
+            result.ai = ai.AI(conf, model_type)
             result.ai.load()
 
         # Fetch inputs from trace_set
@@ -582,6 +635,7 @@ def merge(self, to_merge, conf):
         result = EMResult(task_id=self.request.id)
 
         # If we are attacking, merge the correlations
+        # TODO this can be cleaned up
         if conf_has_op(conf, 'attack') or conf_has_op(conf, 'memattack') or conf_has_op(conf, 'spattack'):
             # Get size of correlations
             shape = to_merge[0].correlations._n.shape  # TODO fixme init hetzelfde als in attack
@@ -598,6 +652,12 @@ def merge(self, to_merge, conf):
             # Start merging
             for m in to_merge:
                 result.distances.merge(m.distances)
+        elif conf_has_op(conf, 'pattack'):
+            shape = to_merge[0].probabilities.shape
+            result.probabilities = np.zeros(shape)
+            # Start merging
+            for m in to_merge:
+                result.probabilities += m.probabilities
 
         # Clean up tasks
         for m in to_merge:
