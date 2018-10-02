@@ -5,7 +5,8 @@ logger = logging.getLogger(__name__)
 activities = {}
 operations = {}  # Op registry
 lossfunctions = {}
-operations_optargs = {}
+operations_id_overrides = {}  # How the op affects the directory name
+operations_optargs = {}  # Parameters for the ops
 
 
 class PluginRegistry:
@@ -45,14 +46,18 @@ class PluginRegistry:
             self.loaded = True
 
 
-def op(name, optargs=None):
+def op(name, optargs=None, id_override=None):
     """
     Defines the @op decorator
     """
     def decorator(func):
         operations[name] = func
+
         if optargs is not None:
             operations_optargs[name] = optargs
+
+        if id_override is not None:
+            operations_id_overrides[name] = id_override
 
         @wraps(func)  # Copy function metadata to wrapper()
         def wrapper(*args, **kwargs):

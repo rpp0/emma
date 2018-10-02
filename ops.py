@@ -489,7 +489,7 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
     trace_set.window = Window(begin=0, end=components)
 
 
-@op('corrtest')
+@op('corrtest', id_override="")
 def corrtest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:

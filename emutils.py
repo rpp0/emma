@@ -107,7 +107,8 @@ def get_ip_address(ifname):
 def conf_to_id(conf):
     """
     Converts an EMMA configuration object to a string that represents an ID for the experiment. Useful for storing
-    models that use a certain configuration to separate directories.
+    models that use a certain configuration to separate directories. The directory name is based on the concatenation
+    of the id_name parameters of the provided actions in the command line arguments.
     :param conf:
     :return:
     """
@@ -117,6 +118,9 @@ def conf_to_id(conf):
 
     if 'actions' in conf_dict:
         for action in conf_dict['actions'][:-1]:
+            if action.id_name is None or action.id_name == "":  # Skip empty action
+                continue
+
             if first:
                 first = False
             else:
@@ -124,9 +128,6 @@ def conf_to_id(conf):
             result += action.id_name
     if 'dataset_id' in conf_dict:
         result += "-" + conf_dict['dataset_id']
-
-    # Ignore corrtest in naming because it's something between action and activity TODO make this cleaner somehow
-    result = result.replace("-corrtest", "")
 
     return result
 

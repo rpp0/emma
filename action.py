@@ -1,7 +1,14 @@
-from registry import operations
+from registry import operations, operations_id_overrides
 
 
 class Action:
+    """
+    action: 'window[0,900]'
+    op: 'window'
+    optargs: '[0,900]'
+    action.id_name: 'window0-900'
+    """
+
     def __init__(self, action_string):
         self.action_string = action_string
 
@@ -16,12 +23,15 @@ class Action:
         self.params = params
 
         # Determine id name (used to identify folder where to store neural nets)
-        translation_table = str.maketrans({
-            '[': None,
-            ']': None,
-            ',': '-'
-        })
-        self.id_name = action_string.translate(translation_table)
+        if op in operations_id_overrides:
+            self.id_name = operations_id_overrides[op]
+        else:
+            translation_table = str.maketrans({
+                '[': None,
+                ']': None,
+                ',': '-'
+            })
+            self.id_name = action_string.translate(translation_table)
 
     @classmethod
     def get_actions_from_conf(cls, conf):
