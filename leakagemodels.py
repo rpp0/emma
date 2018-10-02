@@ -19,6 +19,7 @@ class LeakageModelType:
     HAMMING_WEIGHT_SBOX_OH = 'hamming_weight_sbox_oh'
     HAMMING_WEIGHT_MASKED_SBOX = 'hamming_weight_masked_sbox'
     SBOX = 'sbox'
+    SBOX_OH = 'sbox_oh'
     AES_MULTI_TEST = 'aes_test'
     AES_MULTI = 'aes_multi'
     AES_BITS = 'aes_bits'
@@ -143,12 +144,26 @@ class HammingWeightMaskedSboxLeakageModel(LeakageModel):
 
 
 class SboxLeakageModel(LeakageModel):  # No Hamming weight assumption
-    leakage_type = LeakageModelType.HAMMING_WEIGHT_SBOX
+    leakage_type = LeakageModelType.SBOX
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         plaintext_byte = trace.plaintext[key_byte_index]
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
         return sbox[plaintext_byte ^ key_byte]
+
+
+class SboxOHLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.SBOX_OH
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.onehot_outputs = 256
+        self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        return int_to_one_hot(sbox[plaintext_byte ^ key_byte], num_classes=self.onehot_outputs)
 
 
 class NoLeakageModel(LeakageModel):

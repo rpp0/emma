@@ -4,11 +4,14 @@ import matplotlib.pyplot as plt
 import argparse
 import numpy as np
 import code
+from lut import sbox
+
 
 def plot_signal(signal):
     x = np.arange(len(signal))
     plt.plot(x, signal)
     plt.show()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='ASCAD database visualizer', formatter_class=argparse.RawDescriptionHelpFormatter)
