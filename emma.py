@@ -85,7 +85,7 @@ class EMMAHost:
             raise EMMAConfException("Refset specified, but no align action")
         if conf.key_low >= conf.key_high:
             raise EMMAConfException("key_low should be < key_high")
-        if str(self.dataset.id) == str(self.dataset_val.id):
+        if self.dataset_val is not None and str(self.dataset.id) == str(self.dataset_val.id):
             raise EMMAConfException("Validation set should never be the same as the training set.")
 
     def _generate_conf(self, args):
