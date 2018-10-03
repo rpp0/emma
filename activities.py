@@ -14,6 +14,7 @@ from celery import group, chord
 from celery.result import AsyncResult, GroupResult
 from celery.utils.log import get_task_logger
 from registry import activity
+from emutils import EMMAException
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -97,9 +98,6 @@ def __perform_cpa_attack(emma):
 
     __attack_subkeys(emma, update_correlations, print_results)
 
-    if emma.dataset_val is None:
-        emma.dataset_val = emma.dataset
-
 
 # TODO: Duplicate code, fix me
 @activity('pattack')
@@ -126,9 +124,6 @@ def __perform_prob_cpa_attack(emma):
 
     __attack_subkeys(emma, update_probabilities, print_results)
 
-    if emma.dataset_val is None:
-        emma.dataset_val = emma.dataset
-
 
 def __attack_subkeys(emma, subkey_score_cb, final_score_cb):
     score = np.zeros([emma.conf.key_high, 256])
@@ -136,6 +131,7 @@ def __attack_subkeys(emma, subkey_score_cb, final_score_cb):
     # Determine dataset to attack
     if emma.dataset_val is None:
         emma.dataset_val = emma.dataset
+
     logger.info("Attacking traces: %s" % str(emma.dataset_val.trace_set_paths))
 
     # Attack each subkey separately
@@ -192,7 +188,7 @@ def __perform_ml_attack(emma):
     Trains a machine learning algorithm on the training samples from a dataset.
     """
     if emma.dataset is None:
-        raise Exception("No dataset provided")
+        raise EMMAException("No dataset provided")
 
     if emma.dataset_val is None:  # No validation dataset provided, so split training data in two parts
         if emma.dataset.format == "ascad":  # ASCAD uses different formatting

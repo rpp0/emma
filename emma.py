@@ -83,8 +83,10 @@ class EMMAHost:
         # Sanity checks
         if conf.refset and not conf_has_op(conf, 'align'):
             raise EMMAConfException("Refset specified, but no align action")
-        if args.key_low >= args.key_high:
+        if conf.key_low >= conf.key_high:
             raise EMMAConfException("key_low should be < key_high")
+        if str(self.dataset.id) == str(self.dataset_val.id):
+            raise EMMAConfException("Validation set should never be the same as the training set.")
 
     def _generate_conf(self, args):
         if self.dataset is None or self.dataset_ref is None:
