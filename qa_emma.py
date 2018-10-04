@@ -156,10 +156,6 @@ class TestDistanceList(unittest.TestCase):
         self.assertAlmostEqual(c3[0], np.sum(np.abs(x_check - y_check)), places=13)
 
 
-class TestUtils(unittest.TestCase):
-    pass
-
-
 class TestAI(unittest.TestCase):
     @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_corrtrain_correlation(self):
@@ -299,6 +295,7 @@ class TestAI(unittest.TestCase):
         print("Calculated loss: %s" % str(calculated_loss))
         self.assertAlmostEqual(predicted_loss, calculated_loss, places=5)
 
+    @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_corrtrain_correlation_multi(self):
         import ai
         from leakagemodels import LeakageModel
@@ -515,6 +512,15 @@ class TestOps(unittest.TestCase):
 
         for i in range(0, len(traces)):
             self.assertListEqual(list(ts.traces[i].signal), list(expected[i]))
+
+
+class TestUtils(unittest.TestCase):
+    def test_int_to_one_hot(self):
+        from emutils import int_to_one_hot
+        self.assertListEqual(list(int_to_one_hot(0, 256)), [1] + [0]*255)
+        self.assertListEqual(list(int_to_one_hot(0, 3)), [1, 0, 0])
+        self.assertListEqual(list(int_to_one_hot(1, 3)), [0, 1, 0])
+        self.assertListEqual(list(int_to_one_hot(2, 3)), [0, 0, 1])
 
 
 if __name__ == '__main__':

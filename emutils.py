@@ -145,6 +145,26 @@ def conf_has_op(conf, target_op):
     return False
 
 
+def conf_get_action(conf, target_op):
+    """
+    Returns actions(s) with op name target_op from conf.
+    :param conf:
+    :param target_op:
+    :return:
+    """
+    result = []
+    for action in conf.actions:
+        if target_op == action.op:
+            result.append(action)
+
+    if len(result) == 0:
+        return None
+    elif len(result) == 1:
+        return result[0]
+    else:
+        return result
+
+
 def shuffle_random_multiple(lists):
     """
     Shuffle n same-length lists in the same random order.

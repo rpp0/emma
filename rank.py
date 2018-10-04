@@ -12,7 +12,7 @@ import ops
 from lut import sbox
 from traceset import TraceSet
 from argparse import Namespace
-from emutils import Window
+from emutils import Window, conf_get_action
 from emresult import EMResult
 from leakagemodels import LeakageModelType
 from aiinputs import AIInput
@@ -155,18 +155,25 @@ def calculate_traceset_rank(trace_set, key_index, true_key, orig_conf):
     conf = Namespace(subkey=key_index, leakage_model=orig_conf.leakage_model, key_low=orig_conf.key_low, key_high=orig_conf.key_high)
     result = EMResult(task_id=None)
 
-    if conf.leakage_model == LeakageModelType.AES_MULTI or conf.leakage_model == LeakageModelType.AES_MULTI_TEST or conf.leakage_model == LeakageModelType.HAMMING_WEIGHT_SBOX_OH or conf.leakage_model == LeakageModelType.AES_BITS:
-        ops.spattack_trace_set(trace_set, result, conf, params=None)
+    if orig_conf.loss_type == 'categorical_crossentropy':
+        ops.pattack_trace_set(trace_set, result, conf, params=None)
+        scores = result.probabilities
+
+        key_scores = np.zeros(256)
+        for key_guess in range(0, 256):
+            key_scores[key_guess] = np.max(scores[key_guess, :])
     else:
-        ops.attack_trace_set(trace_set, result, conf, params=None)
+        if conf.leakage_model == LeakageModelType.AES_MULTI or conf.leakage_model == LeakageModelType.AES_MULTI_TEST or conf.leakage_model == LeakageModelType.HAMMING_WEIGHT_SBOX_OH or conf.leakage_model == LeakageModelType.AES_BITS:
+            ops.spattack_trace_set(trace_set, result, conf, params=None)
+        else:
+            ops.attack_trace_set(trace_set, result, conf, params=None)
+        scores = result.correlations
+        print("Num entries: %d" % scores._n[0][0])
 
-    corr_result = result.correlations
-    print("Num entries: %d" % corr_result._n[0][0])
-
-    # Get maximum correlations over all points and interpret as score
-    key_scores = np.zeros(256)
-    for key_guess in range(0, 256):
-        key_scores[key_guess] = np.max(np.abs(corr_result[key_guess,:]))
+        # Get maximum correlations over all points and interpret as score
+        key_scores = np.zeros(256)
+        for key_guess in range(0, 256):
+            key_scores[key_guess] = np.max(np.abs(scores[key_guess, :]))
 
     ranks = calculate_ranks(key_scores)
     rank, confidence = get_rank_and_confidence(ranks, key_scores, true_key)

@@ -164,9 +164,9 @@ class AI:
             for j in range(0, int(num_validation_traces / rank_trace_step)):
                 validation_traces_subset = validation_traces[0:(j+1)*rank_trace_step]
                 x = np.array([trace.signal for trace in validation_traces_subset])
-                if(conf.cnn):
+                if conf.cnn:
                     x = np.expand_dims(x, axis=-1)
-                encodings = self.model.predict(x) # Output: [?, 16]
+                encodings = self.model.predict(x)  # Output: [?, 16]
                 keys = np.array([trace.key for trace in validation_traces_subset])
                 plaintexts = np.array([trace.plaintext for trace in validation_traces_subset])
                 fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")

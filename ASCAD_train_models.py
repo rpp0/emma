@@ -157,7 +157,7 @@ def train_model(X_profiling, Y_profiling, model, save_file_name, epochs=150, bat
 
 if __name__ == "__main__":
 	# Our folders
-	ascad_data_folder = "ASCAD_data/"
+	ascad_data_folder = "/scratch2/emma-datasets/ASCAD/ASCAD_data/"
 	ascad_databases_folder = ascad_data_folder + "ASCAD_databases/"
 	ascad_trained_models_folder = ascad_data_folder + "ASCAD_trained_models/"
 
@@ -171,19 +171,19 @@ if __name__ == "__main__":
 	cnn_best_model = cnn_best()
 	train_model(X_profiling, Y_profiling, cnn_best_model, ascad_trained_models_folder + "my_cnn_best_desync0_epochs75_batchsize200.h5", epochs=75, batch_size=200)
 	#### Desync = 50
-	cnn_best_model = cnn_best()
-	train_model(X_profiling_desync50, Y_profiling_desync50, cnn_best_model, ascad_trained_models_folder + "my_cnn_best_desync50_epochs75_batchsize200.h5", epochs=75, batch_size=200)
+	#cnn_best_model = cnn_best()
+	#train_model(X_profiling_desync50, Y_profiling_desync50, cnn_best_model, ascad_trained_models_folder + "my_cnn_best_desync50_epochs75_batchsize200.h5", epochs=75, batch_size=200)
 	#### Desync = 100
-	cnn_best_model = cnn_best()
-	train_model(X_profiling_desync100, Y_profiling_desync100, cnn_best_model, ascad_trained_models_folder + "my_cnn_best_desync100_epochs75_batchsize200.h5", epochs=75, batch_size=200)
+	#cnn_best_model = cnn_best()
+	#train_model(X_profiling_desync100, Y_profiling_desync100, cnn_best_model, ascad_trained_models_folder + "my_cnn_best_desync100_epochs75_batchsize200.h5", epochs=75, batch_size=200)
 
 	### MLP training
 	#### No desync
-	mlp_best_model = mlp_best()
-	train_model(X_profiling, Y_profiling, mlp_best_model, ascad_trained_models_folder + "my_mlp_best_desync0_epochs200_batchsize100.h5", epochs=200, batch_size=100)
+	#mlp_best_model = mlp_best()
+	#train_model(X_profiling, Y_profiling, mlp_best_model, ascad_trained_models_folder + "my_mlp_best_desync0_epochs200_batchsize100.h5", epochs=200, batch_size=100)
 	#### Desync = 50
-	mlp_best_model = mlp_best()
-	train_model(X_profiling_desync50, Y_profiling_desync50, mlp_best_model, ascad_trained_models_folder + "my_mlp_best_desync50_epochs200_batchsize100.h5", epochs=200, batch_size=100)
+	#mlp_best_model = mlp_best()
+	#train_model(X_profiling_desync50, Y_profiling_desync50, mlp_best_model, ascad_trained_models_folder + "my_mlp_best_desync50_epochs200_batchsize100.h5", epochs=200, batch_size=100)
 	#### Desync = 100
-	mlp_best_model = mlp_best()
-	train_model(X_profiling_desync100, Y_profiling_desync100, mlp_best_model, ascad_trained_models_folder + "my_mlp_best_desync100_epochs200_batchsize100.h5", epochs=200, batch_size=100)
+	#mlp_best_model = mlp_best()
+	#train_model(X_profiling_desync100, Y_profiling_desync100, mlp_best_model, ascad_trained_models_folder + "my_mlp_best_desync100_epochs200_batchsize100.h5", epochs=200, batch_size=100)
