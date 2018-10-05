@@ -165,8 +165,8 @@ ascad_trained_models_folder = ascad_data_folder + "ASCAD_trained_models/"
 
 to_check_all = [
 	(ascad_trained_models_folder + "cnn_best_ascad_desync0_epochs75_classes256_batchsize200.h5", ascad_databases_folder + "ASCAD.h5"),
-	(ascad_trained_models_folder + "cnn_best_ascad_desync50_epochs75_classes256_batchsize200.h5", ascad_databases_folder + "ASCAD_desync50.h5"),
-	(ascad_trained_models_folder + "cnn_best_ascad_desync100_epochs75_classes256_batchsize200.h5", ascad_databases_folder + "ASCAD_desync100.h5"),
+	#(ascad_trained_models_folder + "cnn_best_ascad_desync50_epochs75_classes256_batchsize200.h5", ascad_databases_folder + "ASCAD_desync50.h5"),
+	#(ascad_trained_models_folder + "cnn_best_ascad_desync100_epochs75_classes256_batchsize200.h5", ascad_databases_folder + "ASCAD_desync100.h5"),
 	#(ascad_trained_models_folder + "mlp_best_ascad_desync0_node200_layernb6_epochs200_classes256_batchsize100.h5", ascad_databases_folder + "ASCAD.h5"),
 	#(ascad_trained_models_folder + "mlp_best_ascad_desync50_node200_layernb6_epochs200_classes256_batchsize100.h5", ascad_databases_folder + "ASCAD_desync50.h5"),
 	#(ascad_trained_models_folder + "mlp_best_ascad_desync100_node200_layernb6_epochs200_classes256_batchsize100.h5", ascad_databases_folder + "ASCAD_desync100.h5"),

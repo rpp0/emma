@@ -6,7 +6,6 @@
 # ----------------------------------------------------
 
 import unittest
-import numpy as np
 import os
 import rank
 import ops
@@ -16,8 +15,10 @@ from distancelist import DistanceList
 from traceset import TraceSet
 from argparse import Namespace
 from aiiterators import AICorrSignalIterator
-from leakagemodels import LeakageModelType
-from aiinputs import AIInputType
+from leakagemodels import *
+from aiinputs import *
+from action import Action
+from keras.utils import to_categorical
 
 
 class UnitTestSettings:
@@ -521,6 +522,97 @@ class TestUtils(unittest.TestCase):
         self.assertListEqual(list(int_to_one_hot(0, 3)), [1, 0, 0])
         self.assertListEqual(list(int_to_one_hot(1, 3)), [0, 1, 0])
         self.assertListEqual(list(int_to_one_hot(2, 3)), [0, 0, 1])
+
+
+class TestIterator(unittest.TestCase):
+    def test_iterator_wrapping(self):
+        conf = Namespace(
+            input_type=AIInputType.SIGNAL,
+            leakage_model=LeakageModelType.SBOX_OH,
+            max_cache=0,
+            augment_roll=False,
+            augment_noise=False,
+            augment_shuffle=False,
+            normalize=False,
+            traces_per_set=32,
+            online=False,
+            dataset_id='test',
+            format='cw',
+            reference_signal=np.array([0]*128),
+            actions=[],
+            cnn=False,
+            key_low=2,
+            key_high=3,
+        )
+
+        iterator = AICorrSignalIterator(
+            ["./datasets/unit-test/test_traces.npy", "./datasets/unit-test/test2_traces.npy"],
+            conf,
+            batch_size=48
+        )
+
+        inputs, labels = next(iterator)
+        for i in range(0, 48):
+            self.assertListEqual(list(inputs[i]), [i] * 128)
+            self.assertListEqual(list(labels[i]), list(to_categorical(sbox[1 ^ 0], num_classes=256)))
+        self.assertEqual(inputs.shape, (48, 128))
+        self.assertEqual(labels.shape, (48, 256))
+
+        inputs, labels = next(iterator)
+        for i in range(0, 48):
+            self.assertListEqual(list(inputs[i]), [(i+48) % 64] * 128)
+        self.assertEqual(inputs.shape, (48, 128))
+        self.assertEqual(labels.shape, (48, 256))
+
+    @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
+    def test_ascad_iterator(self):
+        """
+        Check whether the AICorrSignalIterator returns the same output as load_ascad
+        :return:
+        """
+        from ASCAD_train_models import load_ascad
+
+        conf = Namespace(
+            input_type=AIInputType.SIGNAL,
+            leakage_model=LeakageModelType.SBOX_OH,
+            max_cache=0,
+            augment_roll=False,
+            augment_noise=False,
+            augment_shuffle=False,
+            normalize=False,
+            traces_per_set=50000,
+            online=False,
+            dataset_id='test',
+            format='ascad',
+            reference_signal=np.array([0]*700),
+            actions=[Action('window[0,700]')],
+            cnn=False,
+            key_low=2,
+            key_high=3,
+            windowing_method='rectangular',
+        )
+
+        ascad_path = "./datasets/ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"
+
+        iterator = AICorrSignalIterator(
+            [ascad_path + "-train"],
+            conf,
+            batch_size=512
+        )
+
+        inputs, labels = next(iterator)
+        x = inputs
+        y = labels
+
+        (X_profiling, Y_profiling), (X_attack, Y_attack), (meta_profiling, meta_attack) = load_ascad(ascad_path, True)
+        x_ascad = X_profiling
+        y_ascad = to_categorical(Y_profiling, num_classes=256)
+
+        for i in range(0, 512):
+            self.assertListEqual(list(x[i]), list(x_ascad[i]))
+
+        for i in range(0, 512):
+            self.assertListEqual(list(y[i]), list(y_ascad[i]))
 
 
 if __name__ == '__main__':
