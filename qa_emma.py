@@ -529,7 +529,7 @@ class TestIterator(unittest.TestCase):
         conf = Namespace(
             input_type=AIInputType.SIGNAL,
             leakage_model=LeakageModelType.SBOX_OH,
-            max_cache=0,
+            max_cache=None,
             augment_roll=False,
             augment_noise=False,
             augment_shuffle=False,
@@ -575,7 +575,7 @@ class TestIterator(unittest.TestCase):
         conf = Namespace(
             input_type=AIInputType.SIGNAL,
             leakage_model=LeakageModelType.SBOX_OH,
-            max_cache=0,
+            max_cache=None,
             augment_roll=False,
             augment_noise=False,
             augment_shuffle=False,
@@ -597,12 +597,17 @@ class TestIterator(unittest.TestCase):
         iterator = AICorrSignalIterator(
             [ascad_path + "-train"],
             conf,
-            batch_size=512
+            batch_size=256
         )
 
+        x = np.zeros((512, 700))
+        y = np.zeros((512, 256))
         inputs, labels = next(iterator)
-        x = inputs
-        y = labels
+        x[0:256] = inputs
+        y[0:256] = labels
+        inputs, labels = next(iterator)
+        x[256:512] = inputs
+        y[256:512] = labels
 
         (X_profiling, Y_profiling), (X_attack, Y_attack), (meta_profiling, meta_attack) = load_ascad(ascad_path, True)
         x_ascad = X_profiling

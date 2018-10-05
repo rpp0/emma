@@ -131,6 +131,9 @@ class AI:
         # Use the preprocessing function of the iterator to convert to Keras features
         inputs, labels = training_iterator._preprocess_trace_set(all_traces)
 
+        print(inputs.shape)
+        print(labels.shape)
+
         num_validation_traces = training_iterator.num_total_examples - num_train_traces
         model_initial_state = self.model.get_weights()
 
@@ -157,7 +160,7 @@ class AI:
             shuffled_labels_val = shuffled_labels[num_train_traces:]
 
             # Train the model
-            self.model.fit(shuffled_inputs_train, shuffled_labels_train, epochs=epochs, batch_size=batch_size, shuffle=False, verbose=2, callbacks=None, validation_data=(shuffled_inputs_val, shuffled_labels_val))
+            self.model.fit(shuffled_inputs_train, shuffled_labels_train, epochs=epochs, batch_size=batch_size, shuffle=False, verbose=1, callbacks=None, validation_data=(shuffled_inputs_val, shuffled_labels_val))
 
             # Now, evaluate the rank for increasing number of traces from the validation set (steps of 10)
             validation_traces = shuffled_traces[num_train_traces:]
