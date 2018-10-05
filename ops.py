@@ -879,7 +879,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     logger.info(model.info())
 
     if conf.tfold:  # Train t times and generate tfold rank summary
-        model.train_t_fold(training_iterator, batch_size=conf.batch_size, epochs=conf.epochs, num_train_traces=45000, t=10, rank_trace_step=10, conf=conf)
+        model.train_t_fold(training_iterator, batch_size=conf.batch_size, epochs=conf.epochs, num_train_traces=45000, t=10, rank_trace_step=250, conf=conf)
     elif conf.testrank:  # TODO this should not be in aitrain; refactor
         model.test_fold(validation_iterator, rank_trace_step=10, conf=conf, max_traces=5000)
     else:  # Train once

@@ -147,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument('--hamming', default=False, action='store_true', help='Use Hamming weight instead of true byte values.')
     parser.add_argument('--augment-roll', default=False, action='store_true', help='Roll signal during data augmentation.')
     parser.add_argument('--augment-noise', default=False, action='store_true', help='Add noise to the signal during data augmentation.')
-    parser.add_argument('--augment-shuffle', default=False, action='store_true', help='Shuffle examples randomly along first axis.')
+    parser.add_argument('--augment-shuffle', default=True, action='store_true', help='Shuffle examples randomly along first axis.')  # Do not disable
     parser.add_argument('--update', default=False, action='store_true', help='Update existing AI model instead of replacing.')
     parser.add_argument('--online', default=False, action='store_true', help='Fetch samples from remote EMcap instance online (without storing to disk).')
     parser.add_argument('--remote', default=False, action='store_true', help='Send processing tasks to remote Celery workers for faster processing.')

@@ -108,7 +108,13 @@ class AI:
                                  epochs=epochs,
                                  steps_per_epoch=steps_per_epoch,
                                  validation_data=validation_batch,
-                                 workers=workers, callbacks=list(self.callbacks.values()) + [SavingHistory(self.base_path)], verbose=1)
+                                 workers=workers,
+                                 callbacks=list(self.callbacks.values()) + [SavingHistory(self.base_path)],
+                                 verbose=1,
+                                 shuffle=True)
+        # WARNING: This shuffle=True (default) has no effect because we set steps_per_epoch. See
+        # https://keras.io/models/sequential/. For this reason, it is imperative that the augment
+        # _shuffle option is always set to True, so that batches are shuffled at iterator level.
 
         # Temporary debug stuff to validate models
         self._debug_batch(training_iterator, "train")
@@ -160,7 +166,13 @@ class AI:
             shuffled_labels_val = shuffled_labels[num_train_traces:]
 
             # Train the model
-            self.model.fit(shuffled_inputs_train, shuffled_labels_train, epochs=epochs, batch_size=batch_size, shuffle=False, verbose=1, callbacks=None, validation_data=(shuffled_inputs_val, shuffled_labels_val))
+            self.model.fit(shuffled_inputs_train,
+                           shuffled_labels_train,
+                           epochs=epochs,
+                           batch_size=batch_size,
+                           verbose=1,
+                           callbacks=None,
+                           validation_data=(shuffled_inputs_val, shuffled_labels_val))
 
             # Now, evaluate the rank for increasing number of traces from the validation set (steps of 10)
             validation_traces = shuffled_traces[num_train_traces:]
