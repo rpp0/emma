@@ -9,6 +9,12 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
+from argparse import Namespace
+from leakagemodels import LeakageModelType
+from aiinputs import AIInputType
+from action import Action
+
+
 def download_files(remote_file_paths, destination):
     dest_path = os.path.abspath(destination)
     print("Creating directory %s" % dest_path)
@@ -33,7 +39,7 @@ def get_hash(file_path, is_remote=False):
     hash = stdout[0:32]
 
     if b'No such file' in stderr:
-        print("Skipping %s" % file_path)
+        print("Skipping %s (no such file)" % file_path)
 
     return hash
 
@@ -44,13 +50,14 @@ def is_remote(path):
     return ':' in path
 
 class RankConfidencePlot():
-    def __init__(self, x_label='number of traces', y1_label='mean rank', y2_label='mean confidence'):
+    def __init__(self, x_label='number of traces', y1_label='mean rank', y2_label='mean confidence', includey2=True):
         self.fig, self.ax1 = plt.subplots()
         self.ax1.set_xlabel(x_label)
         self.ax1.set_ylabel(y1_label)
         self.ax1.set_ylim([0,256])
-        self.ax2 = self.ax1.twinx()
-        self.ax2.set_ylabel(y2_label)
+        if includey2:
+            self.ax2 = self.ax1.twinx()
+            self.ax2.set_ylabel(y2_label)
         #self.ax1.spines['top'].set_visible(False)
         #self.ax2.spines['top'].set_visible(False)
         self.handles = []
@@ -59,6 +66,10 @@ class RankConfidencePlot():
         rank_series, = self.ax1.plot(x, ranks_y, color=rank_color, linestyle=rank_style, label=rank_label)
         confidence_series, = self.ax2.plot(x, confidences_y, color=confidence_color, linestyle=confidence_style, label=confidence_label, alpha=0.5)
         self.handles.extend([rank_series, confidence_series])
+
+    def add_rank_series(self, x, ranks_y, rank_color='tab:blue', rank_style='-', rank_label="mean rank"):
+        rank_series, = self.ax1.plot(x, ranks_y, color=rank_color, linestyle=rank_style, label=rank_label)
+        self.handles.append(rank_series)
 
     def set_title(self, title):
         plt.title(title)
@@ -73,13 +84,20 @@ def get_series_from_tfold_blob(tfold_blob):
     confidences = tfold_blob['confidences']
     step = tfold_blob['rank_trace_step']
     num_validation_traces = tfold_blob['num_validation_traces']
-    print(num_validation_traces)
+    print("Number of validation traces: %d" % num_validation_traces)
 
     x = range(0, num_validation_traces + step, step)
     ranks_y = np.array([256] + list(np.mean(ranks, axis=0)), dtype=np.float32)
     confidences_y = np.array([0] + list(np.mean(confidences, axis=0)), dtype=np.float32)
 
     return x[0:len(ranks_y)], ranks_y, confidences_y
+
+
+def insert_attribute_if_absent(instance, attr_name, default):
+    dummy = getattr(instance, attr_name, None)
+    if dummy is None:
+        setattr(instance, attr_name, default)
+
 
 class FigureGenerator():
     def __init__(self, input_path, model_id, model_suffix="last"):
@@ -139,6 +157,8 @@ class FigureGenerator():
             download_files([remote_model_path,remote_model_history_path,remote_model_ranks_path,remote_model_testrank_path], input_path)
 
     def generate_stats(self):
+        tfold_blob = None
+
         if self.is_remote:
             self.get_remote_model(self.input_path, self.remote_path, self.model_id, self.model_suffix)
 
@@ -168,9 +188,37 @@ class FigureGenerator():
 
         # Model graphs
         try:
-            model = ai.AI(name=self.model_id, suffix=self.model_suffix, path=self.input_path)
-            model.load()
-            self.generate_model_graphs(model.model)
+            if tfold_blob is not None and "conf" in tfold_blob:
+                # TODO hack because some old blobs don't have use_bias
+                insert_attribute_if_absent(tfold_blob["conf"], "use_bias", True)
+                insert_attribute_if_absent(tfold_blob["conf"], "batch_norm", True)
+                insert_attribute_if_absent(tfold_blob["conf"], "cnn", False)
+                insert_attribute_if_absent(tfold_blob["conf"], "metric_freq", 10)
+                insert_attribute_if_absent(tfold_blob["conf"], "regularizer", None)
+                insert_attribute_if_absent(tfold_blob["conf"], "reglambda", 0.001)
+                insert_attribute_if_absent(tfold_blob["conf"], "key_low", 2)
+                insert_attribute_if_absent(tfold_blob["conf"], "key_high", 3)
+                insert_attribute_if_absent(tfold_blob["conf"], "loss_type", "correlation")
+                insert_attribute_if_absent(tfold_blob["conf"], "leakage_model", LeakageModelType.HAMMING_WEIGHT_SBOX)
+                insert_attribute_if_absent(tfold_blob["conf"], "input_type", AIInputType.SIGNAL)
+                insert_attribute_if_absent(tfold_blob["conf"], "n_hidden_nodes", 256)
+                insert_attribute_if_absent(tfold_blob["conf"], "n_hidden_layers", 1)
+                insert_attribute_if_absent(tfold_blob["conf"], "lr", 0.0001)
+                insert_attribute_if_absent(tfold_blob["conf"], "activation", "leakyrelu")
+
+                actions = []
+                for action in tfold_blob["conf"].actions:
+                    if isinstance(action, str):
+                        actions.append(Action(action))
+                    else:
+                        actions.append(action)
+                tfold_blob["conf"].actions = actions
+
+                model = ai.AI(name=self.model_id, conf=tfold_blob["conf"])
+                model.load()
+                self.generate_model_graphs(model.model)
+            else:
+                print("No tfold blob containing conf. Skipping model graphs.")
         except OSError:
             print("File not found; skipping model graphs")
 
@@ -254,7 +302,7 @@ class CombinedFigureGenerator(FigureGenerator):
 
 
     def generate_stats(self, title="", dump_text=True):
-        plot = RankConfidencePlot()
+        plot = RankConfidencePlot(includey2=True)  # TODO need to manually change this includey2... Fix
 
         linestyles = ['-', '--', ':', '-.']
         #colors = ['xkcd:aqua', 'xkcd:azure', 'xkcd:green']
@@ -278,8 +326,10 @@ class CombinedFigureGenerator(FigureGenerator):
             confidence_label = "mean confidence (%s)" % dataset_name
             linestyle = linestyles.pop(0)
             color = colors.pop(0)
-            plot.add_series(x, ranks_y, confidences_y, rank_label=rank_label, confidence_label=confidence_label, rank_color=color, confidence_color=color)
-
+            if 'aiascad' in model_id:  # Only plot ranks for ASCAD
+                plot.add_rank_series(x, ranks_y, rank_label=rank_label, rank_color=color)
+            else:
+                plot.add_series(x, ranks_y, confidences_y, rank_label=rank_label, confidence_label=confidence_label, rank_color=color, confidence_color=color)
             if dump_text:
                 self.dump_text(dataset_name + '-' + model_id, x, ranks_y, confidences_y)
 
