@@ -4,3 +4,5 @@ settings.conf
 datasets.conf
 wpa_supp_leak
 models
+paper_data
+datasets
