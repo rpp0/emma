@@ -24,6 +24,7 @@ class LeakageModelType:
     AES_MULTI = 'aes_multi'
     AES_BITS = 'aes_bits'
     AES_BITS_EX = 'aes_bits_ex'
+    HMAC_BITS = 'hmac_bits'
 
     @classmethod
     def choices(cls):
@@ -274,3 +275,33 @@ class AESBitsExLeakageModel(LeakageModel):
                 0.5,
                 ]
 
+
+class HMACBitsLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.HMAC_BITS
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.num_outputs = (self.num_outputs[0], 16)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        key_byte_36 = key_byte ^ 0x36
+
+        return [(key_byte & 0x01) >> 0,
+                (key_byte & 0x02) >> 1,
+                (key_byte & 0x04) >> 2,
+                (key_byte & 0x08) >> 3,
+                (key_byte & 0x10) >> 4,
+                (key_byte & 0x20) >> 5,
+                (key_byte & 0x40) >> 6,
+                (key_byte & 0x80) >> 7,
+                (key_byte_36 & 0x01) >> 0,
+                (key_byte_36 & 0x02) >> 1,
+                (key_byte_36 & 0x04) >> 2,
+                (key_byte_36 & 0x08) >> 3,
+                (key_byte_36 & 0x10) >> 4,
+                (key_byte_36 & 0x20) >> 5,
+                (key_byte_36 & 0x40) >> 6,
+                (key_byte_36 & 0x80) >> 7,
+                ]
