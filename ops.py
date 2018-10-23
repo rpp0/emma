@@ -319,7 +319,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
         # Correlate measurements with 256 hypotheses
         for subkey_guess in range(0, 256):
             # Update correlation
-            result.correlations.update((subkey_guess,j), hypotheses[subkey_guess,:], measurements)
+            result.correlations.update((subkey_guess, j), hypotheses[subkey_guess, :], measurements)
 
 
 # TODO: Duplicate code, fix me
@@ -372,7 +372,7 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
 
     # Init if first time
     if result.correlations is None:
-        result.correlations = CorrelationList([256, num_keys])
+        result.correlations = CorrelationList([256, 1])  # We only have 1 output point (correlation)
 
     if not trace_set.windowed:
         logger.warning("Trace set not windowed. Skipping attack.")
@@ -399,7 +399,7 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
         # Correlate measurements with 256 hypotheses
         for subkey_guess in range(0, 256):
             # Update correlation
-            result.correlations.update((subkey_guess, k), hypotheses[subkey_guess, i, :], measurements)
+            result.correlations.update((subkey_guess, 0), hypotheses[subkey_guess, i, :], measurements)
 
 
 # TODO: Duplicate code, fix me

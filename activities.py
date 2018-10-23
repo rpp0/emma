@@ -87,7 +87,7 @@ def __perform_cpa_attack(emma):
 
         # Get maximum correlations over all points
         for subkey_guess in range(0, 256):
-            max_correlations[subkey_index, subkey_guess] = np.max(np.abs(corr_result[(subkey_guess, subkey_index)]))
+            max_correlations[subkey_index, subkey_guess] = np.max(np.abs(corr_result[subkey_guess, :]))
 
         print("{:02x}".format(np.argmax(max_correlations[subkey_index])))
 
@@ -113,7 +113,7 @@ def __perform_prob_cpa_attack(emma):
 
         # Get maximum correlations over all points
         for subkey_guess in range(0, 256):
-            max_probs[subkey_index, subkey_guess] = np.max(prob_result[subkey_guess, subkey_index])
+            max_probs[subkey_index, subkey_guess] = np.max(prob_result[subkey_guess, :])
 
         print("{:02x}".format(np.argmax(max_probs[subkey_index])))
 
@@ -166,7 +166,7 @@ def __perform_dis_attack(emma):
 
         # Get minimum distances over all points in the trace or encoding
         for subkey_guess in range(0, 256):
-            min_distances[subkey_index, subkey_guess] = np.min(dis_result[(subkey_guess, subkey_index)])
+            min_distances[subkey_index, subkey_guess] = np.min(dis_result[subkey_guess, :])
 
         # Print best subkey guess for this subkey index
         print("{:02x}".format(np.argmin(min_distances[subkey_index])))
