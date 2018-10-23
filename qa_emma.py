@@ -90,6 +90,43 @@ class TestCorrelationList(unittest.TestCase):
 
         self.assertAlmostEqual(c3[0], np.corrcoef(x_check, y_check)[1,0], places=13)
 
+    def test_max(self):
+        test_array_1 = np.array([
+            [1, 2],
+            [3, 5],
+            [4, 5],
+            [4, 8]
+        ])
+
+        test_array_2 = np.array([
+            [4, 3],
+            [5, 4],
+            [6, 1],
+            [8, 8]
+        ])
+
+        test_array_3 = np.array([
+            [-1, 1],
+            [-2, 2],
+            [-3, 3],
+            [-4, 4]
+        ])
+
+        x1 = test_array_1[:, 0]
+        y1 = test_array_1[:, 1]
+        x2 = test_array_2[:, 0]
+        y2 = test_array_2[:, 1]
+        x3 = test_array_3[:, 0]
+        y3 = test_array_3[:, 1]
+
+        clist = CorrelationList([1, 3])
+        clist.update((0, 0), x1, y1)
+        clist.update((0, 1), x2, y2)
+        clist.update((0, 2), x3, y3)
+
+        max_corr_over_points = np.max(np.abs(clist[0, :]))
+        self.assertEqual(max_corr_over_points, 1.0)
+
 
 class TestDistanceList(unittest.TestCase):
     def test_update(self):
