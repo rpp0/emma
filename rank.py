@@ -161,7 +161,7 @@ def calculate_traceset_rank(trace_set, key_index, true_key, orig_conf):
 
         key_scores = np.zeros(256)
         for key_guess in range(0, 256):
-            key_scores[key_guess] = np.max(scores[key_guess, :])
+            key_scores[key_guess] = np.max(scores[(key_guess, key_index - conf.key_low)])
     else:
         if conf.leakage_model == LeakageModelType.AES_MULTI or conf.leakage_model == LeakageModelType.AES_MULTI_TEST or conf.leakage_model == LeakageModelType.HAMMING_WEIGHT_SBOX_OH or conf.leakage_model == LeakageModelType.AES_BITS or conf.leakage_model == LeakageModelType.AES_BITS_EX or conf.leakage_model == LeakageModelType.HMAC_BITS:
             ops.spattack_trace_set(trace_set, result, conf, params=None)
@@ -173,7 +173,7 @@ def calculate_traceset_rank(trace_set, key_index, true_key, orig_conf):
         # Get maximum correlations over all points and interpret as score
         key_scores = np.zeros(256)
         for key_guess in range(0, 256):
-            key_scores[key_guess] = np.max(np.abs(scores[key_guess, :]))
+            key_scores[key_guess] = np.max(np.abs(scores[(key_guess, key_index - conf.key_low)]))
 
     ranks = calculate_ranks(key_scores)
     rank, confidence = get_rank_and_confidence(ranks, key_scores, true_key)

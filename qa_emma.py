@@ -301,7 +301,7 @@ class TestAI(unittest.TestCase):
         import ai
         from leakagemodels import LeakageModel
         """
-        Artificial example to test AICorrNet and trace processing with multiple leakage values.
+        Artificial example to test AICorrNet and trace processing with multiple leakage values and multiple subkeys.
         """
 
         # ------------------------------
@@ -309,26 +309,26 @@ class TestAI(unittest.TestCase):
         # ------------------------------
         traces = [  # Contains abs(trace). Shape = [trace, point]
             [1, 1, 1, -15],
-            [-4, 1, 2, -12],
-            [10, 1, 3, 8],
+            [-4, 2, 2, -12],
+            [10, 3, 3, 8],
             [8, 1, 1, -14],
-            [9, 1, -3, 8],
+            [9, 0, -3, 8],
         ]
 
         plaintexts = [
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 13, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 15, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 8, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ]
 
         keys = [
-            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ]
 
         # Convert to numpy
@@ -363,11 +363,11 @@ class TestAI(unittest.TestCase):
             use_bias=True,
             batch_norm=True,
             hamming=False,
-            key_low=2,
+            key_low=1,
             key_high=3,
             loss_type='correlation',
-            lr=0.0001,
-            epochs=30000,
+            lr=0.001,
+            epochs=5000,
             batch_size=512,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
@@ -410,8 +410,9 @@ class TestAI(unittest.TestCase):
 
         # Manually calculate the loss using numpy to verify that we are learning a correct correlation
         calculated_loss = 0
-        num_outputs = LeakageModel.get_num_outputs(conf)
-        for i in range(0, conf.key_high - conf.key_low):
+        num_keys = (conf.key_high - conf.key_low)
+        num_outputs = LeakageModel.get_num_outputs(conf) // num_keys
+        for i in range(0, num_keys):
             subkey_hws = y[:, i*num_outputs:(i+1)*num_outputs]
             subkey_encodings = result[:, i*num_outputs:(i+1)*num_outputs]
             print("Subkey %d HWs   : %s" % (i + conf.key_low, str(subkey_hws)))
@@ -430,7 +431,7 @@ class TestAI(unittest.TestCase):
         print("These values should be close:")
         print("Predicted loss: %s" % str(predicted_loss))
         print("Calculated loss: %s" % str(calculated_loss))
-        self.assertAlmostEqual(predicted_loss, calculated_loss, places=5)
+        self.assertAlmostEqual(predicted_loss, calculated_loss, places=3)
 
 
 class TestRank(unittest.TestCase):

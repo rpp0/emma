@@ -87,7 +87,7 @@ def __perform_cpa_attack(emma):
 
         # Get maximum correlations over all points
         for subkey_guess in range(0, 256):
-            max_correlations[subkey_index, subkey_guess] = np.max(np.abs(corr_result[subkey_guess, :]))
+            max_correlations[subkey_index, subkey_guess] = np.max(np.abs(corr_result[(subkey_guess, subkey_index)]))
 
         print("{:02x}".format(np.argmax(max_correlations[subkey_index])))
 
@@ -113,7 +113,7 @@ def __perform_prob_cpa_attack(emma):
 
         # Get maximum correlations over all points
         for subkey_guess in range(0, 256):
-            max_probs[subkey_index, subkey_guess] = np.max(prob_result[subkey_guess, :])
+            max_probs[subkey_index, subkey_guess] = np.max(prob_result[subkey_guess, subkey_index])
 
         print("{:02x}".format(np.argmax(max_probs[subkey_index])))
 
@@ -135,7 +135,7 @@ def __attack_subkeys(emma, subkey_score_cb, final_score_cb):
     logger.info("Attacking traces: %s" % str(emma.dataset_val.trace_set_paths))
 
     # Attack each subkey separately
-    for subkey in range(emma.conf.key_low, min(emma.conf.key_high, 16)):
+    for subkey in range(emma.conf.key_low, emma.conf.key_high):
         emma.conf.subkey = subkey  # Set in conf, so the workers know which subkey to attack
 
         # Execute task
@@ -166,7 +166,7 @@ def __perform_dis_attack(emma):
 
         # Get minimum distances over all points in the trace or encoding
         for subkey_guess in range(0, 256):
-            min_distances[subkey_index, subkey_guess] = np.min(dis_result[subkey_guess, :])
+            min_distances[subkey_index, subkey_guess] = np.min(dis_result[(subkey_guess, subkey_index)])
 
         # Print best subkey guess for this subkey index
         print("{:02x}".format(np.argmin(min_distances[subkey_index])))

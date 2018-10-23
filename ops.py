@@ -392,17 +392,18 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for i in range(0, trace_set.num_traces):
-        for k in range(0, num_keys):
-            # Get measurements (columns) from all traces
-            measurements = trace_set.traces[i].signal[num_outputs_per_key*k:num_outputs_per_key*(k+1)]
+        k = conf.subkey - conf.key_low
+        # Get measurements (columns) from all traces
+        measurements = trace_set.traces[i].signal[num_outputs_per_key*k:num_outputs_per_key*(k+1)]
 
-            # Correlate measurements with 256 hypotheses
-            for subkey_guess in range(0, 256):
-                # Update correlation
-                result.correlations.update((subkey_guess, k), hypotheses[subkey_guess, i, :], measurements)
+        # Correlate measurements with 256 hypotheses
+        for subkey_guess in range(0, 256):
+            # Update correlation
+            result.correlations.update((subkey_guess, k), hypotheses[subkey_guess, i, :], measurements)
 
 
 # TODO: Duplicate code, fix me
+# TODO: Bug with multikeys. Fix: see spattack
 @op('pattack')
 def pattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("pattack %s" % (str(params) if not params is None else ""))
