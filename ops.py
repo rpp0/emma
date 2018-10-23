@@ -393,7 +393,8 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for i in range(0, trace_set.num_traces):
         k = conf.subkey - conf.key_low
-        # Get measurements (columns) from all traces
+
+        # Get measurements (columns) from all traces for this subkey
         measurements = trace_set.traces[i].signal[num_outputs_per_key*k:num_outputs_per_key*(k+1)]
 
         # Correlate measurements with 256 hypotheses
@@ -403,7 +404,7 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
 
 
 # TODO: Duplicate code, fix me
-# TODO: Bug with multikeys. Fix: see spattack
+# TODO: Write unit test
 @op('pattack')
 def pattack_trace_set(trace_set, result, conf=None, params=None):
     logger.info("pattack %s" % (str(params) if not params is None else ""))
@@ -413,7 +414,7 @@ def pattack_trace_set(trace_set, result, conf=None, params=None):
 
     # Init if first time
     if result.probabilities is None:
-        result.probabilities = np.zeros([256, num_keys])
+        result.probabilities = np.zeros([256, 1])  # We have 256 probabilities for values for 1 subkey
 
     if not trace_set.windowed:
         logger.warning("Trace set not windowed. Skipping attack.")
@@ -433,20 +434,21 @@ def pattack_trace_set(trace_set, result, conf=None, params=None):
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for i in range(0, trace_set.num_traces):
-        for k in range(0, num_keys):
-            # Get measurements (columns) from all traces
-            measurements = trace_set.traces[i].signal[num_outputs_per_key*k:num_outputs_per_key*(k+1)]
+        k = conf.subkey - conf.key_low
 
-            # Correlate measurements with 256 hypotheses
-            for subkey_guess in range(0, 256):
-                # Get sbox[p ^ guess]
-                hypo = np.argmax(hypotheses[subkey_guess, i])
+        # Get measurements (columns) from all traces for this subkey
+        measurements = trace_set.traces[i].signal[num_outputs_per_key*k:num_outputs_per_key*(k+1)]
 
-                # Get probability of this hypothesis
-                proba = measurements[hypo]
+        # Correlate measurements with 256 hypotheses
+        for subkey_guess in range(0, 256):
+            # Get sbox[p ^ guess]
+            hypo = np.argmax(hypotheses[subkey_guess, i])
 
-                # Update probabilities
-                result.probabilities[subkey_guess, k] += np.log(proba + 0.000001)
+            # Get probability of this hypothesis
+            proba = measurements[hypo]
+
+            # Update probabilities
+            result.probabilities[subkey_guess, 0] += np.log(proba + 0.000001)
 
 
 @op('memattack')
