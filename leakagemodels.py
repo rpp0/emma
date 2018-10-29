@@ -25,6 +25,8 @@ class LeakageModelType:
     AES_BITS = 'aes_bits'
     AES_BITS_EX = 'aes_bits_ex'
     HMAC_BITS = 'hmac_bits'
+    HMAC_HAMMING_WEIGHT = 'hmac_hamming_weight'
+    HMAC = 'hmac'
 
     @classmethod
     def choices(cls):
@@ -304,4 +306,44 @@ class HMACBitsLeakageModel(LeakageModel):
                 (key_byte_36 & 0x20) >> 5,
                 (key_byte_36 & 0x40) >> 6,
                 (key_byte_36 & 0x80) >> 7,
+                ]
+
+
+class HMACHammingWeightLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.HMAC_HAMMING_WEIGHT
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.num_outputs = (self.num_outputs[0], 4)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        key_byte_36 = key_byte ^ 0x36
+        key_byte_5c = key_byte ^ 0x5c
+
+        return [hw[key_byte],
+                hw[key_byte_36],
+                hw[key_byte],
+                hw[key_byte_5c],
+                ]
+
+
+class HMACLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.HMAC
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.num_outputs = (self.num_outputs[0], 4)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        key_byte_36 = key_byte ^ 0x36
+        key_byte_5c = key_byte ^ 0x5c
+
+        return [key_byte,
+                key_byte_36,
+                key_byte,
+                key_byte_5c,
                 ]
