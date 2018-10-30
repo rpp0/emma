@@ -376,7 +376,7 @@ def main():
     parser.add_argument('--frequency', type=float, default=64e6, help='Capture frequency')
     parser.add_argument('--gain', type=int, default=30, help='RX gain')
     parser.add_argument('--traces-per-set', type=int, default=256, help='Number of traces per set')
-    parser.add_argument('--limit', type=int, default=51200, help='Limit number of traces')
+    parser.add_argument('--limit', type=int, default=256*400, help='Limit number of traces')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
     parser.add_argument('--online', type=str, default=None, help='Stream samples to remote EMMA instance at <IP address> for online processing.')
     parser.add_argument('--dry', default=False, action='store_true', help='Do not save to disk.')

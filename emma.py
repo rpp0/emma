@@ -165,6 +165,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate.')
     parser.add_argument('--activation', type=str, default='leakyrelu', help='Activation function of model.')
     parser.add_argument('--cnn', default=False, action='store_true', help='Use ASCAD CNN for AICorrNet')
+    parser.add_argument('--norank', default=False, action='store_true', help='Do not calculate rank')
     parser.add_argument('--testrank', default=False, action='store_true', help='Load model and test rank for varying test set sizes.')
     parser.add_argument('--regularizer', type=str, default=None, help='Regularizer to use.')
     parser.add_argument('--reglambda', type=float, default=0.001, help='Regularizer lambda.')

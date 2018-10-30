@@ -571,7 +571,9 @@ class AICorrNet(AI):
 
         # Custom callbacks
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=self.metric_freq)
-        self.callbacks['rank'] = rank.CorrRankCallback(conf, '/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
+
+        if not conf.norank:
+            self.callbacks['rank'] = rank.CorrRankCallback(conf, '/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
 
     def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
         """
