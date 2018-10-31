@@ -314,7 +314,7 @@ class HMACHammingWeightLeakageModel(LeakageModel):
 
     def __init__(self, conf):
         super().__init__(conf)
-        self.num_outputs = (self.num_outputs[0], 4)
+        self.num_outputs = (self.num_outputs[0], 14)
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         plaintext_byte = trace.plaintext[key_byte_index]
@@ -322,10 +322,20 @@ class HMACHammingWeightLeakageModel(LeakageModel):
         key_byte_36 = key_byte ^ 0x36
         key_byte_5c = key_byte ^ 0x5c
 
-        return [hw[key_byte],
-                hw[key_byte_36],
-                hw[key_byte],
+        return [hw[key_byte_36],
+                hw[key_byte_36 ^ 0x98],
+                hw[key_byte_36 ^ 0xc3],
+                hw[key_byte_36 ^ 0x9f ^ 0xef],
+                hw[key_byte_36 ^ 0x9f ^ 0x7b],
+                hw[key_byte_36 ^ 0x45 ^ 0x7b],
+                hw[key_byte_36 ^ 0x9f ^ 0x98],
                 hw[key_byte_5c],
+                hw[key_byte_5c ^ 0x98],
+                hw[key_byte_5c ^ 0xc3],
+                hw[key_byte_5c ^ 0x9f ^ 0xef],
+                hw[key_byte_5c ^ 0x9f ^ 0x7b],
+                hw[key_byte_5c ^ 0x45 ^ 0x7b],
+                hw[key_byte_5c ^ 0x9f ^ 0x98],
                 ]
 
 
