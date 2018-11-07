@@ -179,6 +179,7 @@ if __name__ == "__main__":
     parser.add_argument('--saliency-mean-gradient', default=True, action='store_true', help='Get the mean gradient of the batch instead of individual gradients when visualizing saliency.')  # TODO: Impossible to disable
     parser.add_argument('--saliency-num-traces', type=int, default=1024, help='Maxmimum number of traces to show in saliency plots.')
     parser.add_argument('--loss-type', type=str, choices=list(registry.lossfunctions.keys()) + get_default_keras_loss_names(), default='correlation', help='Loss function to use when training.')
+    parser.add_argument('--no-reference-plot', default=False, action='store_true', help='Do not plot reference signal.')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 

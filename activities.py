@@ -213,12 +213,12 @@ def __perform_ml_attack(emma):
 @activity('plot')
 def __perform_plot(emma, *params):
     em_result = submit_task(ops.work,  # Op
-                            emma.dataset.trace_set_paths[0:5], emma.conf, keep_trace_sets=True, keep_scores=False,  # Op parameters
+                            emma.dataset.trace_set_paths[0:1], emma.conf, keep_trace_sets=True, keep_scores=False,  # Op parameters
                             remote=emma.conf.remote,
                             message="Performing actions")
 
     for trace_set in em_result.trace_sets:
-        visualizations.plot_trace_set(em_result.reference_signal, trace_set, params=params)
+        visualizations.plot_trace_set(em_result.reference_signal, trace_set, params=params, no_reference_plot=emma.conf.no_reference_plot)
 
 
 @activity('specgram')

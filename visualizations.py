@@ -89,7 +89,7 @@ def plot_colormap(inputs,
         plt.show()
 
 
-def plot_trace_set(reference_signal, trace_set, params=None):
+def plot_trace_set(reference_signal, trace_set, params=None, no_reference_plot=False):
     """
     Plot a trace set using matplotlib
     """
@@ -123,7 +123,8 @@ def plot_trace_set(reference_signal, trace_set, params=None):
             count += 1
             if count >= maxplots:
                 break
-        plt.plot(range(0, len(reference_signal)), reference_signal, linewidth=2, linestyle='dashed')
+        if not no_reference_plot:
+            plt.plot(range(0, len(reference_signal)), reference_signal, linewidth=2, linestyle='dashed')
 
     title = trace_set.name
     if reference_signal.dtype == np.complex64 or reference_signal.dtype == np.complex128:
