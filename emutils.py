@@ -209,6 +209,10 @@ def get_default_keras_loss_names():
     return ['categorical_crossentropy']
 
 
+def hamming_distance(v1, v2):
+    return bin(v1 ^ v2).count("1")
+
+
 class Window(object):
     """
     Helper object for specifying a range between begin (inclusive) and end (exclusive).
