@@ -1,15 +1,16 @@
 # ----------------------------------------------------
 # Electromagnetic Mining Array (EMMA)
-# Copyright 2017, Pieter Robyns
+# Copyright 2017-2018, Pieter Robyns
 # ----------------------------------------------------
 
 import numpy as np
 import ops
 import configparser
+import simulation
 from traceset import TraceSet
 from dataset import Dataset
 from emutils import Window
-from os.path import join
+from os.path import join, basename
 
 
 def get_dataset(dataset, conf=None, remote=True):
@@ -51,9 +52,7 @@ def _get_dataset(dataset, conf=None):
 
     # Does identifier exist?
     if dataset in datasets_conf.sections():
-        format = datasets_conf[dataset]["format"]
-        reference_index = int(datasets_conf[dataset]["reference_index"])
-        return Dataset(dataset, format, reference_index, conf=conf)
+        return Dataset(dataset, dataset_conf=datasets_conf[dataset], emma_conf=conf)
     else:
         raise Exception("Dataset %s does not exist in datasets.conf" % dataset)
 
@@ -130,8 +129,11 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
             return get_ascad_trace_set('train', train_set, metadata_train)
         elif trace_set_path.endswith('-val'):
             return get_ascad_trace_set('validation', attack_set, metadata_attack)
+    elif format == "sim":
+        simulation_type = basename(trace_set_path).rpartition('-')[0]
+        return simulation.simulate_trace_set(simulation_type)
     else:
-        print("Unknown input format '%s'" % format)
+        print("Unknown trace input format '%s'" % format)
         exit(1)
 
     return None

@@ -20,11 +20,11 @@ def plt_save_pdf(path):
 
 def plot_spectogram(trace_set,
                     sample_rate,
-                    nfft=128,
-                    noverlap=64,
+                    nfft=2**10,
+                    noverlap=int(2**10 * 99/100),
                     cmap='inferno',
                     params=None):
-    if params is not None:
+    if params is not None and len(params) >= 1:
         max_traces = int(params[0])
     else:
         max_traces = len(trace_set.traces)

@@ -10,17 +10,18 @@ from os.path import isfile, join
 from emutils import conf_has_op
 
 
-class Dataset():
-    def __init__(self, id, format, reference_index=0, conf=None):
+class Dataset:
+    def __init__(self, id, dataset_conf, emma_conf=None):
         self.id = id
-        self.format = format
-        self.reference_index = reference_index
+        self.dataset_conf = dataset_conf
+        self.format = dataset_conf["format"]
+        self.reference_index = int(dataset_conf["reference_index"])
         self.traces_per_set = 0
 
-        self._setup(conf)
+        self._setup(emma_conf)
 
-    def _setup(self, conf):
-        '''
+    def _setup(self, emma_conf):
+        """
         Get a list of relative trace set paths for the dataset identifier and retrieve
         a reference signal for the entire dataset.
 
@@ -34,7 +35,7 @@ class Dataset():
 
         At a later time, the relative paths need to be resolved to absolute paths
         on the workers.
-        '''
+        """
         settings = configparser.RawConfigParser()
         settings.read('settings.conf')
         self.root = settings.get("Datasets", "datasets_path")
@@ -55,10 +56,14 @@ class Dataset():
             training_set = join(self.root, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)
 
             # Make sure we never use training set when attacking or classifying
-            if conf is not None and (conf_has_op(conf, 'attack') or conf_has_op(conf, 'classify') or conf_has_op(conf, 'dattack') or conf_has_op(conf, 'spattack') or conf_has_op(conf, 'pattack')):
+            if emma_conf is not None and (conf_has_op(emma_conf, 'attack') or conf_has_op(emma_conf, 'classify') or conf_has_op(emma_conf, 'dattack') or conf_has_op(emma_conf, 'spattack') or conf_has_op(emma_conf, 'pattack')):
                 self.trace_set_paths = [validation_set]
             else:
                 self.trace_set_paths = [validation_set, training_set]
+        elif self.format == "sim":
+            num_trace_sets = int(self.dataset_conf["num_trace_sets"])
+            trace_set_paths = ['%s-trace%d' % (self.id, i) for i in range(0, num_trace_sets)]  # Generate some fake trace set paths
+            self.trace_set_paths = trace_set_paths
         else:
             raise Exception("Unknown input format '%s'" % self.format)
 
