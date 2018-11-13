@@ -6,21 +6,10 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from emutils import EMMAException, hamming_distance
+from emutils import hamming_distance
 from pygdbmi.gdbcontroller import GdbController, GdbTimeoutError
 
 # TODO: There are some commented prints in here; these should be refactored to log in DEBUG
-
-
-def simulate_trace_set(simulation_type):
-    if simulation_type == "sim-hmac":
-        return _simulate_hmac_trace_set()
-    else:
-        raise EMMAException("Unknown simulation type '%s'" % simulation_type)
-
-
-def _simulate_hmac_trace_set():
-    pass
 
 
 def _parse_register_value(register_value):

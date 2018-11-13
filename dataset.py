@@ -60,10 +60,6 @@ class Dataset:
                 self.trace_set_paths = [validation_set]
             else:
                 self.trace_set_paths = [validation_set, training_set]
-        elif self.format == "sim":
-            num_trace_sets = int(self.dataset_conf["num_trace_sets"])
-            trace_set_paths = ['%s-trace%d' % (self.id, i) for i in range(0, num_trace_sets)]  # Generate some fake trace set paths
-            self.trace_set_paths = trace_set_paths
         else:
             raise Exception("Unknown input format '%s'" % self.format)
 

@@ -13,6 +13,8 @@ from sigmf.sigmffile import SigMFFile
 from dsp import butter_filter
 from socketwrapper import SocketWrapper
 from traceset import TraceSet
+from scipy.signal import hilbert
+from scipy import fftpack
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -31,6 +33,8 @@ import zlib
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+hilbert3 = lambda x: hilbert(x, fftpack.next_fast_len(len(x)))[:len(x)]
 
 def handler(signum, frame):
     print("Got CTRL+C")
@@ -56,7 +60,7 @@ class InformationElementType:
 
 # SDR capture device
 class SDR(gr.top_block):
-    def __init__(self, hw="usrp", samp_rate=100000, freq=3.2e9, gain=0):
+    def __init__(self, hw="usrp", samp_rate=100000, freq=3.2e9, gain=0, ds_mode=False):
         gr.enable_realtime_scheduling()
         gr.top_block.__init__(self, "SDR capture device")
 
@@ -67,7 +71,8 @@ class SDR(gr.top_block):
         self.samp_rate = samp_rate
         self.freq = freq
         self.gain = gain
-        logger.info("%s: samp_rate=%d, freq=%f, gain=%d" % (hw, samp_rate, freq, gain))
+        self.ds_mode = ds_mode
+        logger.info("%s: samp_rate=%d, freq=%f, gain=%d, ds_mode=%s" % (hw, samp_rate, freq, gain, ds_mode))
 
         ##################################################
         # Blocks
@@ -86,7 +91,7 @@ class SDR(gr.top_block):
             self.sdr_source.set_gain(gain, 0)
             self.sdr_source.set_min_output_buffer(16*1024*1024)  # 16 MB output buffer
         else:
-            self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + '' )
+            self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + ('rtl=0,buflen=1024,direct_samp=2' if ds_mode else ''))
             self.sdr_source.set_sample_rate(samp_rate)
             self.sdr_source.set_center_freq(freq, 0)
             self.sdr_source.set_freq_corr(0, 0)
@@ -206,6 +211,10 @@ class EMCap():
         self.online_counter = 0
         self.limit_counter = 0
         self.limit = kwargs['limit']
+        if self.sdr.hw == 'usrp':
+            self.wait_num_samples = 0
+        else:
+            self.wait_num_samples = 50  # Bug in rtl-sdr?
 
         self.global_meta = {
             "core:datatype": "cf32_le",
@@ -285,7 +294,7 @@ class EMCap():
             # Spinlock until data
             timeout = 3
             current_time = 0.0
-            while len(self.stored_data) == 0:
+            while len(self.stored_data) <= self.wait_num_samples:
                 sleep(0.001)
                 current_time += 0.001
                 if current_time >= timeout:
@@ -371,7 +380,7 @@ class EMCap():
 # Test function
 def main():
     parser = argparse.ArgumentParser(description='EMCAP')
-    parser.add_argument('hw', type=str, choices=['usrp', 'hackrf'], help='SDR capture hardware')
+    parser.add_argument('hw', type=str, choices=['usrp', 'hackrf', 'rtlsdr'], help='SDR capture hardware')
     parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
     parser.add_argument('--frequency', type=float, default=64e6, help='Capture frequency')
     parser.add_argument('--gain', type=int, default=30, help='RX gain')
@@ -380,8 +389,9 @@ def main():
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
     parser.add_argument('--online', type=str, default=None, help='Stream samples to remote EMMA instance at <IP address> for online processing.')
     parser.add_argument('--dry', default=False, action='store_true', help='Do not save to disk.')
+    parser.add_argument('--ds-mode', default=False, action='store_true', help='Direct sampling mode.')
     args, unknown = parser.parse_known_args()
-    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain}, kwargs=args.__dict__, ctrl_socket_type=CtrlType.UDP)
+    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain, 'ds_mode': args.ds_mode}, kwargs=args.__dict__, ctrl_socket_type=CtrlType.UDP)
     e.capture()
 
 if __name__ == '__main__':

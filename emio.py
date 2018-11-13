@@ -129,9 +129,6 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
             return get_ascad_trace_set('train', train_set, metadata_train)
         elif trace_set_path.endswith('-val'):
             return get_ascad_trace_set('validation', attack_set, metadata_attack)
-    elif format == "sim":
-        simulation_type = basename(trace_set_path).rpartition('-')[0]
-        return simulation.simulate_trace_set(simulation_type)
     else:
         print("Unknown trace input format '%s'" % format)
         exit(1)
