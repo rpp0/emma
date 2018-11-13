@@ -267,6 +267,7 @@ class TestAI(unittest.TestCase):
             lr=0.0001,
             epochs=1000,
             batch_size=512,
+            norank=False,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
@@ -406,6 +407,7 @@ class TestAI(unittest.TestCase):
             lr=0.001,
             epochs=5000,
             batch_size=512,
+            norank=False,
         )
         it_dummy = AICorrSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
         x, y = it_dummy._preprocess_trace_set(trace_set)
@@ -581,6 +583,7 @@ class TestIterator(unittest.TestCase):
             cnn=False,
             key_low=2,
             key_high=3,
+            norank=False,
         )
 
         iterator = AICorrSignalIterator(
@@ -628,6 +631,7 @@ class TestIterator(unittest.TestCase):
             key_low=2,
             key_high=3,
             windowing_method='rectangular',
+            norank=False,
         )
 
         ascad_path = "./datasets/ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"

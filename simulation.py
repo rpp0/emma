@@ -4,10 +4,17 @@
 # Copyright 2018, Pieter Robyns
 # ----------------------------------------------------
 
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from emutils import hamming_distance
+import binascii
+from emutils import hamming_distance, random_bytes
+from traceset import Trace, TraceSet
 from pygdbmi.gdbcontroller import GdbController, GdbTimeoutError
+from collections import namedtuple
+from os.path import join
+
+AlgoritmSpecs = namedtuple("AlgoritmSpecs", ["executable", "method", "key_len", "plaintext_len"])
 
 # TODO: There are some commented prints in here; these should be refactored to log in DEBUG
 
@@ -47,7 +54,7 @@ def get_registers_power_consumption(previous_registers, current_registers):
 
 
 class ProgramSimulation:
-    def __init__(self, binary, prog_args, method_name):
+    def __init__(self, binary, prog_args, method_name, args):
         self.gdbmi = None
         self.binary = binary
         self.prog_args = prog_args
@@ -55,6 +62,7 @@ class ProgramSimulation:
         self.signal = None
         self.prev_register_values = None
         self.method_name = method_name
+        self.args = args
 
     def run(self):
         self.gdbmi = GdbController()
@@ -125,9 +133,12 @@ class ProgramSimulation:
         Step program
         :return:
         """
-        self.gdbmi.write('-exec-step-instruction', read_response=False, timeout_sec=0)
-        # self.gdbmi.write('-exec-step', read_response=False, timeout_sec=0)
-        # self.gdbmi.write('-exec-next', read_response=False, timeout_sec=0)
+        if self.args.granularity == 'instruction':
+            self.gdbmi.write('-exec-step-instruction', read_response=False, timeout_sec=0)
+        elif self.args.granularity == 'step':
+            self.gdbmi.write('-exec-step', read_response=False, timeout_sec=0)
+        elif self.args.granularity == 'next':
+            self.gdbmi.write('-exec-next', read_response=False, timeout_sec=0)
 
     def get_register_values(self, target_registers=None):
         # Filter?
@@ -148,25 +159,114 @@ class ProgramSimulation:
         self.gdbmi.write('-data-list-changed-registers', read_response=False)
 
 
-if __name__ == "__main__":
-    pmk_string = "0000000000000000000000000000000000000000000000000000000000000000"
-    data_string = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-    key_string = "00000000000000000000000000000000"
-    string_00 = "00000000000000000000000000000000"
-    string_ff = "ffffffffffffffffffffffffffffffff"
-    string_0f = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+def get_algorithm_specs(algorithm):
+    if algorithm == "aes":
+        return AlgoritmSpecs(executable="./experiments/simulate/aes", method="aes_encrypt", key_len=16, plaintext_len=16)
+    elif algorithm == "hmacsha1":
+        return AlgoritmSpecs(executable="./experiments/simulate/sha1_prf", method="sha1_prf", key_len=32, plaintext_len=76)
 
-    # sim = ProgramSimulation("./experiments/hmac/sha1_prf", (pmk_string, data_string), "sha1_prf")
-    sim00 = ProgramSimulation("./experiments/hmac/aes", (key_string, string_00), "aes_encrypt")
-    sim0f = ProgramSimulation("./experiments/hmac/aes", (key_string, string_0f), "aes_encrypt")
-    simff = ProgramSimulation("./experiments/hmac/aes", (key_string, string_ff), "aes_encrypt")
+
+def test_and_plot(args):
+    specs = get_algorithm_specs(args.algorithm)
+
+    sim00 = ProgramSimulation(specs.executable, ("00"*specs.key_len, "00"*specs.plaintext_len), specs.method, args=args)
+    sim0f = ProgramSimulation(specs.executable, ("0f"*specs.key_len, "00"*specs.plaintext_len), specs.method, args=args)
+    simff = ProgramSimulation(specs.executable, ("ff"*specs.key_len, "00"*specs.plaintext_len), specs.method, args=args)
     plt.plot(sim00.run(), label="00")
     plt.plot(sim0f.run(), label="0f")
     plt.plot(simff.run(), label="ff")
+
     plt.legend()
     plt.xlabel("Step")
     plt.ylabel("Hamming distance to previous")
     plt.show()
+
+
+def simulate_traces_random(args):
+    """
+    Untested. Simulate traces randomly, without artificial noise. Interesting for seeing true effect of random keys, but slow.
+    :param args:
+    :return:
+    """
+    specs = get_algorithm_specs(args.algorithm)
+
+    for i in range(0, args.num_trace_sets):
+        traces = []
+        print("\rSimulating trace set %d/%d...                          " % (i, args.num_trace_sets), end='')
+        for j in range(0, args.num_traces_per_set):
+            key = random_bytes(specs.key_len)
+            plaintext = random_bytes(specs.plaintext_len)
+            key_string = binascii.hexlify(key).decode('utf-8')
+            plaintext_string = binascii.hexlify(plaintext).decode('utf-8')
+
+            sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, args=args)
+            signal = sim.run()
+
+            t = Trace(signal=signal, plaintext=plaintext, ciphertext=None, key=key, mask=None)
+            traces.append(t)
+
+        # Make TraceSet
+        ts = TraceSet(name="sim-%s-%d" % (args.algorithm, i))
+        ts.set_traces(traces)
+        dataset_name = "sim-%s" % args.algorithm
+        ts.save(join(args.output_directory, dataset_name + args.suffix))
+
+
+def simulate_traces_noisy(args):
+    specs = get_algorithm_specs(args.algorithm)
+
+    key = random_bytes(specs.key_len)
+    for i in range(0, 256):
+        print("\rSimulating noisy trace sets for key %d...      " % i, end='')
+        key[2] = i
+        plaintext = random_bytes(specs.plaintext_len)
+        key_string = binascii.hexlify(key).decode('utf-8')
+        plaintext_string = binascii.hexlify(plaintext).decode('utf-8')
+
+        sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, args=args)
+        signal = sim.run()
+
+        traces = []
+        for j in range(0, args.num_traces_per_set):
+            mod_signal = signal + np.random.normal(args.mu, args.sigma, len(signal))
+            t = Trace(signal=mod_signal, plaintext=plaintext, ciphertext=None, key=key, mask=None)
+            traces.append(t)
+
+            # Debug
+            if args.debug:
+                plt.plot(mod_signal)
+                plt.show()
+
+        # Make TraceSet
+        ts = TraceSet(name="sim-noisy-%s-%d" % (args.algorithm, i))
+        ts.set_traces(traces)
+        dataset_name = "sim-noisy-%s" % args.algorithm
+        ts.save(join(args.output_directory, dataset_name + args.suffix))
+
+
+if __name__ == "__main__":
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("algorithm", type=str, choices=["aes", "hmacsha1"], help="Crypto algorithm to simulate.")
+    arg_parser.add_argument("simtype", type=str, choices=["noisy", "random"], help="Type of simulation experiment.")
+    arg_parser.add_argument("--test", default=False, action="store_true", help="Run test simulation with plots.")
+    arg_parser.add_argument("--debug", default=False, action="store_true", help="Run in debug mode.")
+    arg_parser.add_argument("--granularity", type=str, choices=["instruction", "step", "next"], default="step", help="Granularity of power consumption simulation.")
+    arg_parser.add_argument("--num-traces-per-set", type=int, default=256, help="Number of traces per trace set.")
+    arg_parser.add_argument("--num-trace-sets", type=int, default=200, help="Number of trace sets to simulate.")
+    arg_parser.add_argument("--output-directory", type=str, default="./datasets/", help="Output directory to write trace sets to.")
+    arg_parser.add_argument("--mu", type=float, default=0.0, help="Gaussian noise mu parameter.")
+    arg_parser.add_argument("--sigma", type=float, default=10.0, help="Gaussian noise sigma parameter.")
+    arg_parser.add_argument("--suffix", type=str, default="", help="Dataset name suffix.")
+    args = arg_parser.parse_args()
+
+    if args.test:
+        test_and_plot(args)
+    else:
+        if args.simtype == 'noisy':
+            simulate_traces_noisy(args)
+        elif args.simtype == 'random':
+            simulate_traces_random(args)
+
 
 
 

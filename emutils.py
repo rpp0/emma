@@ -210,7 +210,27 @@ def get_default_keras_loss_names():
 
 
 def hamming_distance(v1, v2):
+    """
+    Get Hamming distance between integers v1 and v2.
+    :param v1:
+    :param v2:
+    :return:
+    """
     return bin(v1 ^ v2).count("1")
+
+
+def random_bytes(n):
+    """
+    Get n random bytes from /dev/urandom and return as numpy array of uint8.
+    :param n:
+    :return:
+    """
+
+    result = None
+    with open("/dev/urandom", "rb") as f:
+        result = f.read(n)
+
+    return np.array(bytearray(result))
 
 
 class Window(object):
