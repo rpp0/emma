@@ -180,6 +180,12 @@ if __name__ == "__main__":
     parser.add_argument('--saliency-num-traces', type=int, default=1024, help='Maxmimum number of traces to show in saliency plots.')
     parser.add_argument('--loss-type', type=str, choices=list(registry.lossfunctions.keys()) + get_default_keras_loss_names(), default='correlation', help='Loss function to use when training.')
     parser.add_argument('--no-reference-plot', default=False, action='store_true', help='Do not plot reference signal.')
+    parser.add_argument('--plot-num-traces', type=int, default=1024, help='Maxmimum number of traces to show in plots.')
+    parser.add_argument('--plot-title', type=str, default='', help='Title of the plot.')
+    parser.add_argument('--plot-xlabel', type=str, default='', help='Xlabel of the plot.')
+    parser.add_argument('--plot-ylabel', type=str, default='', help='Ylabel of the plot.')
+    parser.add_argument('--plot-colorbar-label', type=str, default='', help='Colorbar label of the plot.')
+    parser.add_argument('--specgram-samprate', type=int, default=8000000, help='Sample rate (used in axis calculation for specgram)')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 

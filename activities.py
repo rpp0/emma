@@ -212,13 +212,22 @@ def __perform_ml_attack(emma):
 
 @activity('plot')
 def __perform_plot(emma, *params):
+    trace_sets_to_get = max(int(emma.conf.plot_num_traces / emma.dataset.traces_per_set), 1)
     em_result = submit_task(ops.work,  # Op
-                            emma.dataset.trace_set_paths[0:2], emma.conf, keep_trace_sets=True, keep_scores=False,  # Op parameters
+                            emma.dataset.trace_set_paths[0:trace_sets_to_get], emma.conf, keep_trace_sets=True, keep_scores=False,  # Op parameters
                             remote=emma.conf.remote,
                             message="Performing actions")
 
-    for trace_set in em_result.trace_sets:
-        visualizations.plot_trace_set(em_result.reference_signal, trace_set, params=params, no_reference_plot=emma.conf.no_reference_plot)
+    visualizations.plot_trace_sets(
+        em_result.reference_signal,
+        em_result.trace_sets,
+        params=params,
+        no_reference_plot=emma.conf.no_reference_plot,
+        num_traces=emma.conf.plot_num_traces,
+        title=emma.conf.plot_title,
+        xlabel=emma.conf.plot_xlabel,
+        ylabel=emma.conf.plot_ylabel,
+        colorbar_label=emma.conf.plot_colorbar_label)
 
 
 @activity('specgram')
@@ -229,7 +238,10 @@ def __perform_specgram(emma, *params):
                             message="Performing actions")
 
     for trace_set in em_result.trace_sets:
-        visualizations.plot_spectogram(trace_set, 8000000, params=params)  # TODO get sample rate from dataset?
+        visualizations.plot_spectogram(trace_set,
+                                       emma.conf.specgram_samprate,
+                                       params=params,
+                                       num_traces=emma.conf.plot_num_traces)
 
 
 @activity('basetest')

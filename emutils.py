@@ -252,3 +252,7 @@ class EMMAException(Exception):
 
 class EMMAConfException(EMMAException):
     pass
+
+
+class MaxPlotsReached(EMMAException):
+    pass
