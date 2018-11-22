@@ -1,8 +1,13 @@
+.idea/
 *.pyc
 TODO.md
-settings.conf
-datasets.conf
-wpa_supp_leak
+RESEARCH.md
+arduino/
+experiments/
+old/
+*.sh
+*.conf
+*_sup*
 models
 paper_data
 datasets
