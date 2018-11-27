@@ -60,7 +60,7 @@ class InformationElementType:
 
 # SDR capture device
 class SDR(gr.top_block):
-    def __init__(self, hw="usrp", samp_rate=100000, freq=3.2e9, gain=0, ds_mode=False):
+    def __init__(self, hw="usrp", samp_rate=100000, freq=3.2e9, gain=0, ds_mode=False, agc=False):
         gr.enable_realtime_scheduling()
         gr.top_block.__init__(self, "SDR capture device")
 
@@ -91,16 +91,22 @@ class SDR(gr.top_block):
             self.sdr_source.set_gain(gain, 0)
             self.sdr_source.set_min_output_buffer(16*1024*1024)  # 16 MB output buffer
         else:
-            self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + ('rtl=0,buflen=1024,direct_samp=2' if ds_mode else ''))
+            if ds_mode:
+                self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + "rtl=0,buflen=1024,direct_samp=2")
+            else:
+                self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + "rtl=0,buflen=1024")
             self.sdr_source.set_sample_rate(samp_rate)
             self.sdr_source.set_center_freq(freq, 0)
             self.sdr_source.set_freq_corr(0, 0)
             self.sdr_source.set_dc_offset_mode(0, 0)
             self.sdr_source.set_iq_balance_mode(0, 0)
-            self.sdr_source.set_gain_mode(False, 0)
-            self.sdr_source.set_gain(gain, 0)
-            self.sdr_source.set_if_gain(20, 0)
-            self.sdr_source.set_bb_gain(20, 0)
+            if agc:
+                self.sdr_source.set_gain_mode(True, 0)
+            else:
+                self.sdr_source.set_gain_mode(False, 0)
+                self.sdr_source.set_gain(gain, 0)
+                self.sdr_source.set_if_gain(20, 0)
+                self.sdr_source.set_bb_gain(20, 0)
             self.sdr_source.set_antenna('', 0)
             self.sdr_source.set_bandwidth(0, 0)
 
@@ -381,6 +387,7 @@ class EMCap():
 def main():
     parser = argparse.ArgumentParser(description='EMCAP')
     parser.add_argument('hw', type=str, choices=['usrp', 'hackrf', 'rtlsdr'], help='SDR capture hardware')
+    parser.add_argument('ctrl', type=str, choices=['serial', 'udp'], help='Controller type')
     parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
     parser.add_argument('--frequency', type=float, default=64e6, help='Capture frequency')
     parser.add_argument('--gain', type=int, default=30, help='RX gain')
@@ -390,9 +397,18 @@ def main():
     parser.add_argument('--online', type=str, default=None, help='Stream samples to remote EMMA instance at <IP address> for online processing.')
     parser.add_argument('--dry', default=False, action='store_true', help='Do not save to disk.')
     parser.add_argument('--ds-mode', default=False, action='store_true', help='Direct sampling mode.')
+    parser.add_argument('--agc', default=False, action='store_true', help='Automatic Gain Control.')
     args, unknown = parser.parse_known_args()
-    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain, 'ds_mode': args.ds_mode}, kwargs=args.__dict__, ctrl_socket_type=CtrlType.UDP)
+
+    ctrl_type = None
+    if args.ctrl == 'serial':
+        ctrl_type = CtrlType.SERIAL
+    elif args.ctrl == 'udp':
+        ctrl_type = CtrlType.UDP
+
+    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain, 'ds_mode': args.ds_mode, 'agc': args.agc}, kwargs=args.__dict__, ctrl_socket_type=ctrl_type)
     e.capture()
+
 
 if __name__ == '__main__':
     main()

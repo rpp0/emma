@@ -22,6 +22,7 @@ class AIInputType:
     PLAINTEXT_KEY = 'plaintext_key'
     PLAINTEXT_KEY_OH = 'plaintext_key_oh'
     SIGNAL_LEAKAGE = 'signal_leakage'
+    RANDOM = 'random'
 
     @classmethod
     def choices(cls):
@@ -174,3 +175,10 @@ class SignalLeakageAIInput(AIInput):
         leakages = np.array(leakages)
 
         return np.concatenate((trace.signal, leakages))
+
+
+class RandomInput(AIInput):
+    input_type = AIInputType.RANDOM
+
+    def get_trace_inputs(self, trace):
+        return np.random.uniform(0.0, 1.0, len(trace.signal))
