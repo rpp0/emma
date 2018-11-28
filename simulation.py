@@ -11,7 +11,7 @@ import binascii
 from emutils import hamming_distance, random_bytes
 from traceset import Trace, TraceSet
 from pygdbmi.gdbcontroller import GdbController, GdbTimeoutError
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from os.path import join
 
 AlgoritmSpecs = namedtuple("AlgoritmSpecs", ["executable", "method", "key_len", "plaintext_len"])
@@ -54,7 +54,7 @@ def get_registers_power_consumption(previous_registers, current_registers):
 
 
 class ProgramSimulation:
-    def __init__(self, binary, prog_args, method_name, args):
+    def __init__(self, binary, prog_args, method_name, registers, args):
         self.gdbmi = None
         self.binary = binary
         self.prog_args = prog_args
@@ -63,8 +63,9 @@ class ProgramSimulation:
         self.prev_register_values = None
         self.method_name = method_name
         self.args = args
+        self.registers = registers
 
-    def run(self):
+    def init(self):
         self.gdbmi = GdbController()
         self.gdbmi.write('-exec-arguments %s %s' % self.prog_args, read_response=False)
         self.gdbmi.write('-file-exec-and-symbols %s' % self.binary, read_response=False)
@@ -72,24 +73,26 @@ class ProgramSimulation:
         self.gdbmi.write('-exec-run', read_response=False)
         self.gdbmi.write('-data-list-register-names', read_response=False)
 
+    def run(self):
+        self.init()
+
         self.prev_register_values = {}
         self.signal = []
         self.done = False
         step_count = 0
         check_interval = 100
         register_value_interval = 1
-        filter_list = None
-        # filter_list = [str(x) for x in range(0, 40)]
+
         while not self.done:
-            print("\rStep: %d                     " % step_count, end='')
+            # print("\rStep: %d                     " % step_count, end='')
 
             # Parse reponses from issues commands
             if step_count % check_interval == 0:
-                self.parse_responses()
+                self.parse_responses(register_values_cb=self.update_power_consumption)
 
             # Send command to get register values
             if step_count % register_value_interval == 0:
-                self.get_register_values(filter_list)
+                self.get_register_values(self.registers)
 
             # Send command to get next step
             self.program_step()
@@ -98,13 +101,45 @@ class ProgramSimulation:
         self.gdbmi.exit()
         return np.array(self.signal)
 
+    def run_find_varying_registers(self, nruns=10):
+        self.register_value_sum = defaultdict(lambda: [])
+
+        # Sum each register value during steps. Repeat nruns times.
+        for n in range(0, nruns):
+            print("Run %d..." % n)
+            self.init()
+            self.done = False
+            self.register_value_history = defaultdict(lambda: [])
+            while not self.done:
+                self.get_register_values(None)
+                self.parse_responses(register_values_cb=self.compare_register_values)
+                self.program_step()
+            del self.gdbmi
+
+            for key, values in self.register_value_history.items():
+                self.register_value_sum[key].append(sum([int(x) for x in values]))
+
+        # Check if there were runs with a different outcome
+        normal_keys = []
+        for key, values in self.register_value_sum.items():
+            if len(set(values)) > 1:
+                print("Found weird key %s: %s" % (key, str(values)))
+            else:
+                normal_keys.append(key)
+
+        return normal_keys
+
+    def compare_register_values(self, register_values):
+        for key, value in register_values.items():
+            self.register_value_history[key].append(value)
+
     def update_power_consumption(self, current_register_values):
         power_consumption = get_registers_power_consumption(self.prev_register_values, current_register_values)
         self.prev_register_values = current_register_values
         # print("Power consumption: %d" % power_consumption)
         self.signal.append(power_consumption)
 
-    def parse_responses(self):
+    def parse_responses(self, register_values_cb=None):
         try:
             responses = self.gdbmi.get_gdb_response(timeout_sec=2)
         except GdbTimeoutError:
@@ -113,7 +148,7 @@ class ProgramSimulation:
             return
 
         for response in responses:
-            print(response)
+            #print(response)
 
             # Check for register values
             payload = response['payload']
@@ -121,7 +156,7 @@ class ProgramSimulation:
                 if 'register-values' in payload:
                     register_tuples = payload['register-values']
                     register_values = _parse_register_tuples(register_tuples)
-                    self.update_power_consumption(register_values)
+                    register_values_cb(register_values)
 
             # Check for end packet
             if 'type' in response and response['type'] == 'notify':
@@ -169,9 +204,9 @@ def get_algorithm_specs(algorithm):
 def test_and_plot(args):
     specs = get_algorithm_specs(args.algorithm)
 
-    sim00 = ProgramSimulation(specs.executable, ("00"*specs.key_len, "00"*specs.plaintext_len), specs.method, args=args)
-    sim0f = ProgramSimulation(specs.executable, ("0f"*specs.key_len, "00"*specs.plaintext_len), specs.method, args=args)
-    simff = ProgramSimulation(specs.executable, ("ff"*specs.key_len, "00"*specs.plaintext_len), specs.method, args=args)
+    sim00 = ProgramSimulation(specs.executable, ("00"*specs.key_len, "00"*specs.plaintext_len), specs.method, None, args=args)
+    sim0f = ProgramSimulation(specs.executable, ("0f"*specs.key_len, "00"*specs.plaintext_len), specs.method, None, args=args)
+    simff = ProgramSimulation(specs.executable, ("ff"*specs.key_len, "00"*specs.plaintext_len), specs.method, None, args=args)
     plt.plot(sim00.run(), label="00")
     plt.plot(sim0f.run(), label="0f")
     plt.plot(simff.run(), label="ff")
@@ -182,24 +217,28 @@ def test_and_plot(args):
     plt.show()
 
 
-def simulate_traces_random(args):
+def simulate_traces_random(args, train=True):
     """
     Untested. Simulate traces randomly, without artificial noise. Interesting for seeing true effect of random keys, but slow.
     :param args:
     :return:
     """
     specs = get_algorithm_specs(args.algorithm)
+    key = random_bytes(specs.key_len)
+    if train is False:
+        print("Test set key: " + str(key))
 
     for i in range(0, args.num_trace_sets):
         traces = []
         print("\rSimulating trace set %d/%d...                          " % (i, args.num_trace_sets), end='')
         for j in range(0, args.num_traces_per_set):
-            key = random_bytes(specs.key_len)
+            if train:
+                key = random_bytes(specs.key_len)
             plaintext = random_bytes(specs.plaintext_len)
             key_string = binascii.hexlify(key).decode('utf-8')
             plaintext_string = binascii.hexlify(plaintext).decode('utf-8')
 
-            sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, args=args)
+            sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, None, args=args)
             signal = sim.run()
 
             t = Trace(signal=signal, plaintext=plaintext, ciphertext=None, key=key, mask=None)
@@ -208,7 +247,7 @@ def simulate_traces_random(args):
         # Make TraceSet
         ts = TraceSet(name="sim-%s-%d" % (args.algorithm, i))
         ts.set_traces(traces)
-        dataset_name = "sim-%s" % args.algorithm
+        dataset_name = "sim-%s-%s" % (args.algorithm, args.mode)
         ts.save(join(args.output_directory, dataset_name + args.suffix))
 
 
@@ -223,7 +262,7 @@ def simulate_traces_noisy(args):
         key_string = binascii.hexlify(key).decode('utf-8')
         plaintext_string = binascii.hexlify(plaintext).decode('utf-8')
 
-        sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, args=args)
+        sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, None, args=args)
         signal = sim.run()
 
         traces = []
@@ -244,15 +283,23 @@ def simulate_traces_noisy(args):
         ts.save(join(args.output_directory, dataset_name + args.suffix))
 
 
+def simulate_find_varying_registers(args):
+    specs = get_algorithm_specs(args.algorithm)
+
+    sim = ProgramSimulation(specs.executable, ("00"*specs.key_len, "00"*specs.plaintext_len), specs.method, None, args=args)
+    print(sim.run_find_varying_registers())
+
+
 if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("algorithm", type=str, choices=["aes", "hmacsha1"], help="Crypto algorithm to simulate.")
-    arg_parser.add_argument("simtype", type=str, choices=["noisy", "random"], help="Type of simulation experiment.")
+    arg_parser.add_argument("simtype", type=str, choices=["noisy", "random", "findvary"], help="Type of simulation experiment.")
+    arg_parser.add_argument("mode", type=str, choices=["train", "test"], help="Test or train.")
     arg_parser.add_argument("--test", default=False, action="store_true", help="Run test simulation with plots.")
     arg_parser.add_argument("--debug", default=False, action="store_true", help="Run in debug mode.")
     arg_parser.add_argument("--granularity", type=str, choices=["instruction", "step", "next"], default="step", help="Granularity of power consumption simulation.")
     arg_parser.add_argument("--num-traces-per-set", type=int, default=256, help="Number of traces per trace set.")
-    arg_parser.add_argument("--num-trace-sets", type=int, default=200, help="Number of trace sets to simulate.")
+    arg_parser.add_argument("--num-trace-sets", type=int, default=50, help="Number of trace sets to simulate.")
     arg_parser.add_argument("--output-directory", type=str, default="./datasets/", help="Output directory to write trace sets to.")
     arg_parser.add_argument("--mu", type=float, default=0.0, help="Gaussian noise mu parameter.")
     arg_parser.add_argument("--sigma", type=float, default=10.0, help="Gaussian noise sigma parameter.")
@@ -265,8 +312,9 @@ if __name__ == "__main__":
         if args.simtype == 'noisy':
             simulate_traces_noisy(args)
         elif args.simtype == 'random':
-            simulate_traces_random(args)
-
+            simulate_traces_random(args, train=True if args.mode == "train" else False)
+        elif args.simtype == 'findvary':
+            simulate_find_varying_registers(args)
 
 
 

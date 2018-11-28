@@ -390,7 +390,7 @@ def main():
     parser.add_argument('ctrl', type=str, choices=['serial', 'udp'], help='Controller type')
     parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
     parser.add_argument('--frequency', type=float, default=64e6, help='Capture frequency')
-    parser.add_argument('--gain', type=int, default=30, help='RX gain')
+    parser.add_argument('--gain', type=int, default=50, help='RX gain')
     parser.add_argument('--traces-per-set', type=int, default=256, help='Number of traces per set')
     parser.add_argument('--limit', type=int, default=256*400, help='Limit number of traces')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')

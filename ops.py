@@ -101,6 +101,18 @@ def filterkey_trace_set(trace_set, result, conf, params=None):
     trace_set.set_traces(np.array(filtered_trace_set))
 
 
+@op('ifreq')
+def ifreq_trace_set(trace_set, result, conf, params=None):
+    logger.info("ifreq %s" % (str(params) if not params is None else ""))
+
+    for trace in trace_set.traces:
+        instantaneous_phase = np.unwrap(np.angle(trace.signal))
+        instantaneous_frequency = np.diff(instantaneous_phase)
+        trace.signal = instantaneous_frequency
+
+    conf.reference_signal = np.diff(np.unwrap(np.angle(conf.reference_signal)))
+
+
 @op('spec')
 def spectogram_trace_set(trace_set, result, conf, params=None):
     """

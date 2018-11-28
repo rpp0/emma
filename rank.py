@@ -142,6 +142,11 @@ class CorrRankCallback(RankCallbackBase):
             fake_ts.windowed = True
 
             for i in range(self.key_low, self.key_high):
+                if len(set(keys[:, i])) > 1:
+                    print("Warning: nonidentical key bytes detected. Skipping rank calculation")
+                    print("Subkey %d:" % i)
+                    print(keys[:, i])
+                    break
                 rank, confidence = calculate_traceset_rank(fake_ts, i, keys[0][i], self.conf)  # TODO: It is assumed here that all true keys of the test set are the same
                 self._save_best_rank_model(rank, confidence)
                 logs['rank %d' % i] = rank
