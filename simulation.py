@@ -228,7 +228,7 @@ def simulate_traces_random(args, train=True):
     specs = get_algorithm_specs(args.algorithm)
     key = random_bytes(specs.key_len)
     if train is False:
-        print("Test set key: " + str(key))
+        print("Test set key: " + bytearray(key).hex())
 
     for i in range(0, args.num_trace_sets):
         traces = []
