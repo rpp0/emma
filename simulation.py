@@ -15,6 +15,8 @@ from collections import namedtuple, defaultdict
 from os.path import join
 
 AlgoritmSpecs = namedtuple("AlgoritmSpecs", ["executable", "method", "key_len", "plaintext_len"])
+# REGS_TO_CHECK = None
+REGS_TO_CHECK = ['1', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '70', '71', '72', '73', '74', '75', '76', '77', '78', '152', '153', '154', '155', '156', '157', '159', '160', '161', '162', '163', '164', '165', '166', '167', '168', '169', '170', '172', '176', '179', '180', '181', '183', '184', '185', '186', '187', '188', '189', '190', '192', '195', '196', '197', '198', '199', '200', '201', '202', '203', '204', '205', '206', '207', '208', '209', '210', '211', '212', '213', '214', '215', '216', '217', '218', '219', '220', '221', '222', '223', '224', '225', '226']
 
 # TODO: There are some commented prints in here; these should be refactored to log in DEBUG
 
@@ -81,7 +83,7 @@ class ProgramSimulation:
         self.done = False
         step_count = 0
         check_interval = 100
-        register_value_interval = 1
+        register_value_interval = self.args.register_check_interval
 
         while not self.done:
             # print("\rStep: %d                     " % step_count, end='')
@@ -101,7 +103,7 @@ class ProgramSimulation:
         self.gdbmi.exit()
         return np.array(self.signal)
 
-    def run_find_varying_registers(self, nruns=10):
+    def run_find_varying_registers(self, nruns=3):
         self.register_value_sum = defaultdict(lambda: [])
 
         # Sum each register value during steps. Repeat nruns times.
@@ -111,7 +113,7 @@ class ProgramSimulation:
             self.done = False
             self.register_value_history = defaultdict(lambda: [])
             while not self.done:
-                self.get_register_values(None)
+                self.get_register_values(self.registers)
                 self.parse_responses(register_values_cb=self.compare_register_values)
                 self.program_step()
             del self.gdbmi
@@ -204,9 +206,9 @@ def get_algorithm_specs(algorithm):
 def test_and_plot(args):
     specs = get_algorithm_specs(args.algorithm)
 
-    sim00 = ProgramSimulation(specs.executable, ("00"*specs.key_len, "00"*specs.plaintext_len), specs.method, None, args=args)
-    sim0f = ProgramSimulation(specs.executable, ("0f"*specs.key_len, "00"*specs.plaintext_len), specs.method, None, args=args)
-    simff = ProgramSimulation(specs.executable, ("ff"*specs.key_len, "00"*specs.plaintext_len), specs.method, None, args=args)
+    sim00 = ProgramSimulation(specs.executable, ("00"*specs.key_len, "00"*specs.plaintext_len), specs.method, REGS_TO_CHECK, args=args)
+    sim0f = ProgramSimulation(specs.executable, ("0f"*specs.key_len, "00"*specs.plaintext_len), specs.method, REGS_TO_CHECK, args=args)
+    simff = ProgramSimulation(specs.executable, ("ff"*specs.key_len, "00"*specs.plaintext_len), specs.method, REGS_TO_CHECK, args=args)
     plt.plot(sim00.run(), label="00")
     plt.plot(sim0f.run(), label="0f")
     plt.plot(simff.run(), label="ff")
@@ -238,7 +240,7 @@ def simulate_traces_random(args, train=True):
             key_string = binascii.hexlify(key).decode('utf-8')
             plaintext_string = binascii.hexlify(plaintext).decode('utf-8')
 
-            sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, None, args=args)
+            sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, REGS_TO_CHECK, args=args)
             signal = sim.run()
 
             t = Trace(signal=signal, plaintext=plaintext, ciphertext=None, key=key, mask=None)
@@ -262,7 +264,7 @@ def simulate_traces_noisy(args):
         key_string = binascii.hexlify(key).decode('utf-8')
         plaintext_string = binascii.hexlify(plaintext).decode('utf-8')
 
-        sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, None, args=args)
+        sim = ProgramSimulation(specs.executable, (key_string, plaintext_string), specs.method, REGS_TO_CHECK, args=args)
         signal = sim.run()
 
         traces = []
@@ -286,7 +288,7 @@ def simulate_traces_noisy(args):
 def simulate_find_varying_registers(args):
     specs = get_algorithm_specs(args.algorithm)
 
-    sim = ProgramSimulation(specs.executable, ("00"*specs.key_len, "00"*specs.plaintext_len), specs.method, None, args=args)
+    sim = ProgramSimulation(specs.executable, ("00"*specs.key_len, "00"*specs.plaintext_len), specs.method, REGS_TO_CHECK, args=args)
     print(sim.run_find_varying_registers())
 
 
@@ -304,6 +306,7 @@ if __name__ == "__main__":
     arg_parser.add_argument("--mu", type=float, default=0.0, help="Gaussian noise mu parameter.")
     arg_parser.add_argument("--sigma", type=float, default=10.0, help="Gaussian noise sigma parameter.")
     arg_parser.add_argument("--suffix", type=str, default="", help="Dataset name suffix.")
+    arg_parser.add_argument("--register-check-interval", type=int, default=1, help="Steps before checking registers.")
     args = arg_parser.parse_args()
 
     if args.test:
