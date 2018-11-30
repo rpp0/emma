@@ -265,6 +265,18 @@ def __perform_actions(emma, message="Performing actions"):
         ops.work(emma.dataset.trace_set_paths, emma.conf)
 
 
+@activity('keyplot')
+def __perform_keyplot(emma, message="Grouping keys..."):
+    if emma.conf.remote:
+        async_result = parallel_work(emma.dataset.trace_set_paths, emma.conf)
+        em_result = wait_until_completion(async_result, message=message)
+    else:
+        em_result = ops.work(emma.dataset.trace_set_paths, emma.conf)
+        em_result = ops.merge(em_result, emma.conf)
+
+    visualizations.plot_keyplot(em_result.keyplot, show=True)
+
+
 @activity('classify')
 def __perform_classification_attack(emma):
     for subkey in range(emma.conf.key_low, min(emma.conf.key_high, 16)):

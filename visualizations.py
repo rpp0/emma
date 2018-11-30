@@ -186,3 +186,16 @@ def plot_correlations(values1, values2, label1="", label2="", show=False):
     plt.gca().legend()
     if show:
         plt.show()
+
+
+def plot_keyplot(keyplot, show=False):
+    plt.title("Keyplot")
+    plt.xlabel("Samples")
+    plt.ylabel("Amplitude")
+
+    for value, mean_signal in sorted(keyplot.items()):
+        plt.plot(mean_signal, label="%02x" % value)
+    plt.legend()
+
+    if show:
+        plt.show()

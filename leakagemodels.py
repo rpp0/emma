@@ -13,8 +13,9 @@ class LeakageModelType:
     Class that defines all possible types of leakages. Leakage model classes must have an attribute 'leakage_type' with
     one of the values defined in this class.
     """
-    NONE = 'none'
-    NONE_OH = 'none_oh'
+    KEY = 'key'
+    KEY_OH = 'key_oh'
+    KEY_HW = 'key_hw'
     HAMMING_WEIGHT_SBOX = 'hamming_weight_sbox'
     HAMMING_WEIGHT_SBOX_OH = 'hamming_weight_sbox_oh'
     HAMMING_WEIGHT_MASKED_SBOX = 'hamming_weight_masked_sbox'
@@ -170,16 +171,16 @@ class SboxOHLeakageModel(LeakageModel):
         return int_to_one_hot(sbox[plaintext_byte ^ key_byte], num_classes=self.onehot_outputs)
 
 
-class NoLeakageModel(LeakageModel):
-    leakage_type = LeakageModelType.NONE
+class KeyLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.KEY
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
-        return key_byte / 255.0
+        return key_byte
 
 
-class NoOHLeakageModel(LeakageModel):
-    leakage_type = LeakageModelType.NONE_OH
+class KeyOHLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.KEY_OH
 
     def __init__(self, conf):
         super().__init__(conf)
@@ -189,6 +190,14 @@ class NoOHLeakageModel(LeakageModel):
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
         return int_to_one_hot(key_byte, num_classes=self.onehot_outputs)
+
+
+class KeyHWLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.KEY_HW
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        return hw[key_byte]
 
 
 class AESTestLeakageModel(LeakageModel):

@@ -24,7 +24,7 @@ from dsp import *
 from correlationlist import CorrelationList
 from distancelist import DistanceList
 from os.path import join, basename
-from emutils import Window, conf_to_id, conf_has_op
+from emutils import Window, conf_to_id, conf_has_op, EMMAException
 from celery.utils.log import get_task_logger
 from lut import hw, sbox
 from emresult import EMResult, SalvisResult
@@ -32,6 +32,7 @@ from registry import op
 from leakagemodels import LeakageModel
 from aiinputs import AIInput
 from sklearn.decomposition import PCA
+from collections import defaultdict
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -332,6 +333,39 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
         for subkey_guess in range(0, 256):
             # Update correlation
             result.correlations.update((subkey_guess, j), hypotheses[subkey_guess, :], measurements)
+
+
+@op('keyplot')
+def keyplot_trace_set(trace_set, result, conf=None, params=None):
+    """
+    Group traces by key byte and return the mean trace of each key byte value. Then plot the result.
+    :param trace_set: 
+    :param result: 
+    :param conf: 
+    :param params: 
+    :return: 
+    """
+    logger.info("keyplot %s" % (str(params) if not params is None else ""))
+
+    if not trace_set.windowed:
+        logger.warning("Trace set not windowed. Skipping keyplot.")
+        return
+
+    if result.keyplot is None:
+        result.keyplot = defaultdict(lambda: [])
+
+    leakage_model = LeakageModel(conf)
+    tmp = defaultdict(lambda: [])
+    for trace in trace_set.traces:
+        leakage = leakage_model.get_trace_leakages(trace, conf.subkey)
+        if isinstance(leakage, list):
+            raise EMMAException("list as leakage not supported yet for keyplot")
+        tmp[leakage].append(trace.signal)
+
+    for subkey_value, traces in tmp.items():
+        all_traces = np.array(traces)
+        print("Mean of %d traces for subkey value %02x" % (all_traces.shape[0], subkey_value))
+        result.keyplot[subkey_value].append(np.mean(all_traces, axis=0))
 
 
 # TODO: Duplicate code, fix me
@@ -673,11 +707,24 @@ def merge(self, to_merge, conf):
             # Start merging
             for m in to_merge:
                 result.probabilities += m.probabilities
+        elif conf_has_op(conf, 'keyplot'):
+            result.keyplot = {}
+
+            tmp = defaultdict(lambda: [])
+            for m in to_merge:
+                for subkey_value, mean_traces in m.keyplot.items():
+                    tmp[subkey_value].extend(mean_traces)
+
+            for subkey_value, mean_traces in tmp.items():
+                all_traces = np.array(mean_traces)
+                print("Merging %d traces for subkey value %02x" % (all_traces.shape[0], subkey_value))
+                result.keyplot[subkey_value] = np.mean(all_traces, axis=0)
 
         # Clean up tasks
-        for m in to_merge:
-            logger.warning("Deleting %s" % m.task_id)
-            app.AsyncResult(m.task_id).forget()
+        if conf.remote:
+            for m in to_merge:
+                logger.warning("Deleting %s" % m.task_id)
+                app.AsyncResult(m.task_id).forget()
 
         return result
     else:
