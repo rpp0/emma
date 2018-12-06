@@ -5,6 +5,7 @@ from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from traceset import TraceSet
 from emutils import MaxPlotsReached
+from matplotlib.colors import LogNorm
 
 
 def plt_save_pdf(path):

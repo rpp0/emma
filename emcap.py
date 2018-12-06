@@ -91,10 +91,14 @@ class SDR(gr.top_block):
             self.sdr_source.set_gain(gain, 0)
             self.sdr_source.set_min_output_buffer(16*1024*1024)  # 16 MB output buffer
         else:
-            if ds_mode:
-                self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + "rtl=0,buflen=1024,direct_samp=2")
+            if hw == "hackrf":
+                rtl_string = ""
             else:
-                self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + "rtl=0,buflen=1024")
+                rtl_string = "rtl=0,"
+            if ds_mode:
+                self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + rtl_string + "buflen=1024,direct_samp=2")
+            else:
+                self.sdr_source = osmosdr.source(args="numchan=" + str(1) + " " + rtl_string + "buflen=4096")
             self.sdr_source.set_sample_rate(samp_rate)
             self.sdr_source.set_center_freq(freq, 0)
             self.sdr_source.set_freq_corr(0, 0)
