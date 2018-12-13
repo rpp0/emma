@@ -62,7 +62,7 @@ def align_trace_set(trace_set, result, conf, params=None):
 
     discarded = 0
     for trace in trace_set.traces:
-        aligned_trace = align(trace.signal, reference, prefilter=prefilter)
+        aligned_trace = align(trace.signal, reference, cutoff=conf.butter_cutoff, order=conf.butter_order, prefilter=prefilter)
         if not aligned_trace is None:
             trace.signal = aligned_trace
             aligned_trace_set.append(trace)

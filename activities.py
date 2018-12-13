@@ -222,7 +222,7 @@ def __perform_plot(emma, *params):
         em_result.reference_signal,
         em_result.trace_sets,
         params=params,
-        no_reference_plot=emma.conf.no_reference_plot,
+        no_reference_plot=emma.conf.plot_no_reference,
         num_traces=emma.conf.plot_num_traces,
         title=emma.conf.plot_title,
         xlabel=emma.conf.plot_xlabel,

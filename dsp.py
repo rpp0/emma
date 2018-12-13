@@ -33,7 +33,7 @@ def butter_filter(trace, order=1, cutoff=0.01, filter_type='low'):
     return trace_filtered
 
 
-def align(trace, reference, prefilter=False):
+def align(trace, reference, cutoff=0.01, order=1, prefilter=False):
     """
     Determine their offset using cross-correlation. This offset is then used to
     align the original signals.
@@ -43,8 +43,8 @@ def align(trace, reference, prefilter=False):
         trace = np.array(trace)
         reference = np.array(reference)
         if prefilter:
-            processed_trace = butter_filter(trace)
-            processed_reference = butter_filter(reference)
+            processed_trace = butter_filter(trace, order=order, cutoff=cutoff)
+            processed_reference = butter_filter(reference, order=order, cutoff=cutoff)
             processed_trace = normalize_p2p(processed_trace)  # normalize() seems to work pretty well too
             processed_reference = normalize_p2p(processed_reference)
         else:
@@ -63,11 +63,13 @@ def align(trace, reference, prefilter=False):
     # Vertical align as well TODO add as new separate op?
     #bias = np.mean(aligned_trace)
     #aligned_trace -= bias
+    #DEBUG = True
 
     if DEBUG:
         plt.plot(range(0, len(processed_reference)), processed_reference, label="Normalized reference")
         plt.plot(range(0, len(processed_trace)), processed_trace, label="Normalized trace")
-        plt.plot(range(0, len(aligned_trace)), aligned_trace, label="Aligned trace")
+        plt.plot(range(0, len(result)), result, label="Correlation")
+        #plt.plot(range(0, len(aligned_trace)), aligned_trace, label="Aligned trace")
         plt.legend()
         plt.show()
 

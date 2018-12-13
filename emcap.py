@@ -90,6 +90,8 @@ class SDR(gr.top_block):
             self.sdr_source.set_center_freq(freq, 0)
             self.sdr_source.set_gain(gain, 0)
             self.sdr_source.set_min_output_buffer(16*1024*1024)  # 16 MB output buffer
+            self.sdr_source.set_antenna('RX2', 0)
+            self.sdr_source.set_bandwidth(samp_rate, 0)
         else:
             if hw == "hackrf":
                 rtl_string = ""
@@ -112,7 +114,7 @@ class SDR(gr.top_block):
                 self.sdr_source.set_if_gain(20, 0)
                 self.sdr_source.set_bb_gain(20, 0)
             self.sdr_source.set_antenna('', 0)
-            self.sdr_source.set_bandwidth(0, 0)
+            self.sdr_source.set_bandwidth(samp_rate, 0)
 
         self.udp_sink = blocks.udp_sink(8, "127.0.0.1", 3884, payload_size=1472, eof=True)
 
@@ -294,6 +296,21 @@ class EMCap():
             else:
                 logger.warning("Unknown IE type: %d" % ie_type)
 
+    """
+    # Hacky stuff to sync control stream with data stream
+    def join_stored_data(self, wait_time=0.5):
+        initial_num_samples = len(self.stored_data)
+        done = False
+
+        while not done:
+            sleep(wait_time)
+            new_num_samples = len(self.stored_data)
+            if initial_num_samples == new_num_samples:
+                done = True
+            else:
+                initial_num_samples = new_num_samples
+    """
+
 
     def process_ctrl_packet(self, pkt_type, payload):
         if pkt_type == CtrlPacketType.SIGNAL_START:
@@ -394,7 +411,7 @@ def main():
     parser.add_argument('ctrl', type=str, choices=['serial', 'udp'], help='Controller type')
     parser.add_argument('--sample-rate', type=int, default=4000000, help='Sample rate')
     parser.add_argument('--frequency', type=float, default=64e6, help='Capture frequency')
-    parser.add_argument('--gain', type=int, default=50, help='RX gain')
+    parser.add_argument('--gain', type=float, default=50, help='RX gain')
     parser.add_argument('--traces-per-set', type=int, default=256, help='Number of traces per set')
     parser.add_argument('--limit', type=int, default=256*400, help='Limit number of traces')
     parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')

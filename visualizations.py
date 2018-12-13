@@ -75,12 +75,14 @@ def plot_colormap(inputs,
     if inputs.dtype == np.complex64 or inputs.dtype == np.complex128:
         inputs = np.real(inputs)
         print("Warning: converting colormap to np.real(complex)")
+    #inputs += 0.01
     vmin = inputs.min()
     vmax = inputs.max()
     colorplot = plt.imshow(inputs,
                            vmin=vmin,
                            vmax=vmax,
                            interpolation='nearest',
+                           # norm=LogNorm(vmin=vmin, vmax=vmax),
                            cmap=cmap,
                            **kwargs)
     if draw_axis:
