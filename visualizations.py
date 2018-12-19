@@ -197,7 +197,7 @@ def plot_keyplot(keyplot, show=False):
     plt.ylabel("Amplitude")
 
     for value, mean_signal in sorted(keyplot.items()):
-        plt.plot(mean_signal, label="%02x" % value)
+        plt.plot(mean_signal, label=value)
     plt.legend()
 
     if show:

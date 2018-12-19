@@ -16,6 +16,7 @@ class LeakageModelType:
     KEY = 'key'
     KEY_OH = 'key_oh'
     KEY_HW = 'key_hw'
+    KEY_BITS = 'key_bits'
     HAMMING_WEIGHT_SBOX = 'hamming_weight_sbox'
     HAMMING_WEIGHT_SBOX_OH = 'hamming_weight_sbox_oh'
     HAMMING_WEIGHT_MASKED_SBOX = 'hamming_weight_masked_sbox'
@@ -23,7 +24,6 @@ class LeakageModelType:
     SBOX_OH = 'sbox_oh'
     AES_MULTI_TEST = 'aes_test'
     AES_MULTI = 'aes_multi'
-    AES_BITS = 'aes_bits'
     AES_BITS_EX = 'aes_bits_ex'
     HMAC_BITS = 'hmac_bits'
     HMAC_HAMMING_WEIGHT = 'hmac_hamming_weight'
@@ -200,6 +200,28 @@ class KeyHWLeakageModel(LeakageModel):
         return hw[key_byte]
 
 
+class KeyBitsLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.KEY_BITS
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.num_outputs = (self.num_outputs[0], 8)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+
+        return [(key_byte & 0x01) >> 0,
+                (key_byte & 0x02) >> 1,
+                (key_byte & 0x04) >> 2,
+                (key_byte & 0x08) >> 3,
+                (key_byte & 0x10) >> 4,
+                (key_byte & 0x20) >> 5,
+                (key_byte & 0x40) >> 6,
+                (key_byte & 0x80) >> 7,
+                ]
+
+
 class AESTestLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.AES_MULTI_TEST
 
@@ -239,28 +261,6 @@ class AESMultiLeakageModel(LeakageModel):
                 hw[key_byte & 0xf0],
                 hw[key_byte & 0x0f],
                 hw[key_byte],
-                ]
-
-
-class AESBitsLeakageModel(LeakageModel):
-    leakage_type = LeakageModelType.AES_BITS
-
-    def __init__(self, conf):
-        super().__init__(conf)
-        self.num_outputs = (self.num_outputs[0], 8)
-
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
-
-        return [(key_byte & 0x01) >> 0,
-                (key_byte & 0x02) >> 1,
-                (key_byte & 0x04) >> 2,
-                (key_byte & 0x08) >> 3,
-                (key_byte & 0x10) >> 4,
-                (key_byte & 0x20) >> 5,
-                (key_byte & 0x40) >> 6,
-                (key_byte & 0x80) >> 7,
                 ]
 
 

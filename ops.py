@@ -359,13 +359,16 @@ def keyplot_trace_set(trace_set, result, conf=None, params=None):
     for trace in trace_set.traces:
         leakage = leakage_model.get_trace_leakages(trace, conf.subkey)
         if isinstance(leakage, list):
-            raise EMMAException("list as leakage not supported yet for keyplot")
-        tmp[leakage].append(trace.signal)
+            for leakage_index in range(len(leakage)):
+                key = "(%d,%02x)" % (leakage_index, leakage[leakage_index])
+                tmp[key].append(trace.signal)
+        else:
+            tmp["%02x" % leakage].append(trace.signal)
 
-    for subkey_value, traces in tmp.items():
+    for key, traces in tmp.items():
         all_traces = np.array(traces)
-        print("Mean of %d traces for subkey value %02x" % (all_traces.shape[0], subkey_value))
-        result.keyplot[subkey_value].append(np.mean(all_traces, axis=0))
+        print("Mean of %d traces for key %s" % (all_traces.shape[0], key))
+        result.keyplot[key].append(np.mean(all_traces, axis=0))
 
 
 # TODO: Duplicate code, fix me
@@ -712,13 +715,13 @@ def merge(self, to_merge, conf):
 
             tmp = defaultdict(lambda: [])
             for m in to_merge:
-                for subkey_value, mean_traces in m.keyplot.items():
-                    tmp[subkey_value].extend(mean_traces)
+                for key, mean_traces in m.keyplot.items():
+                    tmp[key].extend(mean_traces)
 
-            for subkey_value, mean_traces in tmp.items():
+            for key, mean_traces in tmp.items():
                 all_traces = np.array(mean_traces)
-                print("Merging %d traces for subkey value %02x" % (all_traces.shape[0], subkey_value))
-                result.keyplot[subkey_value] = np.mean(all_traces, axis=0)
+                print("Merging %d traces for subkey value %s" % (all_traces.shape[0], key))
+                result.keyplot[key] = np.mean(all_traces, axis=0)
 
         # Clean up tasks
         if conf.remote:
