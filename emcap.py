@@ -30,11 +30,19 @@ import argparse
 import serial
 import pickle
 import zlib
+import subprocess
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 hilbert3 = lambda x: hilbert(x, fftpack.next_fast_len(len(x)))[:len(x)]
+
+
+def reset_usrp():
+    print("Resetting USRP")
+    p = subprocess.Popen(["/usr/lib/uhd/utils/b2xx_fx3_utils", "--reset-device"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print(p.communicate())
+
 
 def handler(signum, frame):
     print("Got CTRL+C")
