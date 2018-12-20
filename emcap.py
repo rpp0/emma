@@ -97,9 +97,10 @@ class SDR(gr.top_block):
             self.sdr_source.set_samp_rate(samp_rate)
             self.sdr_source.set_center_freq(freq, 0)
             self.sdr_source.set_gain(gain, 0)
-            self.sdr_source.set_min_output_buffer(16*1024*1024)  # 16 MB output buffer
+            # self.sdr_source.set_min_output_buffer(16*1024*1024)  # 16 MB output buffer
             self.sdr_source.set_antenna('RX2', 0)
             self.sdr_source.set_bandwidth(samp_rate, 0)
+            self.sdr_source.set_recv_timeout(0.001, True)
         else:
             if hw == "hackrf":
                 rtl_string = ""
@@ -232,9 +233,9 @@ class EMCap():
         self.limit_counter = 0
         self.limit = kwargs['limit']
         if self.sdr.hw == 'usrp':
-            self.wait_num_samples = 0
+            self.wait_num_chunks = 0
         else:
-            self.wait_num_samples = 50  # Bug in rtl-sdr?
+            self.wait_num_chunks = 50  # Bug in rtl-sdr?
 
         self.global_meta = {
             "core:datatype": "cf32_le",
@@ -304,22 +305,6 @@ class EMCap():
             else:
                 logger.warning("Unknown IE type: %d" % ie_type)
 
-    """
-    # Hacky stuff to sync control stream with data stream
-    def join_stored_data(self, wait_time=0.5):
-        initial_num_samples = len(self.stored_data)
-        done = False
-
-        while not done:
-            sleep(wait_time)
-            new_num_samples = len(self.stored_data)
-            if initial_num_samples == new_num_samples:
-                done = True
-            else:
-                initial_num_samples = new_num_samples
-    """
-
-
     def process_ctrl_packet(self, pkt_type, payload):
         if pkt_type == CtrlPacketType.SIGNAL_START:
             logger.debug("Starting for payload: %s" % binary_to_hex(payload))
@@ -329,9 +314,9 @@ class EMCap():
             # Spinlock until data
             timeout = 3
             current_time = 0.0
-            while len(self.stored_data) <= self.wait_num_samples:
-                sleep(0.001)
-                current_time += 0.001
+            while len(self.stored_data) <= self.wait_num_chunks:
+                sleep(0.0001)
+                current_time += 0.0001
                 if current_time >= timeout:
                     logger.warning("Timeout while waiting for data. Did the SDR crash? Reinstantiating...")
                     del self.sdr
@@ -341,11 +326,16 @@ class EMCap():
                     self.sdr = SDR(**self.cap_kwargs)
                     self.process_ctrl_packet(pkt_type, payload)
         elif pkt_type == CtrlPacketType.SIGNAL_END:
+            # self.sdr.sdr_source.stop()
             self.sdr.stop()
             self.sdr.wait()
 
+            logger.debug("Stopped after receiving %d chunks" % len(self.stored_data))
+            #sleep(0.5)
+            #logger.debug("After sleep we have %d chunks" % len(self.stored_data))
+
             # Successful capture (no errors or timeouts)
-            if len(self.stored_data) > 0:
+            if len(self.stored_data) > 0:  # We have more than 1 chunk
                 # Data to file
                 np_data = np.fromstring(b"".join(self.stored_data), dtype=np.complex64)
                 self.trace_set.append(np_data)

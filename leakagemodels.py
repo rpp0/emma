@@ -17,6 +17,7 @@ class LeakageModelType:
     KEY_OH = 'key_oh'
     KEY_HW = 'key_hw'
     KEY_BITS = 'key_bits'
+    KEY_BIT = 'key_bit'
     HAMMING_WEIGHT_SBOX = 'hamming_weight_sbox'
     HAMMING_WEIGHT_SBOX_OH = 'hamming_weight_sbox_oh'
     HAMMING_WEIGHT_MASKED_SBOX = 'hamming_weight_masked_sbox'
@@ -220,6 +221,16 @@ class KeyBitsLeakageModel(LeakageModel):
                 (key_byte & 0x40) >> 6,
                 (key_byte & 0x80) >> 7,
                 ]
+
+
+class KeyBitLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.KEY_BIT
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[key_byte_index]
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+
+        return key_byte & 0x01
 
 
 class AESTestLeakageModel(LeakageModel):
