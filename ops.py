@@ -351,8 +351,8 @@ def keyplot_trace_set(trace_set, result, conf=None, params=None):
         logger.warning("Trace set not windowed. Skipping keyplot.")
         return
 
-    if result.keyplot is None:
-        result.keyplot = defaultdict(lambda: [])
+    if result.means is None:
+        result.means = defaultdict(lambda: [])
 
     leakage_model = LeakageModel(conf)
     tmp = defaultdict(lambda: [])
@@ -368,7 +368,7 @@ def keyplot_trace_set(trace_set, result, conf=None, params=None):
     for key, traces in tmp.items():
         all_traces = np.array(traces)
         print("Mean of %d traces for key %s" % (all_traces.shape[0], key))
-        result.keyplot[key].append(np.mean(all_traces, axis=0))
+        result.means[key].append(np.mean(all_traces, axis=0))
 
 
 # TODO: Duplicate code, fix me
@@ -701,27 +701,27 @@ def merge(self, to_merge, conf):
         elif conf_has_op(conf, 'dattack'):  # TODO just check for presence of to_merge.distances instead of doing this
             shape = to_merge[0].distances._n.shape
             result.distances = DistanceList(shape)
-            # Start merging
+
             for m in to_merge:
                 result.distances.merge(m.distances)
         elif conf_has_op(conf, 'pattack'):
             shape = to_merge[0].probabilities.shape
             result.probabilities = np.zeros(shape)
-            # Start merging
+
             for m in to_merge:
                 result.probabilities += m.probabilities
-        elif conf_has_op(conf, 'keyplot'):
-            result.keyplot = {}
+        elif conf_has_op(conf, 'keyplot') or conf_has_op(conf, 'optimize_capture'):
+            result.means = {}
 
             tmp = defaultdict(lambda: [])
             for m in to_merge:
-                for key, mean_traces in m.keyplot.items():
+                for key, mean_traces in m.means.items():
                     tmp[key].extend(mean_traces)
 
             for key, mean_traces in tmp.items():
                 all_traces = np.array(mean_traces)
                 print("Merging %d traces for subkey value %s" % (all_traces.shape[0], key))
-                result.keyplot[key] = np.mean(all_traces, axis=0)
+                result.means[key] = np.mean(all_traces, axis=0)
 
         # Clean up tasks
         if conf.remote:

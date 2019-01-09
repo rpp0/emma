@@ -274,7 +274,7 @@ def __perform_keyplot(emma, message="Grouping keys..."):
         em_result = ops.work(emma.dataset.trace_set_paths, emma.conf)
         em_result = ops.merge(em_result, emma.conf)
 
-    visualizations.plot_keyplot(em_result.keyplot, show=True)
+    visualizations.plot_keyplot(em_result.means, show=True)
 
 
 @activity('classify')
