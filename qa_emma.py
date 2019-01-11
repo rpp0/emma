@@ -14,7 +14,7 @@ from correlationlist import CorrelationList
 from distancelist import DistanceList
 from traceset import TraceSet
 from argparse import Namespace
-from aiiterators import AICorrSignalIterator
+from aiiterators import AICorrSignalIterator, AutoEncoderSignalIterator
 from leakagemodels import *
 from aiinputs import *
 from action import Action
@@ -471,6 +471,112 @@ class TestAI(unittest.TestCase):
         print("Predicted loss: %s" % str(predicted_loss))
         print("Calculated loss: %s" % str(calculated_loss))
         self.assertAlmostEqual(predicted_loss, calculated_loss, places=3)
+
+    @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
+    def test_autoenctrain(self):
+        import ai
+        """
+        Artificial example to test AutoEncoder
+        """
+
+        # ------------------------------
+        # Generate data
+        # ------------------------------
+        traces = [  # Contains abs(trace). Shape = [trace, point]
+            [1, 1, 1, -15],
+            [-4, 1, 2, -12],
+            [10, 1, 3, 8],
+            [8, 1, 1, -14],
+            [9, 1, -3, 8],
+        ]
+
+        plaintexts = [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ]
+
+        keys = [
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ]
+
+        # Convert to numpy
+        traces = np.array(traces)
+        plaintexts = np.array(plaintexts)
+        keys = np.array(keys)
+
+        trace_set = TraceSet(name='test', traces=traces, plaintexts=plaintexts, keys=keys)
+
+        # ------------------------------
+        # Preprocess data
+        # ------------------------------
+        conf = Namespace(
+            max_cache=0,
+            augment_roll=False,
+            augment_noise=False,
+            normalize=False,
+            traces_per_set=4,
+            online=False,
+            dataset_id='qa',
+            cnn=False,
+            leakage_model=LeakageModelType.HAMMING_WEIGHT_SBOX,
+            input_type=AIInputType.SIGNAL,
+            augment_shuffle=True,
+            n_hidden_layers=1,
+            n_hidden_nodes=256,
+            activation='leakyrelu',
+            metric_freq=100,
+            regularizer=None,
+            reglambda=0.001,
+            model_suffix=None,
+            use_bias=True,
+            batch_norm=True,
+            hamming=False,
+            key_low=2,
+            key_high=3,
+            loss_type='correlation',
+            lr=0.0001,
+            epochs=2000,
+            batch_size=512,
+            norank=False,
+        )
+        it_dummy = AutoEncoderSignalIterator([], conf, batch_size=10000, request_id=None, stream_server=None)
+        x, y = it_dummy._preprocess_trace_set(trace_set)
+
+        # ------------------------------
+        # Train and obtain encodings
+        # ------------------------------
+        model = ai.AutoEncoder(conf, input_dim=4, name="test")
+        print(model.info())
+
+        # Find optimal weights
+        print("X, Y")
+        print(x)
+        print(y)
+        print("When feeding x through the model without training, the encodings become:")
+        print(model.predict(x))
+        print("Training now")
+        model.train_set(x, y, epochs=conf.epochs)
+        print("Done training")
+
+        # Get the encodings of the input data using the same approach used in ops.py corrtest (iterate over rows)
+        result = []
+        for i in range(0, x.shape[0]):
+            result.append(model.predict(np.array([x[i, :]], dtype=float))[0])  # Result contains sum of points such that corr with y[key_index] is maximal for all key indices. Shape = [trace, 16]
+        result = np.array(result)
+
+        for i in range(result.shape[0]):
+            rounded_result = np.round(result[i])
+            print("Original x    : %s" % x[i])
+            print("Rounded result: %s" % rounded_result)
+            self.assertListEqual(list(rounded_result), list(x[i]))
+
 
 
 class TestRank(unittest.TestCase):

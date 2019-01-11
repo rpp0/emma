@@ -183,3 +183,7 @@ def update_cw_config(path, trace_set, update_dict):
 
     with open(config_file_path, 'w') as config_file_path_fp:
         cp.write(config_file_path_fp)
+
+
+def write_emcap_manifest(conf, pois):
+    print("Writing manifest...")

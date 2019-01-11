@@ -87,6 +87,9 @@ class EMMAHost:
             raise EMMAConfException("key_low should be < key_high")
         if self.dataset_val is not None and str(self.dataset.id) == str(self.dataset_val.id):
             raise EMMAConfException("Validation set should never be the same as the training set.")
+        if conf_has_op(conf, 'keyplot'):
+            if not conf_has_op(conf, 'groupkeys'):  # Transparently add a groupkeys op, which is required for keyplot
+                conf.actions = conf.actions[0:-1] + [Action('groupkeys')] + conf.actions[-1:]
 
     def _generate_conf(self, args):
         if self.dataset is None or self.dataset_ref is None:

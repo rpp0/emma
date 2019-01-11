@@ -9,6 +9,8 @@ import ops
 import numpy as np
 import visualizations
 import saliency
+import dsp
+import emio
 
 from celery import group, chord
 from celery.result import AsyncResult, GroupResult
@@ -183,6 +185,7 @@ def __perform_dis_attack(emma):
 @activity('ascadtrain')
 @activity('shacputrain')
 @activity('shacctrain')
+@activity('autoenctrain')
 def __perform_ml_attack(emma):
     """
     Trains a machine learning algorithm on the training samples from a dataset.

@@ -13,8 +13,8 @@ import emutils
 import rank
 import visualizations
 import lossfunctions
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU
+from keras.models import Sequential, Model
+from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU, PReLU
 from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
 from keras.callbacks import TensorBoard, History
@@ -517,6 +517,8 @@ def str_to_reg(string, reg_lambda):
 def str_to_activation(string):
     if string == 'leakyrelu':
         return LeakyReLU()
+    elif string == 'prelu':
+        return PReLU(alpha_initializer='uniform')
     else:
         if string is None:
             return None
@@ -765,3 +767,32 @@ class CCLayer(Conv1D):
 
     def compute_output_shape(self, input_shape):
         return (None, self.filters)
+
+
+class AutoEncoder(AI):
+    def __init__(self, conf, input_dim, name="autoenc"):
+        super(AutoEncoder, self).__init__(conf, name)
+        self.name = "autoenc"  # Override conf name
+
+        self.model = Sequential()
+        self.model.add(Dense(256, input_dim=input_dim, activation=None))
+        self.model.add(str_to_activation('leakyrelu'))
+        self.model.add(Dense(input_dim, activation='linear'))
+
+        # Compile model
+        optimizer = keras.optimizers.Nadam(lr=conf.lr)
+        #optimizer = 'adadelta'
+        self.model.compile(optimizer=optimizer, loss='mean_squared_error', metrics=[])
+
+        # Custom callbacks
+        self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=self.metric_freq)
+
+    def train_set(self, x, y, epochs=1):
+        """
+        Train entire training set with model.fit()
+
+        Used in qa_emma
+        """
+
+        # Fit model
+        self.model.fit(x, y, epochs=epochs, batch_size=999999999, shuffle=False, verbose=2, callbacks=[])

@@ -335,8 +335,8 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
             result.correlations.update((subkey_guess, j), hypotheses[subkey_guess, :], measurements)
 
 
-@op('keyplot')
-def keyplot_trace_set(trace_set, result, conf=None, params=None):
+@op('groupkeys')
+def groupkeys_trace_set(trace_set, result, conf=None, params=None):
     """
     Group traces by key byte and return the mean trace of each key byte value. Then plot the result.
     :param trace_set: 
@@ -345,10 +345,10 @@ def keyplot_trace_set(trace_set, result, conf=None, params=None):
     :param params: 
     :return: 
     """
-    logger.info("keyplot %s" % (str(params) if not params is None else ""))
+    logger.info("groupkeys %s" % (str(params) if not params is None else ""))
 
     if not trace_set.windowed:
-        logger.warning("Trace set not windowed. Skipping keyplot.")
+        logger.warning("Trace set not windowed. Skipping groupkeys.")
         return
 
     if result.means is None:
@@ -367,7 +367,7 @@ def keyplot_trace_set(trace_set, result, conf=None, params=None):
 
     for key, traces in tmp.items():
         all_traces = np.array(traces)
-        print("Mean of %d traces for key %s" % (all_traces.shape[0], key))
+        print("Mean of %d traces for key %s (subkey %d)" % (all_traces.shape[0], key, conf.subkey))
         result.means[key].append(np.mean(all_traces, axis=0))
 
 
@@ -568,7 +568,7 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
 
 
 @op('pca')
-def sum_trace_set(trace_set, result, conf=None, params=None):
+def pca_trace_set(trace_set, result, conf=None, params=None):
     logger.info("pca %s" % (str(params) if not params is None else ""))
 
     # Parse params
@@ -837,6 +837,8 @@ def action_to_model_type(action):
         return 'aishacc'
     elif action.op == 'ascadtrain':
         return 'aiascad'
+    elif action.op == 'autoenctrain':
+        return 'autoenc'
     else:
         return None
 
@@ -941,6 +943,10 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
             model = ai.AISHACC(conf, input_shape=input_shape)
         elif model_type == 'aiascad':
             model = ai.AIASCAD(conf, input_shape=input_shape)
+        elif model_type == 'autoenc':
+            model = ai.AutoEncoder(conf, input_dim=input_shape[0])
+        else:
+            raise EMMAException("Unknown model type %s" % model_type)
     logger.info(model.info())
 
     if conf.tfold:  # Train t times and generate tfold rank summary

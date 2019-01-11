@@ -222,6 +222,21 @@ class AICorrSignalIterator(AISignalIteratorBase):
         return signals, values
 
 
+class AutoEncoderSignalIterator(AISignalIteratorBase):
+    def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None):
+        super(AutoEncoderSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id, stream_server)
+
+    def _preprocess_trace_set(self, trace_set):
+        """
+        Preprocess trace_set specifically for AutoEncoder
+        """
+
+        # Get model inputs (usually the trace signal)
+        signals = AIInput(self.conf).get_trace_set_inputs(trace_set)
+
+        return signals, signals  # Model output is same as model input
+
+
 class AISHACPUSignalIterator(AISignalIteratorBase):
     def __init__(self, trace_set_paths, conf, batch_size=10000, request_id=None, stream_server=None, hamming=True, subtype='vgg16'):
         super(AISHACPUSignalIterator, self).__init__(trace_set_paths, conf, batch_size, request_id, stream_server=None)
@@ -317,6 +332,9 @@ def get_iterators_for_model(model_type, training_trace_set_paths, validation_tra
     elif model_type == 'aishacc':
         training_iterator = AISHACPUSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
         validation_iterator = AISHACPUSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server, hamming=hamming, subtype='custom')
+    elif model_type == 'autoenc':
+        training_iterator = AutoEncoderSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
+        validation_iterator = AutoEncoderSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
         #elif model_type == 'aiascad':  # TODO Remove me
         #    train_set, attack_set, metadata_set = load_ascad(join(conf.datasets_path, "ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"), load_metadata=True)
         #    metadata_train, metadata_attack = metadata_set
