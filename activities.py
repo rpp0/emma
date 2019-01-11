@@ -9,8 +9,6 @@ import ops
 import numpy as np
 import visualizations
 import saliency
-import dsp
-import emio
 
 from celery import group, chord
 from celery.result import AsyncResult, GroupResult
@@ -348,3 +346,11 @@ def __visualize_model(emma, model_type, vis_type='2doverlay', *args, **kwargs):
         saliency.plot_saliency_2d_overlayold(emma.conf, salvis_result)
     else:
         logger.error("Unknown visualization type: %s" % vis_type)
+
+
+@activity('optimize_capture')
+def __optimize_capture(emma):
+    submit_task(ops.optimize_capture,
+                emma.dataset.trace_set_paths, emma.conf,
+                remote=emma.conf.remote,
+                message="Fitting PCA")

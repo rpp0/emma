@@ -7,6 +7,7 @@ import numpy as np
 import ops
 import configparser
 import simulation
+import pickle
 from traceset import TraceSet
 from dataset import Dataset
 from emutils import Window
@@ -185,5 +186,14 @@ def update_cw_config(path, trace_set, update_dict):
         cp.write(config_file_path_fp)
 
 
-def write_emcap_manifest(conf, pois):
+def write_emcap_manifest(conf, pca):
+    data = {
+        "conf": conf,
+        "pca": pca,
+    }
+
     print("Writing manifest...")
+    manifest_dst = '/tmp/manifest.emcap'
+    with open(manifest_dst, 'wb') as f:
+        pickle.dump(data, f, protocol=2)
+    print("Done. Manifest saved at %s" % manifest_dst)

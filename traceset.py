@@ -17,7 +17,7 @@ class Trace(object):
 
 
 class TraceSet(object):
-    def __init__(self, name=None, traces=None, plaintexts=None, ciphertexts=None, keys=None, masks=None):
+    def __init__(self, name="unknown", traces=None, plaintexts=None, ciphertexts=None, keys=None, masks=None):
         self.name = name
         self.traces = self._zip_traces(traces, plaintexts, ciphertexts, keys, masks)
         self.num_traces = 0 if self.traces is None else self.traces.shape[0]

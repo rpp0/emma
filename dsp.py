@@ -75,28 +75,3 @@ def align(trace, reference, cutoff=0.01, order=1, prefilter=False):
         plt.show()
 
     return aligned_trace
-
-
-"""
-def pois_from_mean_traces(mean_traces, threshold=1):
-    import pickle
-    pickle.dump(mean_traces, open('/tmp/mean_traces.npy', 'wb'))
-    pca = PCA()
-
-    numpy_traces = []
-    for key in sorted(mean_traces.keys()):
-        numpy_traces.append(mean_traces[key])
-    numpy_traces = np.array(numpy_traces)
-
-    pca.fit(numpy_traces)
-    print(pca.explained_variance_ratio_)
-
-    pois = pca.transform(numpy_traces)
-    pois_dict = {}
-    i = 0
-    for key in sorted(mean_traces.keys()):
-        pois_dict[key] = pois[i]
-        i += 1
-
-    return pois_dict
-"""

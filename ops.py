@@ -710,7 +710,7 @@ def merge(self, to_merge, conf):
 
             for m in to_merge:
                 result.probabilities += m.probabilities
-        elif conf_has_op(conf, 'keyplot') or conf_has_op(conf, 'optimize_capture'):
+        elif conf_has_op(conf, 'keyplot'):
             result.means = {}
 
             tmp = defaultdict(lambda: [])
@@ -987,3 +987,49 @@ def salvis(self, trace_set_paths, model_type, vis_type, conf):
     kerasvis = True if vis_type == 'kerasvis' else False
 
     return SalvisResult(examples_batch=examples_batch, gradients=saliency.get_gradients(conf, model, examples_batch, kerasvis=kerasvis))
+
+
+@app.task(bind=True)
+def optimize_capture(self, trace_set_paths, conf):
+    """
+    Apply PCA in order to obtain transformation that lowers the dimensionality of the input data.
+
+    :param self:
+    :param trace_set_paths: List of trace set paths to be used in the PCA fit
+    :param conf: EMMA configuration blob
+    :return:
+    """
+
+    logger.info("Resolving traces")
+    resolve_paths(trace_set_paths)
+
+    logger.info("Performing actions")
+    result = EMResult()
+    process_trace_set_paths(result, trace_set_paths, conf, request_id=None, keep_trace_sets=True)
+
+    logger.info("Extracting signals")
+    signals_to_fit = []
+    for trace_set in result.trace_sets:
+        if not trace_set.windowed:
+            logger.warning("Skipping trace_set because not windowed")
+            continue
+
+        signals_to_fit.extend([trace.signal for trace in trace_set.traces])
+    del result
+    signals_to_fit = np.array(signals_to_fit)
+    print(signals_to_fit.shape)
+
+    logger.info("Performing PCA")
+    pca = PCA(n_components=256)
+    pca.fit(signals_to_fit)
+    print(pca.explained_variance_ratio_)
+
+    import visualizations
+    dummy = traceset.TraceSet(name="test")
+    traces = [traceset.Trace(signal=x, key=None, plaintext=None, ciphertext=None, mask=None) for x in pca.components_]
+    dummy.set_traces(traces)
+    visualizations.plot_trace_sets(np.array([0]), [dummy])
+    print(pca.singular_values_)
+
+    logger.info("Writing manifest")
+    emio.write_emcap_manifest(conf, pca)
