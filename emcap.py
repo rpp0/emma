@@ -232,6 +232,8 @@ class EMCap():
         self.online_counter = 0
         self.limit_counter = 0
         self.limit = kwargs['limit']
+        #self.manifest = kwargs['manifest']
+        self.compress = kwargs['compress']
         if self.sdr.hw == 'usrp':
             self.wait_num_chunks = 0
         else:
@@ -376,6 +378,9 @@ class EMCap():
                             np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
                             np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
                             np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
+                            if self.compress:
+                                logger.info("Calling emcap-compress...")
+                                subprocess.Popen(['/usr/bin/python', 'emcap-compress.py', os.path.join(output_dir, "%s_traces.npy" % filename)])
 
                         self.limit_counter += len(self.trace_set)
                         if self.limit_counter >= self.limit:
@@ -402,7 +407,7 @@ class EMCap():
 
         logging.info("Supplicant disconnected on control channel. Stopping...")
 
-# Test function
+
 def main():
     parser = argparse.ArgumentParser(description='EMCAP')
     parser.add_argument('hw', type=str, choices=['usrp', 'hackrf', 'rtlsdr'], help='SDR capture hardware')
@@ -417,6 +422,8 @@ def main():
     parser.add_argument('--dry', default=False, action='store_true', help='Do not save to disk.')
     parser.add_argument('--ds-mode', default=False, action='store_true', help='Direct sampling mode.')
     parser.add_argument('--agc', default=False, action='store_true', help='Automatic Gain Control.')
+    # parser.add_argument('--manifest', type=str, default=None, help='Capture manifest to use.')  # We now use --compress because no Tensorflow support in Python 2 and now GNU Radio support in Python 3.
+    parser.add_argument('--compress', default=False, action='store_true', help='Compress using emcap-compress.')
     args, unknown = parser.parse_known_args()
 
     ctrl_type = None

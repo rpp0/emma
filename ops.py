@@ -571,21 +571,20 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
 def pca_trace_set(trace_set, result, conf=None, params=None):
     logger.info("pca %s" % (str(params) if not params is None else ""))
 
-    # Parse params
-    if params is None:
-        components = 16
-    else:
-        components = int(params[0])
+    if result.pca is None:
+        if params is None:
+            params = ['manifest.emcap']
 
-    pca = PCA(n_components=components)
-    pca.fit([trace.signal for trace in trace_set.traces])
+        with open(params[0], 'rb') as f:  # TODO fix path to make this more general (param?)
+            manifest = pickle.load(f)
+            result.pca = manifest['pca']
 
     for trace in trace_set.traces:
-        trace.signal = pca.transform([trace.signal])[0]
-        assert(len(trace.signal) == components)
+        trace.signal = result.pca.transform([trace.signal])[0]
+        assert(len(trace.signal) == result.pca.n_components)
 
     trace_set.windowed = True
-    trace_set.window = Window(begin=0, end=components)
+    trace_set.window = Window(begin=0, end=result.pca.n_components)
 
 
 @op('corrtest', id_override="")

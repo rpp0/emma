@@ -147,6 +147,7 @@ def conf_has_op(conf, target_op):
 
 def conf_get_action(conf, target_op):
     """
+    TODO: Make dedicated conf object instead of dictionary
     Returns actions(s) with op name target_op from conf.
     :param conf:
     :param target_op:
@@ -163,6 +164,22 @@ def conf_get_action(conf, target_op):
         return result[0]
     else:
         return result
+
+
+def conf_delete_action(conf, target_op):
+    """
+    TODO: Make dedicated conf object instead of dictionary
+    Returns actions(s) with op name target_op from conf.
+    :param conf:
+    :param target_op:
+    :return:
+    """
+    for action in conf.actions:
+        if target_op == action.op:
+            target = action
+            break
+
+    conf.actions.remove(target)
 
 
 def shuffle_random_multiple(lists):

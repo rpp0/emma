@@ -33,6 +33,9 @@ class Action:
             })
             self.id_name = action_string.translate(translation_table)
 
+    def __repr__(self):
+        return "Action('%s')" % self.action_string
+
     @classmethod
     def get_actions_from_conf(cls, conf):
         actions = []

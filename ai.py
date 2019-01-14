@@ -117,8 +117,8 @@ class AI:
         # _shuffle option is always set to True, so that batches are shuffled at iterator level.
 
         # Temporary debug stuff to validate models
-        self._debug_batch(training_iterator, "train")
-        self._debug_batch(validation_iterator, "test")
+        # self._debug_batch(training_iterator, "train")
+        # self._debug_batch(validation_iterator, "test")
 
         # Get loss from callback
         self.last_loss = self.callbacks['lastloss'].value

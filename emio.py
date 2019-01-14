@@ -187,6 +187,7 @@ def update_cw_config(path, trace_set, update_dict):
 
 
 def write_emcap_manifest(conf, pca):
+    # TODO: PCA should be saved in the same way as an AI model, not this way
     data = {
         "conf": conf,
         "pca": pca,
@@ -195,5 +196,5 @@ def write_emcap_manifest(conf, pca):
     print("Writing manifest...")
     manifest_dst = '/tmp/manifest.emcap'
     with open(manifest_dst, 'wb') as f:
-        pickle.dump(data, f, protocol=2)
+        pickle.dump(data, f)
     print("Done. Manifest saved at %s" % manifest_dst)
