@@ -619,22 +619,15 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
         logger.error("The trace set must be windowed before testing can take place because a fixed-size input tensor is required by Tensorflow.")
 
 
-@op('classify')  # TODO can be rewritten as corrtest[aiascad] classify
+@op('classify')
 def classify_trace_set(trace_set, result, conf=None, params=None):
     logger.info("classify %s" % (str(params) if not params is None else ""))
-    if trace_set.windowed:
-        if result.ai is None:
-            result.ai = ai.AI(conf, "aiascad")
-            result.ai.load()
 
-        inp = AIInput(conf)
-        lea = LeakageModel(conf)
+    if trace_set.windowed:
+        leakage_model = LeakageModel(conf)
         for trace in trace_set.traces:
-            inputs = inp.get_trace_inputs(trace)
-            if conf.cnn:
-                inputs = np.expand_dims(inputs, axis=-1)
-            true_value = np.argmax(lea.get_trace_leakages(trace, conf.subkey))  # Get argmax of one-hot true label
-            predicted_value = np.argmax(result.ai.predict(np.array([inputs], dtype=float)))  # Get argmax of prediction
+            true_value = np.argmax(leakage_model.get_trace_leakages(trace, conf.subkey))  # Get argmax of one-hot true label
+            predicted_value = np.argmax(result.ai.predict(np.array([trace.signal])))  # Get argmax of prediction
             result.labels.append(true_value)
             result.predictions.append(predicted_value)
     else:

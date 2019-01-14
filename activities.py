@@ -280,7 +280,7 @@ def __perform_keyplot(emma, message="Grouping keys..."):
 
 @activity('classify')
 def __perform_classification_attack(emma):
-    for subkey in range(emma.conf.key_low, min(emma.conf.key_high, 16)):
+    for subkey in range(emma.conf.key_low, emma.conf.key_high):
         emma.conf.subkey = subkey  # Set in conf, so the workers know which subkey to attack
 
         async_result = parallel_work(emma.dataset_val.trace_set_paths, emma.conf, merge_results=False)

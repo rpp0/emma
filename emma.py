@@ -90,6 +90,9 @@ class EMMAHost:
         if conf_has_op(conf, 'keyplot'):
             if not conf_has_op(conf, 'groupkeys'):  # Transparently add a groupkeys op, which is required for keyplot
                 conf.actions = conf.actions[0:-1] + [Action('groupkeys')] + conf.actions[-1:]
+        if conf_has_op(conf, 'corrtrain'):
+            if conf.loss_type == 'softmax_crossentropy' and conf.key_high - conf.key_low != 1:
+                raise EMMAConfException("Softmax crossentropy with multiple key bytes is currently not supported")
 
     def _generate_conf(self, args):
         if self.dataset is None or self.dataset_ref is None:
