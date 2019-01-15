@@ -29,15 +29,16 @@ class AI:
     """
     Base class for the models.
     """
-    def __init__(self, conf, name="unknown"):
+    def __init__(self, conf, model_type="unknown"):
         """
         Initialize AI based on a configuration.
         :param conf:
-        :param name:
+        :param model_type:
         """
         # Set parameters
         self.conf = conf
         self.last_loss = None
+        self.model_type = model_type
         self.n_hidden_layers = conf.n_hidden_layers
         self.use_bias = conf.use_bias
         self.batch_norm = conf.batch_norm
@@ -54,7 +55,7 @@ class AI:
         self.loss = lossfunctions.get_loss(conf)
 
         self.suffix = "" if conf.model_suffix is None else '-' + conf.model_suffix  # Added to name later
-        self.name = self.conf_to_name(name, conf)
+        self.name = self.conf_to_name(model_type, conf)
 
         # ID
         self.id = str(int(time.time()))
@@ -259,16 +260,21 @@ class AI:
             self.model.save("%s-last.h5" % self.base_path)
 
     def predict(self, x):
-        # return self.model.predict(x, batch_size=10000, verbose=0)
         # TODO can we move this to child classes instead? i.e. in this case AICorrNet
-        outputs = self.model.predict(x, batch_size=self.conf.batch_size, verbose=0)
-        if self.conf.loss_type == 'correlation_special':
-            num_encodings = self.model.output.shape[1]-1
-            encodings = outputs[:, 0:num_encodings]
-            weights = np.mean(outputs[:, num_encodings], axis=0)
-            return np.multiply(encodings, weights)
+        if self.model_type == 'autoenc':
+            get_encode_layer_output = K.function([self.model.layers[0].input],
+                                                 [self.model.layers[1].output])  # TODO hardcoded "encode" layer index for autoenc
+            return get_encode_layer_output([x])[0]
         else:
-            return outputs
+            # return self.model.predict(x, batch_size=10000, verbose=0)
+            outputs = self.model.predict(x, batch_size=self.conf.batch_size, verbose=0)
+            if self.conf.loss_type == 'correlation_special':
+                num_encodings = self.model.output.shape[1]-1
+                encodings = outputs[:, 0:num_encodings]
+                weights = np.mean(outputs[:, num_encodings], axis=0)
+                return np.multiply(encodings, weights)
+            else:
+                return outputs
 
     def conf_to_name(self, model_type, conf):
         name = model_type

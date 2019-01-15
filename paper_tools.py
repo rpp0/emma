@@ -214,7 +214,7 @@ class FigureGenerator():
                         actions.append(action)
                 tfold_blob["conf"].actions = actions
 
-                model = ai.AI(name=self.model_id, conf=tfold_blob["conf"])
+                model = ai.AI(model_type=self.model_id, conf=tfold_blob["conf"])
                 model.load()
                 self.generate_model_graphs(model.model)
             else:

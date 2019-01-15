@@ -35,7 +35,7 @@ def compress_trace_set(trace_set_path):
             if 'pca' in manifest:
                 conf.actions.append(Action('pca[%s]' % manifest_path))
             elif 'autoenc' in manifest:
-                raise NotImplementedError
+                conf.actions.append(Action('corrtest[autoenc]'))
 
             # Perform compression
             result = EMResult()

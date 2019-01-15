@@ -16,6 +16,7 @@ class LeakageModelType:
     KEY = 'key'
     KEY_OH = 'key_oh'
     KEY_HW = 'key_hw'
+    KEY_HW_OH = 'key_hw_oh'
     KEY_BITS = 'key_bits'
     KEY_BIT = 'key_bit'
     HAMMING_WEIGHT_SBOX = 'hamming_weight_sbox'
@@ -199,6 +200,19 @@ class KeyHWLeakageModel(LeakageModel):
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
         return hw[key_byte]
+
+
+class KeyHWOHLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.KEY_HW_OH
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.onehot_outputs = 9
+        self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
+
+    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+        return int_to_one_hot(hw[key_byte], num_classes=self.onehot_outputs)
 
 
 class KeyBitsLeakageModel(LeakageModel):

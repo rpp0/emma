@@ -593,7 +593,7 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         # Get params
         if params is None:
-            model_type = "aicorrnet"
+            model_type = "aicorrnet"  # TODO model_type can be inferred from conf. Therefore change AI to only require conf.
         else:
             model_type = str(params[0])
 
@@ -627,7 +627,7 @@ def classify_trace_set(trace_set, result, conf=None, params=None):
         leakage_model = LeakageModel(conf)
         for trace in trace_set.traces:
             true_value = np.argmax(leakage_model.get_trace_leakages(trace, conf.subkey))  # Get argmax of one-hot true label
-            predicted_value = np.argmax(result.ai.predict(np.array([trace.signal])))  # Get argmax of prediction
+            predicted_value = np.argmax(trace.signal)  # Get argmax of prediction from corrtest (previous step)
             result.labels.append(true_value)
             result.predictions.append(predicted_value)
     else:
