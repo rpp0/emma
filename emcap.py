@@ -380,7 +380,7 @@ class EMCap():
                             np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
                             if self.compress:
                                 logger.info("Calling emcap-compress...")
-                                subprocess.Popen(['/usr/bin/python', 'emcap-compress.py', os.path.join(output_dir, "%s_traces.npy" % filename)])
+                                subprocess.call(['/usr/bin/python', 'emcap-compress.py', os.path.join(output_dir, "%s_traces.npy" % filename)])
 
                         self.limit_counter += len(self.trace_set)
                         if self.limit_counter >= self.limit:

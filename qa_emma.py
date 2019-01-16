@@ -389,7 +389,7 @@ class TestAI(unittest.TestCase):
             dataset_id='qa',
             cnn=False,
             leakage_model=LeakageModelType.AES_MULTI,
-            input_type = AIInputType.SIGNAL,
+            input_type=AIInputType.SIGNAL,
             augment_shuffle=True,
             n_hidden_layers=1,
             n_hidden_nodes=256,
@@ -470,7 +470,7 @@ class TestAI(unittest.TestCase):
         print("These values should be close:")
         print("Predicted loss: %s" % str(predicted_loss))
         print("Calculated loss: %s" % str(calculated_loss))
-        self.assertAlmostEqual(predicted_loss, calculated_loss, places=3)
+        self.assertAlmostEqual(predicted_loss, calculated_loss, places=2)
 
     @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_autoenctrain(self):
@@ -605,7 +605,7 @@ class TestOps(unittest.TestCase):
         traces = np.array([[0, 1, 0, 8, 10, 8, 0, 1, 0], [8, 8, 11, 8], [8, 10, 8, 0]])
         expected = np.array([[8, 10, 8, 0, 1, 0], [8, 11, 8], [8, 10, 8, 0]])
         reference_signal = np.array([8, 10, 8])
-        conf = Namespace(reference_signal=reference_signal)
+        conf = Namespace(reference_signal=reference_signal, butter_cutoff=0.1, butter_order=1)
 
         ts = TraceSet(traces=traces, name='test')
         ops.align_trace_set(ts, None, conf, params=[0, len(reference_signal)])
