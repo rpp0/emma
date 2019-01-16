@@ -630,6 +630,8 @@ def classify_trace_set(trace_set, result, conf=None, params=None):
             predicted_value = np.argmax(trace.signal)  # Get argmax of prediction from corrtest (previous step)
             result.labels.append(true_value)
             result.predictions.append(predicted_value)
+            logprobs = ai.softmax(np.array([trace.signal]))[0]
+            result.logprobs.append(list(logprobs))
     else:
         logger.error("The trace set must be windowed before classification can take place because a fixed-size input tensor is required by Tensorflow.")
 

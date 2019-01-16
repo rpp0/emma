@@ -25,6 +25,13 @@ from leakagemodels import LeakageModel
 K.set_epsilon(1e-15)
 
 
+def softmax(inputs):
+    with tf.Session() as sess:
+        x = tf.placeholder(tf.float32, shape=inputs.shape)
+        result = sess.run(tf.nn.softmax(x), feed_dict={x: inputs})
+    return result
+
+
 class AI:
     """
     Base class for the models.

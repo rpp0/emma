@@ -7,7 +7,8 @@ class EMResult(argparse.Namespace):
         kwargs.update({
             'trace_sets': [],
             'predictions': [],
-            'labels': []
+            'labels': [],
+            'logprobs': [],
         })
         super().__init__(**kwargs)
 

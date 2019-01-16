@@ -289,31 +289,46 @@ def __perform_classification_attack(emma):
         if emma.conf.hamming:
             predict_count = np.zeros(9, dtype=int)
             label_count = np.zeros(9, dtype=int)
+            logprobs = np.zeros(9, dtype=float)
         else:
             predict_count = np.zeros(256, dtype=int)
             label_count = np.zeros(256, dtype=int)
+            logprobs = np.zeros(256, dtype=float)
         accuracy = 0
         num_samples = 0
 
         # Get results from all workers and store in prediction dictionary
         for celery_result in celery_results:
             em_result = celery_result.get()
+            assert(len(em_result.labels) == len(em_result.predictions))
+
             for i in range(0, len(em_result.labels)):
                 label = em_result.labels[i]
                 prediction = em_result.predictions[i]
+                logprob = em_result.logprobs[i]
+
                 if label == prediction:
                     accuracy += 1
                 predict_count[prediction] += 1
                 label_count[label] += 1
                 num_samples += 1
+
+                logprobs += np.array(logprob)
+
         accuracy /= float(num_samples)
 
         print("Labels")
         print(label_count)
         print("Predictions")
         print(predict_count)
-        print("Best prediction: %d" % np.argmax(predict_count))
-        print("Accuracy: %.4f" % accuracy)
+        print("Best argmax prediction: %02x" % np.argmax(predict_count))
+        print("Argmax accuracy: %.4f" % accuracy)
+
+        if np.sum(label_count) == np.max(label_count):
+            print("Best logprob prediction: %02x" % np.argmax(logprobs))
+            print("True key               : %02x" % np.argmax(label_count))
+        else:
+            print("WARNING: logprob prediction not available because there is more than 1 true key label.")
 
 
 @activity('salvis')
