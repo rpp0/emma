@@ -229,7 +229,8 @@ def __perform_plot(emma, *params):
         xlabel=emma.conf.plot_xlabel,
         ylabel=emma.conf.plot_ylabel,
         colorbar_label=emma.conf.plot_colorbar_label,
-        time_domain=not (conf_has_op(emma.conf, 'spec') or conf_has_op(emma.conf, 'fft')))
+        time_domain=not (conf_has_op(emma.conf, 'spec') or conf_has_op(emma.conf, 'fft')),
+        sample_rate=1.0)
 
 
 @activity('specgram')
@@ -276,7 +277,10 @@ def __perform_keyplot(emma, message="Grouping keys..."):
         em_result = ops.work(emma.dataset.trace_set_paths, emma.conf)
         em_result = ops.merge(em_result, emma.conf)
 
-    visualizations.plot_keyplot(em_result.means, show=True)
+    visualizations.plot_keyplot(em_result.means,
+                                time_domain=not (conf_has_op(emma.conf, 'spec') or conf_has_op(emma.conf, 'fft')),
+                                sample_rate=1.0,
+                                show=True)
 
 
 @activity('classify')

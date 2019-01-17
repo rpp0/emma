@@ -7,6 +7,9 @@ from traceset import TraceSet
 from emutils import MaxPlotsReached
 from matplotlib.colors import LogNorm
 
+#plt.rcParams['axes.prop_cycle'] = plt.cycler(color=plt.get_cmap('flag').colors)  # Use different cycling colors
+#plt.style.use('bmh')  # Use different style
+
 
 def plt_save_pdf(path):
     """
@@ -211,13 +214,17 @@ def plot_correlations(values1, values2, label1="", label2="", show=False):
         plt.show()
 
 
-def plot_keyplot(keyplot, show=False):
+def plot_keyplot(keyplot, time_domain=True, sample_rate=1.0, show=False):
     plt.title("Keyplot")
-    plt.xlabel("Samples")
+    if time_domain:
+        plt.xlabel("Samples")
+    else:
+        plt.xlabel("Frequency assuming sample rate of %.2f" % sample_rate)
     plt.ylabel("Amplitude")
 
     for value, mean_signal in sorted(keyplot.items()):
-        plt.plot(mean_signal, label=value)
+        x = _get_x_axis_values(mean_signal, sample_rate=sample_rate, time_domain=time_domain)
+        plt.plot(x, mean_signal, label=value)
     plt.legend()
 
     if show:
