@@ -104,6 +104,16 @@ def plot_colormap(inputs,
         plt.show()
 
 
+def _get_x_axis_values(signal, time_domain=True, sample_rate=1.0):
+    if not time_domain:
+        freqs = np.fft.fftfreq(len(signal), d=1.0/sample_rate)
+        x = np.fft.fftshift(freqs)
+    else:
+        x = range(0, len(signal))
+
+    return x
+
+
 def plot_trace_sets(reference_signal,
                     trace_sets,
                     params=None,
@@ -112,7 +122,9 @@ def plot_trace_sets(reference_signal,
                     title='',
                     xlabel='',
                     ylabel='',
-                    colorbar_label=''):
+                    colorbar_label='',
+                    time_domain=True,
+                    sample_rate=1.0):
     """
     Plot num_traces signals from a list of trace sets using matplotlib
     """
@@ -152,6 +164,12 @@ def plot_trace_sets(reference_signal,
     except MaxPlotsReached:
         pass
     finally:
+        if xlabel == '':
+            if time_domain:
+                xlabel = 'Samples'
+            else:
+                xlabel = 'Frequency (assuming sample rate %.2f)' % sample_rate
+
         if colormap:
             plot_colormap(np.array(all_signals),
                           show=False,
@@ -165,9 +183,11 @@ def plot_trace_sets(reference_signal,
             plt.ylabel(ylabel)
 
             for signal in all_signals:
-                plt.plot(range(0, len(signal)), signal)
+                x = _get_x_axis_values(signal, sample_rate=sample_rate, time_domain=time_domain)
+                plt.plot(x, signal)
             if not no_reference_plot:
-                plt.plot(range(0, len(reference_signal)), reference_signal, linewidth=2, linestyle='dashed')
+                x = _get_x_axis_values(reference_signal, sample_rate=sample_rate, time_domain=time_domain)
+                plt.plot(x, reference_signal, linewidth=2, linestyle='dashed')
 
     if saveplot:
         plt_save_pdf('/tmp/plotted_trace_sets.pdf')

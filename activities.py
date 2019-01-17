@@ -14,7 +14,7 @@ from celery import group, chord
 from celery.result import AsyncResult, GroupResult
 from celery.utils.log import get_task_logger
 from registry import activity
-from emutils import EMMAException
+from emutils import EMMAException, conf_has_op
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -228,7 +228,8 @@ def __perform_plot(emma, *params):
         title=emma.conf.plot_title,
         xlabel=emma.conf.plot_xlabel,
         ylabel=emma.conf.plot_ylabel,
-        colorbar_label=emma.conf.plot_colorbar_label)
+        colorbar_label=emma.conf.plot_colorbar_label,
+        time_domain=not (conf_has_op(emma.conf, 'spec') or conf_has_op(emma.conf, 'fft')))
 
 
 @activity('specgram')

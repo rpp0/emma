@@ -127,6 +127,7 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
         trace.signal = np.square(np.abs(np.fft.fft(trace.signal)))
         #if True: # If real signal
         #    trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
+    conf.reference_signal = np.square(np.abs(np.fft.fft(conf.reference_signal)))
 
 
 @op('abs')
@@ -160,6 +161,8 @@ def fft_trace_set(trace_set, result, conf, params=None):
 
     for trace in trace_set.traces:
         trace.signal = np.fft.fft(trace.signal)
+
+    conf.reference_signal = np.fft.fft(conf.reference_signal)
 
 
 @op('rwindow', optargs=['window_begin', 'window_end', 'offset'])
