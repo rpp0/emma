@@ -192,6 +192,7 @@ if __name__ == "__main__":
     parser.add_argument('--plot-ylabel', type=str, default='', help='Ylabel of the plot.')
     parser.add_argument('--plot-colorbar-label', type=str, default='', help='Colorbar label of the plot.')
     parser.add_argument('--specgram-samprate', type=int, default=8000000, help='Sample rate (used in axis calculation for specgram)')
+    parser.add_argument('--plot-force-timedomain', default=False, action='store_true', help='Force time domain x label')
     args, unknown = parser.parse_known_args()
     print(emutils.BANNER)
 
