@@ -6,6 +6,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from traceset import TraceSet
 from emutils import MaxPlotsReached
 from matplotlib.colors import LogNorm
+from lut import hw
 
 #plt.rcParams['axes.prop_cycle'] = plt.cycler(color=plt.get_cmap('flag').colors)  # Use different cycling colors
 #plt.style.use('bmh')  # Use different style
@@ -222,9 +223,12 @@ def plot_keyplot(keyplot, time_domain=True, sample_rate=1.0, show=False):
         plt.xlabel("Frequency assuming sample rate of %.2f" % sample_rate)
     plt.ylabel("Amplitude")
 
+    color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
     for value, mean_signal in sorted(keyplot.items()):
+        color = color_cycle[int(value.rpartition(',')[2].strip(')'), 16) % len(color_cycle)]
         x = _get_x_axis_values(mean_signal, sample_rate=sample_rate, time_domain=time_domain)
-        plt.plot(x, mean_signal, label=value)
+        plt.plot(x, mean_signal, label=value, color=color)
     plt.legend()
 
     if show:
