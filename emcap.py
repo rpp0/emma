@@ -66,6 +66,14 @@ class InformationElementType:
     CIPHERTEXT = 2
     MASK = 3
 
+
+def set_gain(source, gain):
+    new_gain = source.set_gain(gain, 0)
+    if new_gain != gain:
+        raise Exception("Requested gain %.2f but set gain %.2f" % (gain, new_gain))
+    return True
+
+
 # SDR capture device
 class SDR(gr.top_block):
     def __init__(self, hw="usrp", samp_rate=100000, freq=3.2e9, gain=0, ds_mode=False, agc=False):
@@ -96,7 +104,7 @@ class SDR(gr.top_block):
             )
             self.sdr_source.set_samp_rate(samp_rate)
             self.sdr_source.set_center_freq(freq, 0)
-            self.sdr_source.set_gain(gain, 0)
+            set_gain(self.sdr_source, gain)
             # self.sdr_source.set_min_output_buffer(16*1024*1024)  # 16 MB output buffer
             self.sdr_source.set_antenna('RX2', 0)
             self.sdr_source.set_bandwidth(samp_rate, 0)
@@ -119,9 +127,9 @@ class SDR(gr.top_block):
                 self.sdr_source.set_gain_mode(True, 0)
             else:
                 self.sdr_source.set_gain_mode(False, 0)
-                self.sdr_source.set_if_gain(20, 0)
-                self.sdr_source.set_bb_gain(20, 0)
-                self.sdr_source.set_gain(gain, 0)
+                # self.sdr_source.set_if_gain(24, 0)
+                # self.sdr_source.set_bb_gain(20, 0)
+                set_gain(self.sdr_source, gain)
             self.sdr_source.set_antenna('', 0)
             self.sdr_source.set_bandwidth(samp_rate, 0)
 

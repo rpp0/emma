@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from traceset import TraceSet
-from emutils import MaxPlotsReached
+from emutils import MaxPlotsReached, EMMAException
 from matplotlib.colors import LogNorm
 from lut import hw
 
@@ -29,9 +29,12 @@ def plot_spectogram(trace_set,
                     sample_rate,
                     nfft=2**10,
                     noverlap=0,
-                    cmap='inferno',
+                    cmap='plasma',
                     params=None,
                     num_traces=1024):
+
+    if not trace_set.windowed:
+        raise EMMAException("Trace set should be windowed")
 
     # Check params
     if params is not None:
@@ -41,10 +44,17 @@ def plot_spectogram(trace_set,
             nfft = int(params[0])
             noverlap = int(nfft * int(params[1]) / 100.0)
 
+    all_signals = np.array([trace.signal for trace in trace_set.traces[0:num_traces]]).flatten()
+
+    """
+    # Old style
     for trace in trace_set.traces[0:num_traces]:
         plt.specgram(trace.signal, NFFT=nfft, Fs=sample_rate, noverlap=noverlap, cmap=cmap)
-        plt.tight_layout()
-        plt.show()
+    """
+
+    plt.specgram(all_signals, NFFT=nfft, Fs=sample_rate, noverlap=noverlap, cmap=cmap, mode='psd', scale='dB')
+    plt.tight_layout()
+    plt.show()
 
 
 def plot_colormap(inputs,
