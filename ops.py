@@ -75,6 +75,44 @@ def align_trace_set(trace_set, result, conf, params=None):
     trace_set.set_traces(np.array(aligned_trace_set))
 
 
+@op('trigger_align', optargs=['threshold', 'count'])
+def trigger_align_trace_set(trace_set, result, conf, params=None):
+    logger.info("trigger_align %s" % (str(params) if not params is None else ""))
+
+    for trace in trace_set.traces:
+        s = trace.signal
+
+        cnt = 0
+        under_cnt = 0
+        state = 0
+        begin = 0
+        cut = 0
+        for sample in s:
+            if state == 0:
+                if sample < float(params[0]):
+                    state = 1
+                    begin = cnt
+            if state == 1:
+                if sample < 0.45:
+                    under_cnt += 1
+                else:
+                    state = 0
+                if under_cnt > int(params[1]):
+                    cut = begin
+                    break
+            cnt += 1
+        trace.signal = trace.signal[cut:]
+
+
+@op('invert')
+def invert_trace_set(trace_set, result, conf, params=None):
+    logger.info("invert %s" % (str(params) if not params is None else ""))
+
+    for trace in trace_set.traces:
+        trace.signal = -trace.signal
+    conf.reference_signal = -conf.reference_signal
+
+
 @op('filterkey', optargs=['key'])
 def filterkey_trace_set(trace_set, result, conf, params=None):
     """
