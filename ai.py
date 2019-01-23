@@ -25,6 +25,10 @@ from leakagemodels import LeakageModel
 K.set_epsilon(1e-15)
 
 
+def softmax_np(inputs):
+    return np.exp(inputs) / sum(np.exp(inputs))
+
+
 def softmax(inputs):
     with tf.Session() as sess:
         x = tf.placeholder(tf.float32, shape=inputs.shape)

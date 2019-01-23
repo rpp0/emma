@@ -9,6 +9,7 @@ import unittest
 import os
 import rank
 import ops
+import ai
 
 from correlationlist import CorrelationList
 from distancelist import DistanceList
@@ -197,7 +198,6 @@ class TestDistanceList(unittest.TestCase):
 class TestAI(unittest.TestCase):
     @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_corrtrain_correlation(self):
-        import ai
         """
         Artificial example to test AICorrNet and trace processing
         """
@@ -336,7 +336,6 @@ class TestAI(unittest.TestCase):
 
     @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_corrtrain_correlation_multi(self):
-        import ai
         from leakagemodels import LeakageModel
         """
         Artificial example to test AICorrNet and trace processing with multiple leakage values and multiple subkeys.
@@ -474,7 +473,6 @@ class TestAI(unittest.TestCase):
 
     @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_autoenctrain(self):
-        import ai
         """
         Artificial example to test AutoEncoder
         """
@@ -577,6 +575,13 @@ class TestAI(unittest.TestCase):
             print("Rounded result: %s" % rounded_result)
             self.assertListEqual(list(rounded_result), list(x[i]))
 
+    def test_softmax(self):
+        test = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        a = ai.softmax(test)
+        b = ai.softmax_np(test)
+        self.assertEqual(len(a), len(b))
+        for i in range(0, len(a)):
+            self.assertAlmostEqual(a[i], b[i], places=6)
 
 
 class TestRank(unittest.TestCase):

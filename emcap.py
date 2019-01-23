@@ -119,9 +119,9 @@ class SDR(gr.top_block):
                 self.sdr_source.set_gain_mode(True, 0)
             else:
                 self.sdr_source.set_gain_mode(False, 0)
-                self.sdr_source.set_gain(gain, 0)
                 self.sdr_source.set_if_gain(20, 0)
                 self.sdr_source.set_bb_gain(20, 0)
+                self.sdr_source.set_gain(gain, 0)
             self.sdr_source.set_antenna('', 0)
             self.sdr_source.set_bandwidth(samp_rate, 0)
 

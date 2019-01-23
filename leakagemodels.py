@@ -28,7 +28,7 @@ class LeakageModelType:
     AES_MULTI = 'aes_multi'
     AES_BITS_EX = 'aes_bits_ex'
     HMAC_BITS = 'hmac_bits'
-    HMAC_HAMMING_WEIGHT = 'hmac_hamming_weight'
+    HMAC_HW = 'hmac_hw'
     HMAC = 'hmac'
 
     @classmethod
@@ -344,11 +344,12 @@ class HMACBitsLeakageModel(LeakageModel):
 
 
 class HMACHammingWeightLeakageModel(LeakageModel):
-    leakage_type = LeakageModelType.HMAC_HAMMING_WEIGHT
+    leakage_type = LeakageModelType.HMAC_HW
 
     def __init__(self, conf):
         super().__init__(conf)
-        self.num_outputs = (self.num_outputs[0], 14)
+        #self.num_outputs = (self.num_outputs[0], 14)
+        self.num_outputs = (self.num_outputs[0], 2)
 
     def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
         plaintext_byte = trace.plaintext[key_byte_index]
@@ -356,6 +357,7 @@ class HMACHammingWeightLeakageModel(LeakageModel):
         key_byte_36 = key_byte ^ 0x36
         key_byte_5c = key_byte ^ 0x5c
 
+        """
         return [hw[key_byte_36],
                 hw[key_byte_36 ^ 0x98],
                 hw[key_byte_36 ^ 0xc3],
@@ -370,6 +372,10 @@ class HMACHammingWeightLeakageModel(LeakageModel):
                 hw[key_byte_5c ^ 0x9f ^ 0x7b],
                 hw[key_byte_5c ^ 0x45 ^ 0x7b],
                 hw[key_byte_5c ^ 0x9f ^ 0x98],
+                ]
+        """
+        return [hw[key_byte_36],
+                hw[key_byte_5c],
                 ]
 
 

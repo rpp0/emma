@@ -291,7 +291,7 @@ def __perform_classification_attack(emma):
         async_result = parallel_work(emma.dataset_val.trace_set_paths, emma.conf, merge_results=False)
         celery_results = wait_until_completion(async_result, message="Classifying")
 
-        if emma.conf.hamming:
+        if 'hw' in emma.conf.leakage_model:  # Leakage model uses Hamming Weight instead of byte values
             predict_count = np.zeros(9, dtype=int)
             label_count = np.zeros(9, dtype=int)
             logprobs = np.zeros(9, dtype=float)
