@@ -68,7 +68,8 @@ class InformationElementType:
 
 
 def set_gain(source, gain):
-    new_gain = source.set_gain(gain, 0)
+    source.set_gain(gain, 0)
+    new_gain = source.get_gain()
     if new_gain != gain:
         raise Exception("Requested gain %.2f but set gain %.2f" % (gain, new_gain))
     return True
