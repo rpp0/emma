@@ -47,7 +47,7 @@ reference_index=0
 
 ## Getting started
 
-EMMA needs at least two machines to perform an analysis: a master (low-end device for sending commands) and one or more slaves (high-end devices). At least one device must have `redis` installed and configured. Before continuing, make sure this device is listed as the backend in `settings.conf` (see above).
+Although EMMA can run on a single machine, ideally at least two machines should be used to perform an analysis: a master (low-end device for sending commands) and one or more slaves (high-end devices for performing calculations). At least one device must have `redis` installed and configured. Before continuing, make sure this device is listed as the backend in `settings.conf` (see above).
 
 On each slave that should perform computations, run the following command to automatically spawn worker processes for each available CPU:
 
