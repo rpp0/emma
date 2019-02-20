@@ -270,17 +270,20 @@ def __perform_actions(emma, message="Performing actions"):
 
 @activity('keyplot')
 def __perform_keyplot(emma, message="Grouping keys..."):
-    if emma.conf.remote:
-        async_result = parallel_work(emma.dataset.trace_set_paths, emma.conf)
-        em_result = wait_until_completion(async_result, message=message)
-    else:
-        em_result = ops.work(emma.dataset.trace_set_paths, emma.conf)
-        em_result = ops.merge(em_result, emma.conf)
+    for subkey in range(emma.conf.key_low, emma.conf.key_high):
+        emma.conf.subkey = subkey  # Set in conf, so the workers know which subkey to attack
 
-    visualizations.plot_keyplot(em_result.means,
-                                time_domain=(not (conf_has_op(emma.conf, 'spec') or conf_has_op(emma.conf, 'fft'))) or emma.conf.plot_force_timedomain,
-                                sample_rate=1.0,
-                                show=True)
+        if emma.conf.remote:
+            async_result = parallel_work(emma.dataset.trace_set_paths, emma.conf)
+            em_result = wait_until_completion(async_result, message=message)
+        else:
+            em_result = ops.work(emma.dataset.trace_set_paths, emma.conf)
+            em_result = ops.merge(em_result, emma.conf)
+
+        visualizations.plot_keyplot(em_result.means,
+                                    time_domain=(not (conf_has_op(emma.conf, 'spec') or conf_has_op(emma.conf, 'fft'))) or emma.conf.plot_force_timedomain,
+                                    sample_rate=1.0,
+                                    show=True)
 
 
 @activity('classify')
