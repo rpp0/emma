@@ -8,7 +8,7 @@ import os.path
 
 
 class Trace(object):
-    def __init__(self, signal, plaintext, ciphertext, key, mask):
+    def __init__(self, signal: np.array, plaintext: np.array, ciphertext: np.array, key: np.array, mask: np.array):
         self.signal = signal
         self.plaintext = plaintext
         self.ciphertext = ciphertext

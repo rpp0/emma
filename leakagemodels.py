@@ -4,8 +4,9 @@
 # ----------------------------------------------------
 
 import numpy as np
+import struct
 from emutils import EMMAException, int_to_one_hot
-from lut import hw, sbox
+from lut import hw, sbox, hw32
 
 
 class LeakageModelType:
@@ -29,6 +30,7 @@ class LeakageModelType:
     AES_BITS_EX = 'aes_bits_ex'
     HMAC_BITS = 'hmac_bits'
     HMAC_HW = 'hmac_hw'
+    HMAC_HW_OH = 'hmac_hw_oh'
     HMAC = 'hmac'
 
     @classmethod
@@ -84,7 +86,9 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
 
     def __init__(self, conf):
         self.conf = conf
-        self.num_outputs = (conf.key_high - conf.key_low, 1)  # [num_key_bytes, num_outputs_per_key_byte]
+        self.num_subkeys = conf.key_high - conf.key_low  # Number of subkeys
+        self.subkey_size = 1  # Size of a subkey in bytes
+        self.num_outputs = (self.num_subkeys, 1)  # Leakage model output label size. Dimensions: [num_subkeys, leakage_outputs_per_subkey (default 1)]
 
     @classmethod
     def _get_subclasses(cls):
@@ -99,7 +103,7 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
         instance = cls(conf)
         return int(np.product(instance.num_outputs))
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
         raise NotImplementedError
 
     def get_trace_set_leakages(self, trace_set):
@@ -108,10 +112,10 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
         :param trace_set:
         :return:
         """
-        values = np.zeros((len(trace_set.traces), *self.num_outputs), dtype=float)  # [num_traces, num_key_bytes]
+        values = np.zeros((len(trace_set.traces), *self.num_outputs), dtype=float)  # Dimensions: [num_traces, num_outputs]
 
         for i in range(len(trace_set.traces)):
-            for j in range(self.num_outputs[0]):
+            for j in range(self.num_outputs[0]):  # num_subkeys
                 values[i, j] = self.get_trace_leakages(trace_set.traces[i], j + self.conf.key_low)
 
         return values.reshape((len(trace_set.traces), -1))
@@ -120,9 +124,9 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
 class HammingWeightSboxLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.HAMMING_WEIGHT_SBOX
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         return hw[sbox[plaintext_byte ^ key_byte]]
 
 
@@ -134,28 +138,28 @@ class HammingWeightSboxOHLeakageModel(LeakageModel):
         self.onehot_outputs = 9
         self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         return int_to_one_hot(hw[sbox[plaintext_byte ^ key_byte]], self.onehot_outputs)
 
 
 class HammingWeightMaskedSboxLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.HAMMING_WEIGHT_MASKED_SBOX
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
-        mask_byte = trace.mask[key_byte_index]
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
+        mask_byte = trace.mask[subkey_start_index]
         return hw[sbox[plaintext_byte ^ key_byte] ^ mask_byte]
 
 
 class SboxLeakageModel(LeakageModel):  # No Hamming weight assumption
     leakage_type = LeakageModelType.SBOX
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         return sbox[plaintext_byte ^ key_byte]
 
 
@@ -167,17 +171,17 @@ class SboxOHLeakageModel(LeakageModel):
         self.onehot_outputs = 256
         self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         return int_to_one_hot(sbox[plaintext_byte ^ key_byte], num_classes=self.onehot_outputs)
 
 
 class KeyLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.KEY
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         return key_byte
 
 
@@ -189,16 +193,16 @@ class KeyOHLeakageModel(LeakageModel):
         self.onehot_outputs = 256
         self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         return int_to_one_hot(key_byte, num_classes=self.onehot_outputs)
 
 
 class KeyHWLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.KEY_HW
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         return hw[key_byte]
 
 
@@ -210,8 +214,8 @@ class KeyHWOHLeakageModel(LeakageModel):
         self.onehot_outputs = 9
         self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         return int_to_one_hot(hw[key_byte], num_classes=self.onehot_outputs)
 
 
@@ -222,9 +226,9 @@ class KeyBitsLeakageModel(LeakageModel):
         super().__init__(conf)
         self.num_outputs = (self.num_outputs[0], 8)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
 
         return [(key_byte & 0x01) >> 0,
                 (key_byte & 0x02) >> 1,
@@ -240,9 +244,9 @@ class KeyBitsLeakageModel(LeakageModel):
 class KeyBitLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.KEY_BIT
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
 
         return key_byte & 0x01
 
@@ -254,9 +258,9 @@ class AESTestLeakageModel(LeakageModel):
         super().__init__(conf)
         self.num_outputs = (self.num_outputs[0], 3)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
 
         return [hw[sbox[plaintext_byte ^ key_byte]],
                 hw[sbox[plaintext_byte ^ key_byte]],
@@ -271,9 +275,9 @@ class AESMultiLeakageModel(LeakageModel):
         super().__init__(conf)
         self.num_outputs = (self.num_outputs[0], 11)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
 
         return [hw[key_byte & 0x01],
                 hw[key_byte & 0x02],
@@ -296,9 +300,9 @@ class AESBitsExLeakageModel(LeakageModel):
         super().__init__(conf)
         self.num_outputs = (self.num_outputs[0], 9)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
 
         return [(key_byte & 0x01) >> 0,
                 (key_byte & 0x02) >> 1,
@@ -319,9 +323,9 @@ class HMACBitsLeakageModel(LeakageModel):
         super().__init__(conf)
         self.num_outputs = (self.num_outputs[0], 16)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         key_byte_36 = key_byte ^ 0x36
 
         return [(key_byte & 0x01) >> 0,
@@ -343,41 +347,20 @@ class HMACBitsLeakageModel(LeakageModel):
                 ]
 
 
-class HMACHammingWeightLeakageModel(LeakageModel):
+class HMACHWLeakageModel(LeakageModel):
     leakage_type = LeakageModelType.HMAC_HW
 
-    """
     def __init__(self, conf):
         super().__init__(conf)
-        #self.num_outputs = (self.num_outputs[0], 14)
-        self.num_outputs = (self.num_outputs[0], 2)
-    """
+        self.num_outputs = (self.num_outputs[0], 1)
+        self.subkey_size = 4
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
-        key_byte_36 = key_byte ^ 0x36
-        key_byte_5c = key_byte ^ 0x5c
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        # plaintext_byte = trace.plaintext[subkey_start_index]
+        key_word_list = trace.key[subkey_start_index*self.subkey_size:(subkey_start_index+1)*self.subkey_size] if key_hypothesis is None else key_hypothesis
+        key_word = struct.unpack("<I", bytearray(key_word_list))[0]
 
-        """
-        return [hw[key_byte_36],
-                hw[key_byte_36 ^ 0x98],
-                hw[key_byte_36 ^ 0xc3],
-                hw[key_byte_36 ^ 0x9f ^ 0xef],
-                hw[key_byte_36 ^ 0x9f ^ 0x7b],
-                hw[key_byte_36 ^ 0x45 ^ 0x7b],
-                hw[key_byte_36 ^ 0x9f ^ 0x98],
-                hw[key_byte_5c],
-                hw[key_byte_5c ^ 0x98],
-                hw[key_byte_5c ^ 0xc3],
-                hw[key_byte_5c ^ 0x9f ^ 0xef],
-                hw[key_byte_5c ^ 0x9f ^ 0x7b],
-                hw[key_byte_5c ^ 0x45 ^ 0x7b],
-                hw[key_byte_5c ^ 0x9f ^ 0x98],
-                ]
-        """
-
-        return hw[key_byte_36]
+        return hw32(key_word)
 
 
 class HMACLeakageModel(LeakageModel):
@@ -387,9 +370,9 @@ class HMACLeakageModel(LeakageModel):
         super().__init__(conf)
         self.num_outputs = (self.num_outputs[0], 4)
 
-    def get_trace_leakages(self, trace, key_byte_index, key_hypothesis=None):
-        plaintext_byte = trace.plaintext[key_byte_index]
-        key_byte = trace.key[key_byte_index] if key_hypothesis is None else key_hypothesis
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        plaintext_byte = trace.plaintext[subkey_start_index]
+        key_byte = trace.key[subkey_start_index] if key_hypothesis is None else key_hypothesis
         key_byte_36 = key_byte ^ 0x36
         key_byte_5c = key_byte ^ 0x5c
 
@@ -398,3 +381,18 @@ class HMACLeakageModel(LeakageModel):
                 key_byte,
                 key_byte_5c,
                 ]
+
+
+class HMACHWOHLeakageModel(LeakageModel):
+    leakage_type = LeakageModelType.HMAC_HW_OH
+
+    def __init__(self, conf):
+        super().__init__(conf)
+        self.onehot_outputs = 33
+        self.num_outputs = (self.num_outputs[0], self.onehot_outputs)
+        self.subkey_size = 4
+
+    def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
+        key_word_list = trace.key[subkey_start_index * self.subkey_size:(subkey_start_index + 1) * self.subkey_size] if key_hypothesis is None else key_hypothesis
+        key_word = struct.unpack("<I", bytearray(key_word_list))[0]
+        return int_to_one_hot(hw32(key_word), num_classes=self.onehot_outputs)

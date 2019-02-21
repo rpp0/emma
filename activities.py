@@ -15,6 +15,7 @@ from celery.result import AsyncResult, GroupResult
 from celery.utils.log import get_task_logger
 from registry import activity
 from emutils import EMMAException, conf_has_op
+from leakagemodels import LeakageModel
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -294,14 +295,10 @@ def __perform_classification_attack(emma):
         async_result = parallel_work(emma.dataset_val.trace_set_paths, emma.conf, merge_results=False)
         celery_results = wait_until_completion(async_result, message="Classifying")
 
-        if 'hw' in emma.conf.leakage_model:  # Leakage model uses Hamming Weight instead of byte values
-            predict_count = np.zeros(9, dtype=int)
-            label_count = np.zeros(9, dtype=int)
-            logprobs = np.zeros(9, dtype=float)
-        else:
-            predict_count = np.zeros(256, dtype=int)
-            label_count = np.zeros(256, dtype=int)
-            logprobs = np.zeros(256, dtype=float)
+        lm_outputs = LeakageModel(emma.conf).onehot_outputs  # Determine leakage model number of outputs (classes)
+        predict_count = np.zeros(lm_outputs, dtype=int)
+        label_count = np.zeros(lm_outputs, dtype=int)
+        logprobs = np.zeros(lm_outputs, dtype=float)
         accuracy = 0
         num_samples = 0
 

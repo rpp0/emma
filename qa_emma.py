@@ -13,13 +13,14 @@ import ai
 
 from correlationlist import CorrelationList
 from distancelist import DistanceList
-from traceset import TraceSet
+from traceset import TraceSet, Trace
 from argparse import Namespace
 from aiiterators import AICorrSignalIterator, AutoEncoderSignalIterator
 from leakagemodels import *
 from aiinputs import *
 from action import Action
 from keras.utils import to_categorical
+from lut import *
 
 
 class UnitTestSettings:
@@ -773,6 +774,51 @@ class TestIterator(unittest.TestCase):
 
         for i in range(0, 512):
             self.assertListEqual(list(y[i]), list(y_ascad[i]))
+
+
+class TestLUT(unittest.TestCase):
+    def test_hw(self):
+        self.assertEqual(hw[0xff], 8)
+        self.assertEqual(hw[0x00], 0)
+        self.assertEqual(hw[0x02], 1)
+        self.assertEqual(hw[0x22], 2)
+        self.assertEqual(hw[0x12], 2)
+        self.assertEqual(hw[0x10], 1)
+        self.assertEqual(hw[0xf0], 4)
+        self.assertEqual(hw[0x0f], 4)
+
+    def test_hw16(self):
+        self.assertEqual(hw16[0xff], 8)
+        self.assertEqual(hw16[0x00], 0)
+        self.assertEqual(hw16[0xffff], 16)
+        self.assertEqual(hw16[0xff00], 8)
+        self.assertEqual(hw16[0x00ff], 8)
+        self.assertEqual(hw16[0xf000], 4)
+        self.assertEqual(hw16[0x0f00], 4)
+
+    def test_hw32(self):
+        self.assertEqual(hw32(0xff), 8)
+        self.assertEqual(hw32(0x00), 0)
+        self.assertEqual(hw32(0xffff), 16)
+        self.assertEqual(hw32(0xff00), 8)
+        self.assertEqual(hw32(0xffff00), 16)
+        self.assertEqual(hw32(0xffffff00), 24)
+        self.assertEqual(hw32(0xffffffff), 32)
+        self.assertEqual(hw32(0xff0fffff), 28)
+
+
+class TestLeakageModels(unittest.TestCase):
+    def test_hmac_hw(self):
+        fake_pt  = np.array([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08], dtype=np.uint8)
+        fake_key = np.array([0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80], dtype=np.uint8)
+        trace = Trace(signal=[], plaintext=fake_pt, ciphertext=[], key=fake_key, mask=[])
+
+        lm = LeakageModel(Namespace(leakage_model="hmac_hw", key_low=0, key_high=1))
+        self.assertEqual(lm.subkey_size, 4)  # HMAC uses subkeys of size 4
+        leakage_subkey_0 = lm.get_trace_leakages(trace, 0)  # hw32(0x40302010)
+        leakage_subkey_1 = lm.get_trace_leakages(trace, 1)  # hw32(0x80706050)
+        self.assertEqual(leakage_subkey_0, hw32(0x40302010))
+        self.assertEqual(leakage_subkey_1, hw32(0x80706050))
 
 
 if __name__ == '__main__':

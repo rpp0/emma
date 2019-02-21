@@ -370,7 +370,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     leakage_model = LeakageModel(conf)
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
+            hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], subkey_start_index=conf.subkey, key_hypothesis=subkey_guess)
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for j in range(0, trace_set.window.size):
@@ -388,7 +388,7 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
 @op('groupkeys')
 def groupkeys_trace_set(trace_set, result, conf=None, params=None):
     """
-    Group traces by key byte and return the mean trace of each key byte value. Then plot the result.
+    Group traces by leakage value and return the mean trace for this leakage.
     :param trace_set: 
     :param result: 
     :param conf: 
@@ -417,7 +417,7 @@ def groupkeys_trace_set(trace_set, result, conf=None, params=None):
 
     for key, traces in tmp.items():
         all_traces = np.array(traces)
-        print("Mean of %d traces for key %s (subkey %d)" % (all_traces.shape[0], key, conf.subkey))
+        print("Mean of %d traces for leakage %s (subkey %d)" % (all_traces.shape[0], key, conf.subkey))
         result.means[key].append(np.mean(all_traces, axis=0))
 
 
@@ -447,7 +447,7 @@ def dattack_trace_set(trace_set, result, conf=None, params=None):
     leakage_model = LeakageModel(conf)
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
+            hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], subkey_start_index=conf.subkey, key_hypothesis=subkey_guess)
 
     # 2. Given point j of trace i, calculate the distance between all hypotheses
     for j in range(0, trace_set.window.size):
@@ -487,7 +487,7 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
     leakage_model = LeakageModel(conf)
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i, :] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
+            hypotheses[subkey_guess, i, :] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], subkey_start_index=conf.subkey, key_hypothesis=subkey_guess)
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for i in range(0, trace_set.num_traces):
@@ -529,7 +529,7 @@ def pattack_trace_set(trace_set, result, conf=None, params=None):
     leakage_model = LeakageModel(conf)
     for subkey_guess in range(0, 256):
         for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i, :] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], key_byte_index=conf.subkey, key_hypothesis=subkey_guess)
+            hypotheses[subkey_guess, i, :] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], subkey_start_index=conf.subkey, key_hypothesis=subkey_guess)
 
     # 2. Given point j of trace i, calculate the correlation between all hypotheses
     for i in range(0, trace_set.num_traces):
