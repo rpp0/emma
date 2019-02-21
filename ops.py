@@ -110,7 +110,9 @@ def invert_trace_set(trace_set, result, conf, params=None):
 
     for trace in trace_set.traces:
         trace.signal = -trace.signal
-    conf.reference_signal = -conf.reference_signal
+
+    if conf.reference_signal is not None:
+        conf.reference_signal = -conf.reference_signal
 
 
 @op('filterkey', optargs=['key'])
@@ -149,7 +151,8 @@ def ifreq_trace_set(trace_set, result, conf, params=None):
         instantaneous_frequency = np.diff(instantaneous_phase)
         trace.signal = instantaneous_frequency
 
-    conf.reference_signal = np.diff(np.unwrap(np.angle(conf.reference_signal)))
+    if conf.reference_signal is not None:
+        conf.reference_signal = np.diff(np.unwrap(np.angle(conf.reference_signal)))
 
 
 @op('spec')
@@ -165,7 +168,9 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
         trace.signal = np.square(np.abs(np.fft.fft(trace.signal)))
         #if True: # If real signal
         #    trace.signal = trace.signal[0:int(len(trace.signal) / 2)]
-    conf.reference_signal = np.square(np.abs(np.fft.fft(conf.reference_signal)))
+
+    if conf.reference_signal is not None:
+        conf.reference_signal = np.square(np.abs(np.fft.fft(conf.reference_signal)))
 
 
 @op('abs')
@@ -177,7 +182,9 @@ def magnitude_trace_set(trace_set, result, conf, params=None):
 
     for trace in trace_set.traces:
         trace.signal = np.abs(trace.signal)
-    conf.reference_signal = np.abs(conf.reference_signal)
+
+    if conf.reference_signal is not None:
+        conf.reference_signal = np.abs(conf.reference_signal)
 
 
 @op('norm')
@@ -200,7 +207,8 @@ def fft_trace_set(trace_set, result, conf, params=None):
     for trace in trace_set.traces:
         trace.signal = np.fft.fft(trace.signal)
 
-    conf.reference_signal = np.fft.fft(conf.reference_signal)
+    if conf.reference_signal is not None:
+        conf.reference_signal = np.fft.fft(conf.reference_signal)
 
 
 @op('rwindow', optargs=['window_begin', 'window_end', 'offset'])
@@ -282,7 +290,8 @@ def filter_trace_set(trace_set, result, conf, params=None):
     for trace in trace_set.traces:
         trace.signal = butter_filter(trace.signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
 
-    conf.reference_signal = butter_filter(conf.reference_signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
+    if conf.reference_signal is not None:
+        conf.reference_signal = butter_filter(conf.reference_signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
 
 
 @op('rmoutliers')
@@ -666,6 +675,7 @@ def classify_trace_set(trace_set, result, conf=None, params=None):
 
     if trace_set.windowed:
         leakage_model = LeakageModel(conf)
+
         for trace in trace_set.traces:
             true_value = np.argmax(leakage_model.get_trace_leakages(trace, conf.subkey))  # Get argmax of one-hot true label
             predicted_value = np.argmax(trace.signal)  # Get argmax of prediction from corrtest (previous step)

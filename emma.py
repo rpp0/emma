@@ -93,6 +93,8 @@ class EMMAHost:
         if conf_has_op(conf, 'corrtrain'):
             if conf.loss_type == 'softmax_crossentropy' and conf.key_high - conf.key_low != 1:
                 raise EMMAConfException("Softmax crossentropy with multiple key bytes is currently not supported")
+        if conf_has_op(conf, 'classify') and ('oh' not in conf.leakage_model):
+            raise EMMAConfException("Leakage model for classify op should contain 'oh'.")
 
     def _generate_conf(self, args):
         if self.dataset is None or self.dataset_ref is None:

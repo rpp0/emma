@@ -632,7 +632,8 @@ class TestOps(unittest.TestCase):
         traces = np.array([[0, 1, 2]])
 
         ts = TraceSet(traces=traces)
-        ops.spectogram_trace_set(ts, None, None, None)
+        conf = Namespace(reference_signal=None)
+        ops.spectogram_trace_set(ts, None, conf, None)
 
         self.assertListEqual([round(x, 8) for x in list(ts.traces[0].signal)], [9., 3., 3.])
 
@@ -649,7 +650,8 @@ class TestOps(unittest.TestCase):
         traces = np.array([[0, 1, 2]])
 
         ts = TraceSet(traces=traces)
-        ops.fft_trace_set(ts, None, None, None)
+        conf = Namespace(reference_signal=None)
+        ops.fft_trace_set(ts, None, conf, None)
 
         self.assertListEqual([round(x, 8) for x in list(ts.traces[0].signal)], [3.+0.j, -1.5+0.8660254j, -1.5-0.8660254j])
 
