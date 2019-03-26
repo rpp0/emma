@@ -223,7 +223,7 @@ class EMCap():
         if not self.online is None:
             try:
                 self.emma_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.emma_client.connect((self.online, 3885))
+                self.emma_client.connect((self.online, 3885))  # TODO use EMCapOnlineClient
             except Exception as e:
                 print(e)
                 exit(1)

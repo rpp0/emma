@@ -326,7 +326,7 @@ def __perform_classification_attack(emma):
         print(label_count)
         print("Predictions")
         print(predict_count)
-        print("Best argmax prediction: %02x" % np.argmax(predict_count))
+        print("Best argmax prediction: %02x (hex)" % np.argmax(predict_count))
         print("Argmax accuracy: %.4f" % accuracy)
 
         if np.sum(label_count) == np.max(label_count):
