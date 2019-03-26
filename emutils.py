@@ -218,6 +218,20 @@ def int_to_one_hot(integer, num_classes):
     return r
 
 
+def bytearray_to_many_hot(array):
+    """
+    Convert byte array to many-hot vector
+    :param array:
+    :return:
+    """
+    masks = [2**7, 2**6, 2**5, 2**4, 2**3, 2**2, 2**1, 1]
+    bit_vector = []
+    for a in array:
+        for mask in masks:
+            bit_vector.append((a & mask) > 0)
+    return np.array(bit_vector, dtype=np.uint8)
+
+
 def get_default_keras_loss_names():
     """
     Get the default available losses from Keras and return them as list of strings.

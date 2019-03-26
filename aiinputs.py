@@ -4,7 +4,7 @@
 # ----------------------------------------------------
 
 import numpy as np
-from emutils import EMMAException, int_to_one_hot
+from emutils import EMMAException, int_to_one_hot, bytearray_to_many_hot
 from leakagemodels import LeakageModel
 
 
@@ -15,6 +15,8 @@ class AIInputType:
     """
     SIGNAL = 'signal'
     SIGNAL_PLAINTEXT = 'signal_plaintext'
+    SIGNAL_PLAINTEXT_OH = 'signal_plaintext_oh'
+    SIGNAL_PLAINTEXT_MH = 'signal_plaintext_mh'
 
     # For testing purposes
     SIGNAL_KEY = 'signal_key'
@@ -121,6 +123,24 @@ class SignalPlaintextAIInput(AIInput):
 
     def get_trace_inputs(self, trace):
         return np.concatenate((trace.signal, trace.plaintext))
+
+
+class SignalPlaintextMHAIInput(AIInput):
+    input_type = AIInputType.SIGNAL_PLAINTEXT_MH
+
+    def get_trace_inputs(self, trace):
+        return np.concatenate((trace.signal, bytearray_to_many_hot(trace.plaintext)))
+
+
+class SignalPlaintextOHAIInput(AIInput):
+    input_type = AIInputType.SIGNAL_PLAINTEXT_OH
+
+    def get_trace_inputs(self, trace):
+        result = []
+        for p in trace.plaintext:
+            result.append(int_to_one_hot(p, 256))
+        result = np.concatenate(result)
+        return np.concatenate((trace.signal, result))
 
 
 class SignalKeyAIInput(AIInput):
