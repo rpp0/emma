@@ -832,8 +832,12 @@ class TestLeakageModels(unittest.TestCase):
         self.assertEqual(lm.subkey_size, 4)  # HMAC uses subkeys of size 4
         leakage_subkey_0 = lm.get_trace_leakages(trace, 0)  # hw32(0x40302010)
         leakage_subkey_1 = lm.get_trace_leakages(trace, 1)  # hw32(0x80706050)
-        self.assertEqual(leakage_subkey_0, hw32(0x40302010))
-        self.assertEqual(leakage_subkey_1, hw32(0x80706050))
+        self.assertEqual(leakage_subkey_0[0], hw32(0x40302010))
+        self.assertEqual(leakage_subkey_1[0], hw32(0x80706050))
+        self.assertEqual(leakage_subkey_0[1], hw32(0x40302010 ^ 0x36363636))
+        self.assertEqual(leakage_subkey_1[1], hw32(0x80706050 ^ 0x36363636))
+        self.assertEqual(leakage_subkey_0[2], hw32(0x40302010 ^ 0x5c5c5c5c))
+        self.assertEqual(leakage_subkey_1[2], hw32(0x80706050 ^ 0x5c5c5c5c))
 
 
 if __name__ == '__main__':
