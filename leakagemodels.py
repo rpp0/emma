@@ -352,7 +352,7 @@ class HMACHWLeakageModel(LeakageModel):
 
     def __init__(self, conf):
         super().__init__(conf)
-        self.num_outputs = (self.num_outputs[0], 1)
+        self.num_outputs = (self.num_outputs[0], 3)
         self.subkey_size = 4
 
     def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
@@ -360,7 +360,11 @@ class HMACHWLeakageModel(LeakageModel):
         key_word_list = trace.key[subkey_start_index*self.subkey_size:(subkey_start_index+1)*self.subkey_size] if key_hypothesis is None else key_hypothesis
         key_word = struct.unpack("<I", bytearray(key_word_list))[0]
 
-        return hw32(key_word)
+        return [
+            hw32(key_word),
+            hw32(key_word ^ 0x36363636),
+            hw32(key_word ^ 0x5c5c5c5c),
+        ]
 
 
 class HMACLeakageModel(LeakageModel):

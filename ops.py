@@ -607,6 +607,28 @@ def weight_trace_set(trace_set, result, conf=None, params=None):
         logger.error("The trace set must be windowed before applying weights.")
 
 
+@op('select', optargs=['select_filename'])
+def select_trace_set(trace_set, result, conf=None, params=None):
+    """
+    Select elements from traces based on provided indices.
+    """
+    logger.info("select %s" % (str(params) if not params is None else ""))
+    if trace_set.windowed:
+        if params is None:
+            filename = "selection.p"
+        else:
+            filename = str(params[0])
+
+        selection = pickle.load(open(filename, "rb"))
+        if len(selection) == trace_set.window.size:
+            for trace in trace_set.traces:
+                trace.signal = trace.signal[selection]
+        else:
+            logger.error("Select length is not equal to signal length.")
+    else:
+        logger.error("The trace set must be windowed before selection can be applied.")
+
+
 @op('sum')
 def sum_trace_set(trace_set, result, conf=None, params=None):
     logger.info("sum %s" % (str(params) if not params is None else ""))

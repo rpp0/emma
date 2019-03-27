@@ -10,6 +10,7 @@ import os
 import rank
 import ops
 import ai
+import pickle
 
 from correlationlist import CorrelationList
 from distancelist import DistanceList
@@ -617,6 +618,20 @@ class TestOps(unittest.TestCase):
         ops.align_trace_set(ts, None, conf, params=[0, len(reference_signal)])
         for i in range(0, len(ts.traces)):
             self.assertListEqual(list(ts.traces[i].signal), expected[i])
+
+    def test_select_trace_set(self):
+        test_path = "/tmp/selection.p"
+        traces = np.array([[1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6]])
+        expected = np.array([[3, 4], [3, 4]])
+        conf = Namespace(windowing_method='rectangular')
+        with open(test_path, "wb") as f:
+            pickle.dump(np.array([False, False, True, True, False, False]), f)
+
+        ts = TraceSet(traces=traces, name='test')
+        ops.window_trace_set(ts, None, conf, params=[0, 6])
+        ops.select_trace_set(ts, None, None, params=[test_path])
+        for i in range(0, len(ts.traces)):
+            self.assertListEqual(list(ts.traces[i].signal), list(expected[i]))
 
     def test_filterkey_trace_set(self):
         traces = np.array([[0], [1], [2]])

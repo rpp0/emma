@@ -340,7 +340,7 @@ def __perform_classification_attack(emma):
 def __visualize_model(emma, model_type, vis_type='2doverlay', *args, **kwargs):
     vis_type = vis_type.lower()
     if emma.dataset_val is not None:
-        trace_sets = emma.dataset_val.trace_set_paths
+        trace_sets = emma.dataset_val.trace_set_paths[0:emma.conf.num_valsets]
     else:
         trace_sets = emma.dataset.trace_set_paths
 
