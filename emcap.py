@@ -15,6 +15,7 @@ from socketwrapper import SocketWrapper
 from traceset import TraceSet
 from scipy.signal import hilbert
 from scipy import fftpack
+from emcap_online_client import EMCapOnlineClient
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -222,8 +223,8 @@ class EMCap():
 
         if not self.online is None:
             try:
-                self.emma_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.emma_client.connect((self.online, 3885))  # TODO use EMCapOnlineClient
+                self.emma_client = EMCapOnlineClient()
+                self.emma_client.connect(self.online, 3885)
             except Exception as e:
                 print(e)
                 exit(1)
@@ -238,7 +239,6 @@ class EMCap():
         self.trace_set = []
         self.plaintexts = []
         self.keys = []
-        self.online_counter = 0
         self.limit_counter = 0
         self.limit = kwargs['limit']
         #self.manifest = kwargs['manifest']
@@ -361,18 +361,9 @@ class EMCap():
                     np_plaintexts = np.array(self.plaintexts, dtype=np.uint8)
                     np_keys = np.array(self.keys, dtype=np.uint8)
 
-                    if not self.online is None: # Stream online
-                        ts = TraceSet(name="online %d" % self.online_counter, traces=np_trace_set, plaintexts=np_plaintexts, ciphertexts=None, keys=np_keys)
-                        logger.info("Pickling")
-                        ts_p = pickle.dumps(ts)
-                        logger.info("Size is %d" % len(ts_p))
-                        stream_payload = ts_p
-                        stream_payload_len = len(stream_payload)
-                        logger.info("Streaming trace set of %d bytes to server" % stream_payload_len)
-                        stream_hdr = struct.pack(">BI", 0, stream_payload_len)
-                        self.emma_client.send(stream_hdr + stream_payload)
-                        self.online_counter += 1
-                    else: # Save to disk
+                    if self.online is not None:  # Stream online
+                        self.emma_client.send(np_trace_set, np_plaintexts, None, np_keys, None)
+                    else:  # Save to disk
                         if not self.kwargs['dry']:
                             # Write metadata to sigmf file
                             # if sigmf
@@ -431,7 +422,7 @@ def main():
     parser.add_argument('--dry', default=False, action='store_true', help='Do not save to disk.')
     parser.add_argument('--ds-mode', default=False, action='store_true', help='Direct sampling mode.')
     parser.add_argument('--agc', default=False, action='store_true', help='Automatic Gain Control.')
-    # parser.add_argument('--manifest', type=str, default=None, help='Capture manifest to use.')  # We now use --compress because no Tensorflow support in Python 2 and now GNU Radio support in Python 3.
+    # parser.add_argument('--manifest', type=str, default=None, help='Capture manifest to use.')  # We now use --compress because no Tensorflow support in Python 2 and no GNU Radio support in Python 3.
     parser.add_argument('--compress', default=False, action='store_true', help='Compress using emcap-compress.')
     args, unknown = parser.parse_known_args()
 

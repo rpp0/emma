@@ -18,7 +18,7 @@ class EMCapOnlineClient:
     def connect(self, ip, port=3885):
         self.socket.connect((ip, port))
 
-    def send(self, np_signals: np.array, np_plaintexts: np.array, np_ciphertexts: np.array, np_keys: np.array, np_masks: np.array):
+    def send(self, np_signals, np_plaintexts, np_ciphertexts, np_keys, np_masks):
         ts = TraceSet(name="online %d" % self.trace_set_count, traces=np_signals, plaintexts=np_plaintexts,
                       ciphertexts=np_ciphertexts, keys=np_keys, masks=np_masks)
         logger.info("Pickling")
