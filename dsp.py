@@ -25,11 +25,17 @@ def normalize_p2p(trace):
     return (trace - trace.min(0)) / trace.ptp(0)
 
 
-def butter_filter(trace, order=1, cutoff=0.01, filter_type='low'):
+def ifreq(signal):
+    instantaneous_phase = np.unwrap(np.angle(signal))
+    instantaneous_frequency = np.diff(instantaneous_phase)
+    return instantaneous_frequency
+
+
+def butter_filter(trace, order=1, cutoff=0.01, filter_type='low', fs=None):
     """
     Apply butter filter to trace
     """
-    b, a = signal.butter(order, cutoff, filter_type)
+    b, a = signal.butter(order, cutoff, btype=filter_type, fs=fs)
     trace_filtered = signal.filtfilt(b, a, trace)
     return trace_filtered
 

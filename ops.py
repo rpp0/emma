@@ -147,9 +147,7 @@ def ifreq_trace_set(trace_set, result, conf, params=None):
     logger.info("ifreq %s" % (str(params) if not params is None else ""))
 
     for trace in trace_set.traces:
-        instantaneous_phase = np.unwrap(np.angle(trace.signal))
-        instantaneous_frequency = np.diff(instantaneous_phase)
-        trace.signal = instantaneous_frequency
+        trace.signal = ifreq(trace.signal)
 
     if conf.reference_signal is not None:
         conf.reference_signal = np.diff(np.unwrap(np.angle(conf.reference_signal)))
@@ -171,6 +169,56 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
 
     if conf.reference_signal is not None:
         conf.reference_signal = np.square(np.abs(np.fft.fft(conf.reference_signal)))
+
+
+def tspectogram_trace_set(trace_set, result, conf, params=None):
+    logger.info("tspec %s" % (str(params) if not params is None else ""))
+    if not trace_set.windowed:
+        raise EMMAException("Trace set should be windowed")
+
+    # Check params
+    if params is not None:
+        if len(params) == 1:
+            nfft = int(params[0])
+        elif len(params) == 2:
+            nfft = int(params[0])
+            noverlap = int(nfft * int(params[1]) / 100.0)
+
+    print("TODO")
+
+
+def detect_peaks(signal, spread, num_peaks=8):
+    max_end = 0
+    spread += int(spread / 2)
+    signal_copy = np.copy(signal)
+
+    for i in range(num_peaks):
+        peak = np.argmax(signal_copy)
+        start = max(0, peak-spread)
+        end = min(len(signal_copy), peak+spread)
+        if end > max_end:
+            max_end = end
+        for j in range(start, end):
+            signal_copy[j] = 0
+
+    # return signal_copy
+    return max_end
+
+
+@op('sync')
+def sync_trace_set(trace_set, result, conf, params=None):
+    logger.info("sync %s" % (str(params) if params is not None else ""))
+    nops_per_sample = 600
+    nops_per_pulse = 5000000
+    samples_per_pulse = nops_per_pulse / nops_per_sample
+    pulse_edge_size = int(samples_per_pulse / 2)
+    corr_signal = np.array([1.0] * pulse_edge_size) + ([0.0] * pulse_edge_size)
+
+    for trace in trace_set.traces:
+        correlation = np.correlate(ifreq(trace.signal), corr_signal)
+        max_end = detect_peaks(correlation, pulse_edge_size)
+        trace.signal = trace.signal[max_end:]
+        #trace.signal = correlation
 
 
 @op('abs')
@@ -281,17 +329,39 @@ def window_trace_set(trace_set, result, conf, params=None):
     trace_set.window = window
 
 
-@op('filter')
+@op('filter', optargs=['btype', 'cutoff', 'order'])
 def filter_trace_set(trace_set, result, conf, params=None):
     """
     Apply a Butterworth filter to the traces.
     """
-    logger.info("filter %s" % (str(params) if not params is None else ""))
+    logger.info("filter %s" % (str(params) if params is not None else ""))
+
+    butter_type = conf.butter_type
+    butter_fs = conf.butter_fs
+    butter_order = conf.butter_order
+    butter_cutoff = conf.butter_cutoff
+
+    if params is not None:
+        if len(params) >= 1:
+            butter_type = str(params[0])
+        if len(params) >= 2:
+            butter_cutoff = float(params[1])
+        if len(params) >= 3:
+            butter_order = int(params[2])
+
     for trace in trace_set.traces:
-        trace.signal = butter_filter(trace.signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
+        trace.signal = butter_filter(trace.signal,
+                                     order=butter_order,
+                                     cutoff=butter_cutoff,
+                                     filter_type=butter_type,
+                                     fs=butter_fs)
 
     if conf.reference_signal is not None:
-        conf.reference_signal = butter_filter(conf.reference_signal, order=conf.butter_order, cutoff=conf.butter_cutoff)
+        conf.reference_signal = butter_filter(conf.reference_signal,
+                                              order=butter_order,
+                                              cutoff=butter_cutoff,
+                                              filter_type=butter_type,
+                                              fs=butter_fs)
 
 
 @op('rmoutliers')

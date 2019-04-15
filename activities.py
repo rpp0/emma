@@ -281,6 +281,9 @@ def __perform_keyplot(emma, message="Grouping keys..."):
             em_result = ops.work(emma.dataset.trace_set_paths, emma.conf)
             em_result = ops.merge(em_result, emma.conf)
 
+        import pickle
+        with open("/tmp/means.p", "wb") as f:
+            pickle.dump(em_result.means, f)
         visualizations.plot_keyplot(em_result.means,
                                     time_domain=(not (conf_has_op(emma.conf, 'spec') or conf_has_op(emma.conf, 'fft'))) or emma.conf.plot_force_timedomain,
                                     sample_rate=1.0,

@@ -360,6 +360,7 @@ class HMACHWLeakageModel(LeakageModel):
         key_word_list = trace.key[subkey_start_index*self.subkey_size:(subkey_start_index+1)*self.subkey_size] if key_hypothesis is None else key_hypothesis
         key_word = struct.unpack("<I", bytearray(key_word_list))[0]
 
+        # return hw32(key_word)
         return [
             hw32(key_word),
             hw32(key_word ^ 0x36363636),

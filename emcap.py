@@ -16,6 +16,7 @@ from traceset import TraceSet
 from scipy.signal import hilbert
 from scipy import fftpack
 from emcap_online_client import EMCapOnlineClient
+from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -214,7 +215,7 @@ class EMCap():
             self.clear_domain_socket(unix_domain_socket)
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
         elif ctrl_socket_type == CtrlType.UDP:
-            self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('172.18.15.21', 3884), self.cb_ctrl)
+            self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('10.0.0.1', 3884), self.cb_ctrl)
         elif ctrl_socket_type == CtrlType.SERIAL:
             self.ctrl_socket = TTYWrapper("/dev/ttyUSB0", self.cb_ctrl)
         else:
@@ -239,6 +240,9 @@ class EMCap():
         self.trace_set = []
         self.plaintexts = []
         self.keys = []
+        self.preprocessed = []
+        self.preprocessed_keys = []
+        self.preprocessed_plaintexts = []
         self.limit_counter = 0
         self.limit = kwargs['limit']
         #self.manifest = kwargs['manifest']
@@ -316,6 +320,59 @@ class EMCap():
             else:
                 logger.warning("Unknown IE type: %d" % ie_type)
 
+    def preprocess(self, trace_set, plaintexts, keys):
+        all_traces = []
+        key_set = defaultdict(set)
+        pt_set = defaultdict(set)
+
+        for i, trace in enumerate(trace_set):
+            if len(trace) < 16384:
+                print("--skip")
+                continue
+            trace = trace[8192:16384]
+            trace = np.square(np.abs(np.fft.fft(trace)))
+            all_traces.append(trace)
+
+            # Check keys and plaintexts
+            num_key_bytes = keys.shape[1]
+            for j in range(0, num_key_bytes):
+                key_set[j].add(keys[i][j])
+                pt_set[j].add(plaintexts[i][j])
+
+                if len(key_set[j]) != 1 or len(pt_set[j]) != 1:
+                    print("Keys or plaintexts not equal at index %d" % j)
+                    print(key_set)
+                    print(pt_set)
+                    exit(1)
+
+        all_traces = np.array(all_traces)
+        self.preprocessed.append(np.mean(all_traces, axis=0))
+        self.preprocessed_plaintexts.append(plaintexts[0])
+        self.preprocessed_keys.append(keys[0])
+
+    def save(self, trace_set, plaintexts, keys, ciphertexts=None):
+        filename = str(datetime.utcnow()).replace(" ", "_").replace(".", "_")
+        output_dir = self.kwargs['output_dir']
+
+        if self.kwargs['preprocess']:
+            self.preprocess(trace_set, plaintexts, keys)
+            if len(self.preprocessed) >= self.kwargs['traces_per_set']:
+                logger.info("Dumping %d preprocessed traces to file" % len(self.preprocessed))
+                np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np.array(self.preprocessed))
+                np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np.array(self.preprocessed_plaintexts))
+                np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np.array(self.preprocessed_keys))
+                self.preprocessed = []
+                self.preprocessed_plaintexts = []
+                self.preprocessed_keys = []
+        else:
+            logger.info("Dumping %d traces to file" % len(self.trace_set))
+            np.save(os.path.join(output_dir, "%s_traces.npy" % filename), trace_set)
+            np.save(os.path.join(output_dir, "%s_textin.npy" % filename), plaintexts)
+            np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), keys)
+            if self.compress:
+                logger.info("Calling emcap-compress...")
+                subprocess.call(['/usr/bin/python', 'emcap-compress.py', os.path.join(output_dir, "%s_traces.npy" % filename)])
+
     def process_ctrl_packet(self, pkt_type, payload):
         if pkt_type == CtrlPacketType.SIGNAL_START:
             logger.debug("Starting for payload: %s" % binary_to_hex(payload))
@@ -372,15 +429,7 @@ class EMCap():
                             #    test_sigmf.add_capture(0, metadata=capture_meta)
                             #    test_sigmf.dump(f, pretty=True)
                             # elif chipwhisperer:
-                            logger.info("Dumping %d traces to file" % len(self.trace_set))
-                            filename = str(datetime.utcnow()).replace(" ","_").replace(".","_")
-                            output_dir = self.kwargs['output_dir']
-                            np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np_trace_set)  # TODO abstract this in trace_set class
-                            np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np_plaintexts)
-                            np.save(os.path.join(output_dir, "%s_knownkey.npy" % filename), np_keys)
-                            if self.compress:
-                                logger.info("Calling emcap-compress...")
-                                subprocess.call(['/usr/bin/python', 'emcap-compress.py', os.path.join(output_dir, "%s_traces.npy" % filename)])
+                            self.save(np_trace_set, np_plaintexts, np_keys)
 
                         self.limit_counter += len(self.trace_set)
                         if self.limit_counter >= self.limit:
@@ -424,6 +473,7 @@ def main():
     parser.add_argument('--agc', default=False, action='store_true', help='Automatic Gain Control.')
     # parser.add_argument('--manifest', type=str, default=None, help='Capture manifest to use.')  # We now use --compress because no Tensorflow support in Python 2 and no GNU Radio support in Python 3.
     parser.add_argument('--compress', default=False, action='store_true', help='Compress using emcap-compress.')
+    parser.add_argument('--preprocess', default=False, action='store_true', help='Preprocess before storing')
     args, unknown = parser.parse_known_args()
 
     ctrl_type = None

@@ -113,5 +113,6 @@ def __get_distance_loss(conf, squared):
 @lossfunction('softmax_crossentropy')
 def _get_crossentropy_loss(*_):
     def crossentropy_loss(y_true, y_pred):
+        y_true = tf.stop_gradient(y_true)
         return tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_true, logits=y_pred)
     return crossentropy_loss
