@@ -221,6 +221,14 @@ def sync_trace_set(trace_set, result, conf, params=None):
         #trace.signal = correlation
 
 
+@op('autocorr')
+def autocorr_trace_set(trace_set, result, conf, params=None):
+    logger.info("autocorr %s" % (str(params) if params is not None else ""))
+    for trace in trace_set.traces:
+        correlation = np.correlate(trace.signal, trace.signal, mode='full')
+        trace.signal = correlation[int(len(correlation)/2):]
+
+
 @op('abs')
 def magnitude_trace_set(trace_set, result, conf, params=None):
     """
