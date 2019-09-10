@@ -5,8 +5,8 @@
 
 import keras.backend as K
 import tensorflow as tf
-from registry import lossfunctions, lossfunction
-from leakagemodels import LeakageModel
+from emma.utils.registry import lossfunctions, lossfunction
+from emma.attacks.leakagemodels import LeakageModel
 
 
 def get_loss(conf):

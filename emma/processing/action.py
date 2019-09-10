@@ -1,4 +1,4 @@
-from registry import operations, operations_id_overrides
+from emma.utils.registry import operations_id_overrides
 
 
 class Action:

@@ -1,25 +1,17 @@
 #!/usr/bin/python2
 
 from gnuradio import blocks
-from gnuradio import eng_notation
 from gnuradio import gr
 from gnuradio import uhd
-from gnuradio.eng_option import eng_option
-from gnuradio.filter import firdes
 from time import sleep
 from threading import Thread
 from datetime import datetime
-from sigmf.sigmffile import SigMFFile
-from dsp import butter_filter
-from socketwrapper import SocketWrapper
-from traceset import TraceSet
+from emma.utils.socketwrapper import SocketWrapper
 from scipy.signal import hilbert
 from scipy import fftpack
-from emcap_online_client import EMCapOnlineClient
+from emma.emcap.online_client import EMCapOnlineClient
 from collections import defaultdict
-import matplotlib.pyplot as plt
 import numpy as np
-import time
 import sys
 import socket
 import os
@@ -30,8 +22,6 @@ import binascii
 import osmosdr
 import argparse
 import serial
-import pickle
-import zlib
 import subprocess
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)

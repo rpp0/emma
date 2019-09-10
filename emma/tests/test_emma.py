@@ -6,23 +6,21 @@
 # ----------------------------------------------------
 
 import unittest
-import os
-import rank
-import ops
-import ai
+from emma.processing import ops
+from emma.ai import models, rankcallbacks
 import pickle
 
-from correlationlist import CorrelationList
-from distancelist import DistanceList
-from traceset import TraceSet, Trace
+from emma.metrics.correlationlist import CorrelationList
+from emma.metrics.distancelist import DistanceList
+from emma.io.traceset import TraceSet, Trace
 from argparse import Namespace
-from aiiterators import AICorrSignalIterator, AutoEncoderSignalIterator
-from leakagemodels import *
-from aiinputs import *
-from action import Action
+from emma.ai.iterators import AICorrSignalIterator, AutoEncoderSignalIterator
+from emma.attacks.leakagemodels import *
+from emma.ai.inputs import *
+from emma.processing.action import Action
 from keras.utils import to_categorical
-from lut import *
-from tests import UnitTestSettings
+from emma.attacks.lut import *
+from emma.tests import UnitTestSettings
 
 
 class TestCorrelationList(unittest.TestCase):
@@ -274,9 +272,9 @@ class TestAI(unittest.TestCase):
         # ------------------------------
         # Train and obtain encodings
         # ------------------------------
-        model = ai.AICorrNet(conf, input_dim=4, name="test")
+        model = models.AICorrNet(conf, input_dim=4, name="test")
         print(model.info())
-        rank_cb = rank.CorrRankCallback(conf, '/tmp/deleteme/', save_best=False, save_path=None)
+        rank_cb = rankcallbacks.CorrRankCallback(conf, '/tmp/deleteme/', save_best=False, save_path=None)
         rank_cb.set_trace_set(trace_set)
 
         if model.using_regularization:
@@ -335,7 +333,7 @@ class TestAI(unittest.TestCase):
 
     @unittest.skipIf(UnitTestSettings.TEST_FAST, "fast testing enabled")
     def test_corrtrain_correlation_multi(self):
-        from leakagemodels import LeakageModel
+        from emma.attacks.leakagemodels import LeakageModel
         """
         Artificial example to test AICorrNet and trace processing with multiple leakage values and multiple subkeys.
         """
@@ -413,9 +411,9 @@ class TestAI(unittest.TestCase):
         # ------------------------------
         # Train and obtain encodings
         # ------------------------------
-        model = ai.AICorrNet(conf, input_dim=4, name="test")
+        model = models.AICorrNet(conf, input_dim=4, name="test")
         print(model.info())
-        rank_cb = rank.CorrRankCallback(conf, '/tmp/deleteme/', save_best=False, save_path=None)
+        rank_cb = rankcallbacks.CorrRankCallback(conf, '/tmp/deleteme/', save_best=False, save_path=None)
         rank_cb.set_trace_set(trace_set)
 
         if model.using_regularization:
@@ -549,7 +547,7 @@ class TestAI(unittest.TestCase):
         # ------------------------------
         # Train and obtain encodings
         # ------------------------------
-        model = ai.AutoEncoder(conf, input_dim=4, name="test")
+        model = models.AutoEncoder(conf, input_dim=4, name="test")
         print(model.info())
 
         # Find optimal weights
@@ -576,8 +574,8 @@ class TestAI(unittest.TestCase):
 
     def test_softmax(self):
         test = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        a = ai.softmax(test)
-        b = ai.softmax_np(test)
+        a = models.softmax(test)
+        b = models.softmax_np(test)
         self.assertEqual(len(a), len(b))
         for i in range(0, len(a)):
             self.assertAlmostEqual(a[i], b[i], places=6)
@@ -588,19 +586,19 @@ class TestRank(unittest.TestCase):
         dummy_scores = np.array(list(range(1, 257)))  # 1, 2, 3, ..., 256 (rank scores)
         expected_outcome = list(range(255, -1, -1))   # 255, 254, 253, ..., 0 (resulting ranks)
 
-        outcome = list(rank.calculate_ranks(dummy_scores))
+        outcome = list(rankcallbacks.calculate_ranks(dummy_scores))
         self.assertListEqual(outcome, expected_outcome)
 
     def test_get_rank_and_confidence(self):
         dummy_scores = np.array(list(range(1, 257)))
-        ranks = rank.calculate_ranks(dummy_scores)
+        ranks = rankcallbacks.calculate_ranks(dummy_scores)
 
-        rank_value, confidence = rank.get_rank_and_confidence(ranks, dummy_scores, 255)
+        rank_value, confidence = rankcallbacks.get_rank_and_confidence(ranks, dummy_scores, 255)
         self.assertEqual(confidence, 1)
         self.assertEqual(rank_value, 0)
-        rank_value, _ = rank.get_rank_and_confidence(ranks, dummy_scores, 254)
+        rank_value, _ = rankcallbacks.get_rank_and_confidence(ranks, dummy_scores, 254)
         self.assertEqual(rank_value, 1)
-        rank_value, _ = rank.get_rank_and_confidence(ranks, dummy_scores, 154)
+        rank_value, _ = rankcallbacks.get_rank_and_confidence(ranks, dummy_scores, 154)
         self.assertEqual(rank_value, 101)
 
 
@@ -683,7 +681,7 @@ class TestOps(unittest.TestCase):
 
 class TestUtils(unittest.TestCase):
     def test_int_to_one_hot(self):
-        from emutils import int_to_one_hot
+        from emma.utils.utils import int_to_one_hot
         self.assertListEqual(list(int_to_one_hot(0, 256)), [1] + [0]*255)
         self.assertListEqual(list(int_to_one_hot(0, 3)), [1, 0, 0])
         self.assertListEqual(list(int_to_one_hot(1, 3)), [0, 1, 0])
@@ -737,7 +735,7 @@ class TestIterator(unittest.TestCase):
         Check whether the AICorrSignalIterator returns the same output as load_ascad
         :return:
         """
-        from ASCAD_train_models import load_ascad
+        from ascad.ASCAD_train_models import load_ascad
 
         conf = Namespace(
             input_type=AIInputType.SIGNAL,

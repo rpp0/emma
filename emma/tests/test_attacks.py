@@ -1,10 +1,9 @@
 import unittest
-import ops
-from tests import UnitTestSettings
-from leakagemodels import *
+from emma.processing import ops
+from emma.attacks.leakagemodels import *
 from argparse import Namespace
-from traceset import TraceSet
-from emresult import EMResult
+from emma.io.traceset import TraceSet
+from emma.io.emresult import EMResult
 
 
 class TestAttacks(unittest.TestCase):

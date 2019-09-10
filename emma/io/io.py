@@ -4,14 +4,13 @@
 # ----------------------------------------------------
 
 import numpy as np
-import ops
+import emma.processing.ops as ops
 import configparser
-import simulation
 import pickle
-from traceset import TraceSet
-from dataset import Dataset
-from emutils import Window
-from os.path import join, basename
+from emma.io.traceset import TraceSet
+from emma.io.dataset import Dataset
+from emma.utils.utils import Window
+from os.path import join
 
 
 def get_dataset(dataset, conf=None, remote=True):
@@ -121,7 +120,7 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
     elif format == "gnuradio":  # .cfile
         raise NotImplementedError
     elif format == "ascad":
-        from ASCAD_train_models import load_ascad
+        from ascad.ASCAD_train_models import load_ascad
         h5_path = trace_set_path.rpartition('-')[0]
         train_set, attack_set, metadata_set = load_ascad(h5_path, load_metadata=True)
         metadata_train, metadata_attack = metadata_set

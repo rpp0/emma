@@ -3,10 +3,9 @@ import os
 import numpy as np
 from datetime import datetime
 from matplotlib.backends.backend_pdf import PdfPages
-from traceset import TraceSet
-from emutils import MaxPlotsReached, EMMAException
-from matplotlib.colors import LogNorm
-from lut import hw
+from emma.io.traceset import TraceSet
+from emma.utils.utils import MaxPlotsReached, EMMAException
+
 
 #plt.rcParams['axes.prop_cycle'] = plt.cycler(color=plt.get_cmap('flag').colors)  # Use different cycling colors
 #plt.style.use('bmh')  # Use different style

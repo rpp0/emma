@@ -4,18 +4,17 @@
 # ----------------------------------------------------
 
 import time
-import emutils
-import ops
+from emma.utils import utils, visualizations
+from emma.processing import ops
 import numpy as np
-import visualizations
-import saliency
+from emma.ai import saliency
 
 from celery import group, chord
 from celery.result import AsyncResult, GroupResult
 from celery.utils.log import get_task_logger
-from registry import activity
-from emutils import EMMAException, conf_has_op
-from leakagemodels import LeakageModel
+from emma.utils.registry import activity
+from emma.utils.utils import EMMAException, conf_has_op
+from emma.attacks.leakagemodels import LeakageModel
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -65,7 +64,7 @@ def parallel_work(trace_set_paths, conf, merge_results=False):
     """
     num_partitions = min(conf.max_subtasks, len(trace_set_paths))
     result = []
-    for part in emutils.partition(trace_set_paths, num_partitions):
+    for part in utils.partition(trace_set_paths, num_partitions):
         result.append(ops.work.si(part, conf))
     if merge_results:  # Merge subresults from all workers into one final result
         return chord(result, body=ops.merge.s(conf))()
@@ -93,9 +92,9 @@ def __perform_cpa_attack(emma):
         print("{:02x}".format(np.argmax(max_correlations[subkey_index])))
 
     def print_results(max_correlations):
-        emutils.pretty_print_subkey_scores(max_correlations, limit_rows=20)
+        utils.pretty_print_subkey_scores(max_correlations, limit_rows=20)
         most_likely_bytes = np.argmax(max_correlations, axis=1)
-        print(emutils.numpy_to_hex(most_likely_bytes))
+        print(utils.numpy_to_hex(most_likely_bytes))
 
     __attack_subkeys(emma, update_correlations, print_results)
 
@@ -119,9 +118,9 @@ def __perform_prob_cpa_attack(emma):
         print("{:02x}".format(np.argmax(max_probs[subkey_index])))
 
     def print_results(max_probs):
-        emutils.pretty_print_subkey_scores(max_probs, limit_rows=20)
+        utils.pretty_print_subkey_scores(max_probs, limit_rows=20)
         most_likely_bytes = np.argmax(max_probs, axis=1)
-        print(emutils.numpy_to_hex(most_likely_bytes))
+        print(utils.numpy_to_hex(most_likely_bytes))
 
     __attack_subkeys(emma, update_probabilities, print_results)
 
@@ -173,9 +172,9 @@ def __perform_dis_attack(emma):
         print("{:02x}".format(np.argmin(min_distances[subkey_index])))
 
     def print_results(min_distances):
-        emutils.pretty_print_subkey_scores(min_distances, limit_rows=20, descending=False)
+        utils.pretty_print_subkey_scores(min_distances, limit_rows=20, descending=False)
         most_likely_bytes = np.argmin(min_distances, axis=1)
-        print(emutils.numpy_to_hex(most_likely_bytes))
+        print(utils.numpy_to_hex(most_likely_bytes))
 
     __attack_subkeys(emma, update_distances, print_results)
 

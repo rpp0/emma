@@ -29,9 +29,9 @@ class PluginRegistry:
                 pass
 
             # Add default plugins
-            plugin_list.append('ops')
-            plugin_list.append('activities')
-            plugin_list.append('lossfunctions')
+            plugin_list.append('emma.processing.ops')
+            plugin_list.append('emma.processing.activities')
+            plugin_list.append('emma.ai.lossfunctions')
 
             # Load plugins
             for plugin_name in plugin_list:

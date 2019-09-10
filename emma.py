@@ -6,18 +6,16 @@
 
 from emma_worker import app
 from celery.utils.log import get_task_logger
-from configargumentparser import ConfigArgumentParser
-from leakagemodels import LeakageModelType
-from aiinputs import AIInputType
-from emutils import conf_has_op, EMMAConfException, get_default_keras_loss_names
-from action import Action
+from emma.utils.configargumentparser import ConfigArgumentParser
+from emma.attacks.leakagemodels import LeakageModelType
+from emma.ai.inputs import AIInputType
+from emma.utils.utils import conf_has_op, EMMAConfException, get_default_keras_loss_names
+from emma.processing.action import Action
 
 import argparse
 import subprocess
-import emutils
-import emio
-import configparser
-import registry
+import emma.io.io
+from emma.utils import utils, registry
 
 logger = get_task_logger(__name__)
 
@@ -59,17 +57,17 @@ class EMMAHost:
     @staticmethod
     def _get_datasets(args):
         # Load dataset from worker node
-        dataset = emio.get_dataset(dataset=args.dataset, conf=args, remote=args.remote)
+        dataset = emma.io.io.get_dataset(dataset=args.dataset, conf=args, remote=args.remote)
 
         # Load reference set if applicable. Otherwise just use a reference from the standard dataset
         if args.refset is not None:
-            dataset_ref = emio.get_dataset(dataset=args.refset, conf=args, remote=args.remote)
+            dataset_ref = emma.io.io.get_dataset(dataset=args.refset, conf=args, remote=args.remote)
         else:
             dataset_ref = dataset
 
         # Load validation set if applicable
         if args.valset is not None:
-            dataset_val = emio.get_dataset(dataset=args.valset, conf=args, remote=args.remote)
+            dataset_val = emma.io.io.get_dataset(dataset=args.valset, conf=args, remote=args.remote)
         else:
             dataset_val = None
 
@@ -126,7 +124,8 @@ class EMMAHost:
                 num_activities += 1
 
         if num_activities > 1:
-            raise Exception("Only one activity can be executed at a time. Choose from: %s" % str(registry.activities.keys()))
+            raise Exception("Only one activity can be executed at a time. Choose from: %s" % str(
+                registry.activities.keys()))
 
         if activity is None:
             activity = registry.activities['default']
@@ -188,7 +187,8 @@ if __name__ == "__main__":
     parser.add_argument('--saliency-remove-bias', default=False, action='store_true', help='Remove first samples when using the salvis activity.')
     parser.add_argument('--saliency-mean-gradient', default=True, action='store_true', help='Get the mean gradient of the batch instead of individual gradients when visualizing saliency.')  # TODO: Impossible to disable
     parser.add_argument('--saliency-num-traces', type=int, default=1024, help='Maxmimum number of traces to show in saliency plots.')
-    parser.add_argument('--loss-type', type=str, choices=list(registry.lossfunctions.keys()) + get_default_keras_loss_names(), default='correlation', help='Loss function to use when training.')
+    parser.add_argument('--loss-type', type=str, choices=list(
+        registry.lossfunctions.keys()) + get_default_keras_loss_names(), default='correlation', help='Loss function to use when training.')
     parser.add_argument('--plot-no-reference', default=False, action='store_true', help='Do not plot reference signal.')
     parser.add_argument('--plot-num-traces', type=int, default=1024, help='Maxmimum number of traces to show in plots.')
     parser.add_argument('--plot-title', type=str, default='', help='Title of the plot.')
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     parser.add_argument('--specgram-samprate', type=int, default=8000000, help='Sample rate (used in axis calculation for specgram)')
     parser.add_argument('--plot-force-timedomain', default=False, action='store_true', help='Force time domain x label')
     args, unknown = parser.parse_known_args()
-    print(emutils.BANNER)
+    print(utils.BANNER)
 
     if len(unknown) > 0:
         raise EMMAConfException("Unknown arguments: %s" % str(unknown))

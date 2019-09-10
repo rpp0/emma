@@ -4,7 +4,7 @@ import os.path
 import numpy as np
 import argparse
 import pickle
-from emio import get_dataset, get_trace_set
+from emma.io.io import get_dataset, get_trace_set
 from sklearn.decomposition import PCA
 
 parser = argparse.ArgumentParser()

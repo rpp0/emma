@@ -1,7 +1,7 @@
 import numpy as np
 from celery.utils.log import get_task_logger
-from leakagemodels import LeakageModel
-from emutils import EMMAException
+from emma.attacks.leakagemodels import LeakageModel
+from emma.utils.utils import EMMAException
 
 logger = get_task_logger(__name__)
 

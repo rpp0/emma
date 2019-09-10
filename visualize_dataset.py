@@ -1,10 +1,10 @@
 #!/usr/bin/python
 
 import argparse
-import emio
+from emma.io import emio
 import numpy as np
 import matplotlib.pyplot as plt
-from emutils import numpy_to_hex
+from emma.utils.utils import numpy_to_hex
 from os.path import join
 
 

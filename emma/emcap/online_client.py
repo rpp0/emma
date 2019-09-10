@@ -3,8 +3,7 @@ import logging
 import sys
 import pickle
 import struct
-import numpy as np
-from traceset import TraceSet
+from emma.io.traceset import TraceSet
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger(__name__)

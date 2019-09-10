@@ -4,8 +4,8 @@
 # ----------------------------------------------------
 
 import numpy as np
-from emutils import EMMAException, int_to_one_hot, bytearray_to_many_hot
-from leakagemodels import LeakageModel
+from emma.utils.utils import EMMAException, int_to_one_hot, bytearray_to_many_hot
+from emma.attacks.leakagemodels import LeakageModel
 
 
 class AIInputType:

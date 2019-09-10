@@ -8,8 +8,8 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import binascii
-from emutils import hamming_distance, random_bytes
-from traceset import Trace, TraceSet
+from emma.utils.utils import hamming_distance, random_bytes
+from emma.io.traceset import Trace, TraceSet
 from pygdbmi.gdbcontroller import GdbController, GdbTimeoutError
 from collections import namedtuple, defaultdict
 from os.path import join

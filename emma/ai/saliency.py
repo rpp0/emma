@@ -1,4 +1,4 @@
-import visualizations
+from emma.utils import visualizations
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -75,7 +75,7 @@ def plot_saliency_1d(conf, salvis_result):
     :param salvis_result:
     :return:
     """
-    from dsp import normalize
+    from emma.processing.dsp import normalize
 
     # Get mean signal of examples batch
     mean_signal = np.mean(salvis_result.examples_batch, axis=0)

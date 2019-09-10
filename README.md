@@ -4,7 +4,14 @@ EMMA is a framework for capturing and attacking traces of electromagnetic radiat
 
 ## Installation
 
-The following Python 3 packages are required by EMMA: `celery`, `tensorflow`, `keras`, `matplotlib`, `numpy`, `sklearn`.
+The recommended way of installing EMMA is via `venv`:
+```bash
+$ cd <emma_root_directory>
+$ python -m venv env
+$ source env/bin/activate
+$ pip install -r requirements.txt
+$ emma.py -h
+```
 
 ## Configuration
 

@@ -7,15 +7,15 @@ import keras
 import numpy as np
 import keras.backend as K
 import tensorflow as tf
-import ops
+from emma.processing import ops
 
-from lut import sbox
-from traceset import TraceSet
+from emma.attacks.lut import sbox
+from emma.io.traceset import TraceSet
 from argparse import Namespace
-from emutils import Window, conf_get_action
-from emresult import EMResult
-from leakagemodels import LeakageModelType
-from aiinputs import AIInput
+from emma.utils.utils import Window
+from emma.io.emresult import EMResult
+from emma.attacks.leakagemodels import LeakageModelType
+from emma.ai.inputs import AIInput
 
 
 class RankCallbackBase(keras.callbacks.Callback):

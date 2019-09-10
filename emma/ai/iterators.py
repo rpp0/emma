@@ -3,24 +3,21 @@
 # Copyright 2018, Pieter Robyns
 #
 # AI Iterators: classes that prepare the inputs and
-# labels for the models in ai.py.
+# labels for the models in models.py.
 # ----------------------------------------------------
 
-from emresult import EMResult
-from streamserver import StreamServer
+from emma.io.emresult import EMResult
+from emma.emcap.streamserver import StreamServer
 from celery.utils.log import get_task_logger
-from ASCAD_train_models import load_ascad
 from keras.utils import to_categorical
-from traceset import TraceSet
-from os.path import join
-from dataset import get_dataset_normalization_mean_std
-from leakagemodels import LeakageModel
-from aiinputs import AIInput
-from emutils import shuffle_random_multiple
+from emma.io.traceset import TraceSet
+from emma.io.dataset import get_dataset_normalization_mean_std
+from emma.attacks.leakagemodels import LeakageModel
+from emma.ai.inputs import AIInput
+from emma.utils.utils import shuffle_random_multiple
 
 import numpy as np
-import ops
-import emio
+from emma.processing import ops
 
 logger = get_task_logger(__name__)
 

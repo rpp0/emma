@@ -4,10 +4,10 @@
 # ----------------------------------------------------
 
 import configparser
-import emio
+import emma.io.io
 from os import listdir
 from os.path import isfile, join
-from emutils import conf_has_op
+from emma.utils.utils import conf_has_op
 
 
 class Dataset:
@@ -66,7 +66,7 @@ class Dataset:
         assert(len(self.trace_set_paths) > 0)
 
         # Assign reference signal
-        reference_trace_set = emio.get_trace_set(join(self.root, self.trace_set_paths[0]), self.format, ignore_malformed=False, remote=False)
+        reference_trace_set = emma.io.io.get_trace_set(join(self.root, self.trace_set_paths[0]), self.format, ignore_malformed=False, remote=False)
 
         self.traces_per_set = len(reference_trace_set.traces)
         self.reference_signal = reference_trace_set.traces[self.reference_index].signal

@@ -25,7 +25,7 @@ except FileNotFoundError:
 app = Celery('emma',
              broker=broker,
              backend=backend,
-             include=['ops', 'action'])
+             include=['emma.processing.ops', 'emma.processing.action', 'ascad'])
 
 # Optional configuration, see the application user guide.
 app.conf.update(

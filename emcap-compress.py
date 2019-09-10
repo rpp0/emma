@@ -9,11 +9,11 @@ After release of GNU Radio 3.8, the compress_dataset function can be directly ap
 import argparse
 import os
 import pickle
-import emio
-import ops
-from emutils import EMMAException, conf_delete_action
-from emresult import EMResult
-from action import Action
+from emma.io import emio
+from emma.processing import ops
+from emma.utils.utils import EMMAException, conf_delete_action
+from emma.io.emresult import EMResult
+from emma.processing.action import Action
 
 
 def compress_trace_set(trace_set_path):

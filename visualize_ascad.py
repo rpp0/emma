@@ -1,10 +1,9 @@
 #!/usr/bin/python
-from ASCAD_train_models import load_ascad
+from ascad.ASCAD_train_models import load_ascad
 import matplotlib.pyplot as plt
 import argparse
 import numpy as np
 import code
-from lut import sbox
 
 
 def plot_signal(signal):

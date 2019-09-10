@@ -5,9 +5,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from debug import DEBUG
+from emma.utils.debug import DEBUG
 from scipy import signal
-from sklearn.decomposition import PCA
 
 
 def normalize(trace):

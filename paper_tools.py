@@ -3,16 +3,15 @@
 import argparse
 import os
 import pickle
-import ai
+from emma.ai import models
 import subprocess
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-from argparse import Namespace
-from leakagemodels import LeakageModelType
-from aiinputs import AIInputType
-from action import Action
+from emma.attacks.leakagemodels import LeakageModelType
+from emma.ai.inputs import AIInputType
+from emma.processing.action import Action
 
 
 def download_files(remote_file_paths, destination):
@@ -214,7 +213,7 @@ class FigureGenerator():
                         actions.append(action)
                 tfold_blob["conf"].actions = actions
 
-                model = ai.AI(model_type=self.model_id, conf=tfold_blob["conf"])
+                model = models.AI(model_type=self.model_id, conf=tfold_blob["conf"])
                 model.load()
                 self.generate_model_graphs(model.model)
             else:

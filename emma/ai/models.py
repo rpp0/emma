@@ -5,22 +5,20 @@ import keras
 import pickle
 import time
 import os
-import io
+from emma import io
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import traceset
-import emutils
-import rank
-import visualizations
-import lossfunctions
-from keras.models import Sequential, Model
-from keras.layers import Dense, Dropout, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU, PReLU
+from emma.io import traceset
+from emma.utils import utils, visualizations
+from emma.ai import lossfunctions, rankcallbacks
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Input, Conv1D, Reshape, MaxPool1D, Flatten, LeakyReLU, PReLU
 from keras.layers.normalization import BatchNormalization
 from keras.models import load_model
 from keras.callbacks import TensorBoard, History
 from keras.applications.vgg16 import VGG16
 from keras import regularizers
-from leakagemodels import LeakageModel
+from emma.attacks.leakagemodels import LeakageModel
 
 K.set_epsilon(1e-15)
 
@@ -72,7 +70,7 @@ class AI:
         self.id = str(int(time.time()))
 
         # Get path
-        models_dir = os.path.join(os.getcwd(), 'models', emutils.conf_to_id(conf))
+        models_dir = os.path.join(os.getcwd(), 'models', utils.conf_to_id(conf))
         self.models_dir = os.path.abspath(models_dir)
         if not os.path.isdir(self.models_dir):  # TODO only do this when saving. (don't forget callbacks)
             os.makedirs(self.models_dir, exist_ok=True)
@@ -197,9 +195,9 @@ class AI:
                 keys = np.array([trace.key for trace in validation_traces_subset])
                 plaintexts = np.array([trace.plaintext for trace in validation_traces_subset])
                 fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
-                fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
+                fake_ts.window = utils.Window(begin=0, end=encodings.shape[1])
                 fake_ts.windowed = True
-                r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf)
+                r, c = rankcallbacks.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf)
                 ranks[i][j] = r
                 confidences[i][j] = c
                 print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
@@ -241,9 +239,9 @@ class AI:
             keys = np.array([trace.key for trace in validation_traces_subset])
             plaintexts = np.array([trace.plaintext for trace in validation_traces_subset])
             fake_ts = traceset.TraceSet(traces=encodings, plaintexts=plaintexts, keys=keys, name="fake_ts")
-            fake_ts.window = emutils.Window(begin=0, end=encodings.shape[1])
+            fake_ts.window = utils.Window(begin=0, end=encodings.shape[1])
             fake_ts.windowed = True
-            r, c = rank.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf)
+            r, c = rankcallbacks.calculate_traceset_rank(fake_ts, 2, keys[0][2], conf)
             ranks[j] = r
             confidences[j] = c
             print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
@@ -582,7 +580,7 @@ class AICorrNet(AI):
                 self.model.add(BatchNormalization(momentum=0.1))
             self.model.add(str_to_activation(self.activation))
         else:
-            from ASCAD_train_models import cnn_best_nosoftmax
+            from ascad.ASCAD_train_models import cnn_best_nosoftmax
             self.model = cnn_best_nosoftmax(input_shape=(input_dim, 1), classes=conf.key_high - conf.key_low)
 
         # Compile model
@@ -592,7 +590,7 @@ class AICorrNet(AI):
         self.callbacks['tensorboard'] = CustomTensorboard(log_dir='/tmp/keras/' + self.name + '-' + self.id, freq=self.metric_freq)
 
         if not conf.norank:
-            self.callbacks['rank'] = rank.CorrRankCallback(conf, '/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
+            self.callbacks['rank'] = rankcallbacks.CorrRankCallback(conf, '/tmp/keras/' + self.name + '-' + self.id + '/rank/', save_best=True, save_path=self.model_path)
 
     def train_set(self, x, y, save=False, epochs=1, extra_callbacks=[]):
         """
@@ -734,7 +732,7 @@ class AISHACC(AI):
 class AIASCAD(AI):
     def __init__(self, conf, input_shape, name="aiascad"):
         super(AIASCAD, self).__init__(conf, name)
-        from ASCAD_train_models import cnn_best
+        from ascad.ASCAD_train_models import cnn_best
 
         self.model = cnn_best(input_shape=input_shape)
 

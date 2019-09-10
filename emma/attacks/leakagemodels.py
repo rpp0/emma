@@ -5,8 +5,8 @@
 
 import numpy as np
 import struct
-from emutils import EMMAException, int_to_one_hot
-from lut import hw, sbox, hw32
+from emma.utils.utils import EMMAException, int_to_one_hot
+from emma.attacks.lut import hw, sbox, hw32
 
 
 class LeakageModelType:

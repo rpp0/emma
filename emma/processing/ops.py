@@ -7,33 +7,25 @@ import os
 import matplotlib
 if not 'DISPLAY' in os.environ:  # Do not attempt to show plot windows when headless
     matplotlib.use('Agg')
-import numpy as np
-import sys
-import matplotlib.pyplot as plt
-import emio
+import emma.io.io as emio
 import pickle
 import configparser
-import aiiterators
-import ai
-import traceset
-import rank
-import saliency
-import registry
-from emma_worker import app, broker
-from dsp import *
-from correlationlist import CorrelationList
-from distancelist import DistanceList
-from os.path import join, basename
-from emutils import Window, conf_to_id, conf_has_op, EMMAException
-from celery.utils.log import get_task_logger
-from lut import hw, sbox
-from emresult import EMResult, SalvisResult
-from registry import op
-from leakagemodels import LeakageModel
-from aiinputs import AIInput
+from emma.ai import models, iterators, rankcallbacks, saliency
+from emma.io import traceset
+from emma.utils import registry
+from emma_worker import app
+from emma.processing.dsp import *
+from emma.metrics.correlationlist import CorrelationList
+from emma.metrics.distancelist import DistanceList
+from os.path import join
+from emma.utils.utils import Window, conf_to_id, conf_has_op
+from emma.attacks.lut import hw
+from emma.io.emresult import EMResult, SalvisResult
+from emma.utils.registry import op
+from emma.ai.inputs import AIInput
 from sklearn.decomposition import PCA
 from collections import defaultdict
-from attacks import *
+from emma.attacks import *
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -609,7 +601,7 @@ def memtrain_trace_set(trace_set, result, conf=None, params=None):
     if trace_set.windowed:
         if result.ai is None:
             logger.debug("Initializing Keras")
-            result.ai = ai.AIMemCopyDirect(input_dim=len(trace_set.traces[0].signal), hamming=conf.hamming)
+            result.ai = models.AIMemCopyDirect(input_dim=len(trace_set.traces[0].signal), hamming=conf.hamming)
 
         signals = np.array([trace.signal for trace in trace_set.traces])
         values = np.array([hw[trace.plaintext[0]] for trace in trace_set.traces])
@@ -704,7 +696,7 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
             model_type = str(params[0])
 
         if result.ai is None:
-            result.ai = ai.AI(conf, model_type)
+            result.ai = models.AI(conf, model_type)
             result.ai.load()
 
         # Fetch inputs from trace_set
@@ -737,7 +729,7 @@ def classify_trace_set(trace_set, result, conf=None, params=None):
             predicted_value = np.argmax(trace.signal)  # Get argmax of prediction from corrtest (previous step)
             result.labels.append(true_value)
             result.predictions.append(predicted_value)
-            logprobs = ai.softmax_np(np.array(trace.signal))
+            logprobs = models.softmax_np(np.array(trace.signal))
             result.logprobs.append(list(logprobs))
     else:
         logger.error("The trace set must be windowed before classification can take place because a fixed-size input tensor is required by Tensorflow.")
@@ -748,7 +740,7 @@ def shacputest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("shacputest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result.ai is None:
-            result.ai = ai.AI(conf, "aishacpu")
+            result.ai = models.AI(conf, "aishacpu")
             result.ai.load()
 
         for trace in trace_set.traces:
@@ -764,7 +756,7 @@ def shacctest_trace_set(trace_set, result, conf=None, params=None):
     logger.info("shacctest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result.ai is None:
-            result.ai = ai.AI(conf, "aishacc")
+            result.ai = models.AI(conf, "aishacc")
             result.ai.load()
 
         for trace in trace_set.traces:
@@ -988,7 +980,7 @@ def basetest(self, trace_set_paths, conf, rank_trace_step=1000, t=10):
                 subset.set_traces(validation_traces[0:(j+1)*rank_trace_step])
                 subset.window = Window(begin=0, end=len(subset.traces[0].signal))
                 subset.windowed = True
-                r, c = rank.calculate_traceset_rank(subset, 2, subset.traces[0].key[2], conf)
+                r, c = rankcallbacks.calculate_traceset_rank(subset, 2, subset.traces[0].key[2], conf)
                 ranks[i][j] = r
                 confidences[i][j] = c
                 print("Rank is %d with confidence %f (%d traces)" % (r, c, (j+1)*rank_trace_step))
@@ -1023,7 +1015,7 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     model_type = get_conf_model_type(conf)  # TODO: Refactor 'name' to 'model_type' everywhere and let user specify modeltype in [] params of "train" activity
 
     # Select training iterator (gathers data, performs augmentation and preprocessing)
-    training_iterator, validation_iterator = aiiterators.get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
+    training_iterator, validation_iterator = iterators.get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, hamming=conf.hamming, subtype=subtype, request_id=self.request.id)
 
     print("Getting shape of data...")
     x, _ = training_iterator.next()
@@ -1033,19 +1025,19 @@ def aitrain(self, training_trace_set_paths, validation_trace_set_paths, conf):
     # Select model
     model = None
     if conf.update or conf.testrank:  # Load existing model to update or test
-        model = ai.AI(conf, model_type)
+        model = models.AI(conf, model_type)
         model.load()
     else:  # Create new model
         if model_type == 'aicorrnet':
-            model = ai.AICorrNet(conf, input_dim=input_shape[0])
+            model = models.AICorrNet(conf, input_dim=input_shape[0])
         elif model_type == 'aishacpu':
-            model = ai.AISHACPU(conf, input_shape=input_shape, subtype=subtype)
+            model = models.AISHACPU(conf, input_shape=input_shape, subtype=subtype)
         elif model_type == 'aishacc':
-            model = ai.AISHACC(conf, input_shape=input_shape)
+            model = models.AISHACC(conf, input_shape=input_shape)
         elif model_type == 'aiascad':
-            model = ai.AIASCAD(conf, input_shape=input_shape)
+            model = models.AIASCAD(conf, input_shape=input_shape)
         elif model_type == 'autoenc':
-            model = ai.AutoEncoder(conf, input_dim=input_shape[0])
+            model = models.AutoEncoder(conf, input_dim=input_shape[0])
         else:
             raise EMMAException("Unknown model type %s" % model_type)
     logger.info(model.info())
@@ -1069,12 +1061,12 @@ def salvis(self, trace_set_paths, model_type, vis_type, conf):
     :return:
     """
     logger.info("Loading model")
-    model = ai.AI(conf, model_type)
+    model = models.AI(conf, model_type)
     model.load()
 
     logger.info("Resolving traces")
     resolve_paths(trace_set_paths)
-    examples_iterator, _ = aiiterators.get_iterators_for_model(model_type, trace_set_paths, [], conf, hamming=conf.hamming, subtype=None, request_id=self.request.id)
+    examples_iterator, _ = iterators.get_iterators_for_model(model_type, trace_set_paths, [], conf, hamming=conf.hamming, subtype=None, request_id=self.request.id)
 
     logger.info("Retrieving batch of examples")
     trace_set = examples_iterator.get_all_as_trace_set(limit=int(conf.saliency_num_traces/256))
@@ -1125,7 +1117,7 @@ def optimize_capture(self, trace_set_paths, conf):
     pca.fit(signals_to_fit)
     print(pca.explained_variance_ratio_)
 
-    import visualizations
+    from emma.utils import visualizations
     dummy = traceset.TraceSet(name="test")
     traces = [traceset.Trace(signal=x, key=None, plaintext=None, ciphertext=None, mask=None) for x in pca.components_]
     dummy.set_traces(traces)
