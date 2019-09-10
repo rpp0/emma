@@ -22,10 +22,7 @@ from aiinputs import *
 from action import Action
 from keras.utils import to_categorical
 from lut import *
-
-
-class UnitTestSettings:
-    TEST_FAST = os.environ.get('EMMA_FAST_UNITTEST', 'False') == 'True'
+from tests import UnitTestSettings
 
 
 class TestCorrelationList(unittest.TestCase):

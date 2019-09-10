@@ -33,6 +33,7 @@ from leakagemodels import LeakageModel
 from aiinputs import AIInput
 from sklearn.decomposition import PCA
 from collections import defaultdict
+from attacks import *
 
 logger = get_task_logger(__name__)  # Logger
 
@@ -426,41 +427,19 @@ def save_trace_set(trace_set, result, conf, params=None):
 @op('attack')
 def attack_trace_set(trace_set, result, conf=None, params=None):
     """
-    Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
+    Perform CPA attack on a trace set using correlation as a metric. Assumes the traces in trace_set are real signals.
     """
     logger.info("attack %s" % (str(params) if not params is None else ""))
 
-    if not trace_set.windowed:
-        logger.warning("Trace set not windowed. Skipping attack.")
-        return
+    # Init on first call. Use correlations as the score.
+    if result.guess_sample_score_matrix is None:
+        result.guess_sample_score_matrix = CorrelationList([256, trace_set.window.size])
 
-    if trace_set.num_traces <= 0:
-        logger.warning("Skipping empty trace set.")
-        return
+    # Do attack
+    cpa_attack_trace_set(trace_set, result, conf)
 
-    # Init if first time
-    if result.correlations is None:
-        result.correlations = CorrelationList([256, trace_set.window.size])
-
-    hypotheses = np.empty([256, trace_set.num_traces])
-
-    # 1. Build hypotheses for all 256 possibilities of the key and all traces
-    leakage_model = LeakageModel(conf)
-    for subkey_guess in range(0, 256):
-        for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], subkey_start_index=conf.subkey, key_hypothesis=subkey_guess)
-
-    # 2. Given point j of trace i, calculate the correlation between all hypotheses
-    for j in range(0, trace_set.window.size):
-        # Get measurements (columns) from all traces
-        measurements = np.empty(trace_set.num_traces)
-        for i in range(0, trace_set.num_traces):
-            measurements[i] = trace_set.traces[i].signal[j]
-
-        # Correlate measurements with 256 hypotheses
-        for subkey_guess in range(0, 256):
-            # Update correlation
-            result.correlations.update((subkey_guess, j), hypotheses[subkey_guess, :], measurements)
+    # Store correlation scores in result.correlations
+    result.correlations = result.guess_sample_score_matrix
 
 
 @op('groupkeys')
@@ -499,45 +478,22 @@ def groupkeys_trace_set(trace_set, result, conf=None, params=None):
         result.means[key].append(np.mean(all_traces, axis=0))
 
 
-# TODO: Duplicate code, fix me
 @op('dattack')
-def dattack_trace_set(trace_set, result, conf=None, params=None):
+def attack_trace_set_distance(trace_set, result, conf=None, params=None):
     """
-    Perform CPA attack on a trace set. Assumes the traces in trace_set are real time domain signals.
+    Perform CPA attack on a trace set using distance as a metric. Assumes the traces in trace_set are real time domain signals.
     """
     logger.info("dattack %s" % (str(params) if not params is None else ""))
 
-    # Init if first time
-    if result.distances is None:
-        result.distances = DistanceList([256, trace_set.window.size])
+    # Init on first call. Use distances as the score.
+    if result.guess_sample_score_matrix is None:
+        result.guess_sample_score_matrix = DistanceList([256, trace_set.window.size])
 
-    if not trace_set.windowed:
-        logger.warning("Trace set not windowed. Skipping attack.")
-        return
+    # Do attack
+    cpa_attack_trace_set(trace_set, result, conf)
 
-    if trace_set.num_traces <= 0:
-        logger.warning("Skipping empty trace set.")
-        return
-
-    hypotheses = np.empty([256, trace_set.num_traces])
-
-    # 1. Build hypotheses for all 256 possibilities of the key and all traces
-    leakage_model = LeakageModel(conf)
-    for subkey_guess in range(0, 256):
-        for i in range(0, trace_set.num_traces):
-            hypotheses[subkey_guess, i] = leakage_model.get_trace_leakages(trace=trace_set.traces[i], subkey_start_index=conf.subkey, key_hypothesis=subkey_guess)
-
-    # 2. Given point j of trace i, calculate the distance between all hypotheses
-    for j in range(0, trace_set.window.size):
-        # Get measurements (columns) from all traces
-        measurements = np.empty(trace_set.num_traces)
-        for i in range(0, trace_set.num_traces):
-            measurements[i] = trace_set.traces[i].signal[j]
-
-        # Correlate measurements with 256 hypotheses
-        for subkey_guess in range(0, 256):
-            # Update distamces
-            result.distances.update((subkey_guess, j), hypotheses[subkey_guess, :], measurements)
+    # Store distance scores in result.correlations
+    result.distances = result.guess_sample_score_matrix
 
 
 @op('spattack')

@@ -106,7 +106,7 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
     def get_trace_leakages(self, trace, subkey_start_index, key_hypothesis=None):
         raise NotImplementedError
 
-    def get_trace_set_leakages(self, trace_set):
+    def get_trace_set_leakages(self, trace_set, key_hypothesis=None):
         """
         Return numpy array containing the leakage model for [trace_index, key_byte_index]
         :param trace_set:
@@ -116,7 +116,7 @@ class LeakageModel(object, metaclass=LeakageModelMeta):
 
         for i in range(len(trace_set.traces)):
             for j in range(self.num_outputs[0]):  # num_subkeys
-                values[i, j] = self.get_trace_leakages(trace_set.traces[i], j + self.conf.key_low)
+                values[i, j] = self.get_trace_leakages(trace_set.traces[i], j + self.conf.key_low, key_hypothesis=key_hypothesis)
 
         return values.reshape((len(trace_set.traces), -1))
 
