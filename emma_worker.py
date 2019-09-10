@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # ----------------------------------------------------
 # Electromagnetic Mining Array (EMMA)
 # Worker node using Celery
