@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import argparse
-from emma.io import emio
+import emma.io.io as emio
 import numpy as np
 import matplotlib.pyplot as plt
 from emma.utils.utils import numpy_to_hex

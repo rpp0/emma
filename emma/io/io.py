@@ -70,26 +70,26 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
 
         existing_properties = []
         try:
-            traces = np.load(trace_set_path, encoding="bytes")
+            traces = np.load(trace_set_path, encoding="bytes", allow_pickle=True)
             existing_properties.append(traces)
         except FileNotFoundError:
             traces = None
 
         try:
-            plaintexts = np.load(plaintext_set_path, encoding="bytes")
+            plaintexts = np.load(plaintext_set_path, encoding="bytes", allow_pickle=True)
             existing_properties.append(plaintexts)
         except FileNotFoundError:
             print("WARNING: No plaintext for trace %s" % name)
             plaintexts = None
 
         try:
-            ciphertexts = np.load(ciphertext_set_path, encoding="bytes")
+            ciphertexts = np.load(ciphertext_set_path, encoding="bytes", allow_pickle=True)
             existing_properties.append(ciphertexts)
         except FileNotFoundError:
             ciphertexts = None
 
         try:
-            keys = np.load(key_set_path, encoding="bytes")
+            keys = np.load(key_set_path, encoding="bytes", allow_pickle=True)
             existing_properties.append(keys)
         except FileNotFoundError:
             keys = np.array([[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]]*traces.shape[0])
