@@ -31,7 +31,6 @@ def align_trace_set(trace_set, result, conf, params=None):
     Align a set of traces based on a single reference trace using cross-correlation.
     If a trace is empty, it is discarded.
     """
-    logger.info("align %s" % (str(params) if not params is None else ""))
     prefilter = False
     if params is None:  # If no parameters provided, assume percent% max offset
         percent = 0.30
@@ -65,8 +64,6 @@ def align_trace_set(trace_set, result, conf, params=None):
 
 @op('trigger_align', optargs=['threshold', 'count'])
 def trigger_align_trace_set(trace_set, result, conf, params=None):
-    logger.info("trigger_align %s" % (str(params) if not params is None else ""))
-
     for trace in trace_set.traces:
         s = trace.signal
 
@@ -94,8 +91,6 @@ def trigger_align_trace_set(trace_set, result, conf, params=None):
 
 @op('invert')
 def invert_trace_set(trace_set, result, conf, params=None):
-    logger.info("invert %s" % (str(params) if not params is None else ""))
-
     for trace in trace_set.traces:
         trace.signal = -trace.signal
 
@@ -108,7 +103,6 @@ def filterkey_trace_set(trace_set, result, conf, params=None):
     """
     Filter traces by key prefix
     """
-    logger.info("filterkey %s" % (str(params) if not params is None else ""))
     if params is None:
         logger.warning("No argument specified for filterkey. Skipping op.")
         return
@@ -132,8 +126,6 @@ def filterkey_trace_set(trace_set, result, conf, params=None):
 
 @op('ifreq')
 def ifreq_trace_set(trace_set, result, conf, params=None):
-    logger.info("ifreq %s" % (str(params) if not params is None else ""))
-
     for trace in trace_set.traces:
         trace.signal = ifreq(trace.signal)
 
@@ -146,7 +138,6 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
     """
     Calculate the spectogram of the trace set.
     """
-    logger.info("spec %s" % (str(params) if not params is None else ""))
     if not trace_set.windowed:
         logger.warning("Taking the FFT of non-windowed traces will result in variable FFT sizes.")
 
@@ -160,7 +151,6 @@ def spectogram_trace_set(trace_set, result, conf, params=None):
 
 
 def tspectogram_trace_set(trace_set, result, conf, params=None):
-    logger.info("tspec %s" % (str(params) if not params is None else ""))
     if not trace_set.windowed:
         raise EMMAException("Trace set should be windowed")
 
@@ -195,7 +185,6 @@ def detect_peaks(signal, spread, num_peaks=8):
 
 @op('sync')
 def sync_trace_set(trace_set, result, conf, params=None):
-    logger.info("sync %s" % (str(params) if params is not None else ""))
     nops_per_sample = 600
     nops_per_pulse = 5000000
     samples_per_pulse = nops_per_pulse / nops_per_sample
@@ -211,7 +200,6 @@ def sync_trace_set(trace_set, result, conf, params=None):
 
 @op('autocorr')
 def autocorr_trace_set(trace_set, result, conf, params=None):
-    logger.info("autocorr %s" % (str(params) if params is not None else ""))
     for trace in trace_set.traces:
         correlation = np.correlate(trace.signal, trace.signal, mode='full')
         trace.signal = correlation[int(len(correlation)/2):]
@@ -222,8 +210,6 @@ def magnitude_trace_set(trace_set, result, conf, params=None):
     """
     Calculate the magnitude of the signals in trace_set
     """
-    logger.info("abs %s" % (str(params) if not params is None else ""))
-
     for trace in trace_set.traces:
         trace.signal = np.abs(trace.signal)
 
@@ -236,15 +222,12 @@ def normalize_trace_set(trace_set, result, conf, params=None):
     """
     Normalize the signals (amplitudes) in a trace set.
     """
-    logger.info("norm %s" % (str(params) if not params is None else ""))
-
     for trace in trace_set.traces:
         trace.signal = trace.signal - np.mean(trace.signal)
 
 
 @op('fft')
 def fft_trace_set(trace_set, result, conf, params=None):
-    logger.info("fft %s" % (str(params) if not params is None else ""))
     if not trace_set.windowed:
         logger.warning("Taking the FFT of non-windowed traces will result in variable FFT sizes.")
 
@@ -260,7 +243,6 @@ def random_window_trace_set(trace_set, result, conf, params=None):
     """
     Like window, but with a random begin offset. Used to artificially increase training set.
     """
-    # logger.info("rwindow %s" % (str(params) if not params is None else ""))
     if params is None:
         logger.error("3 params must be provided to rwindow (begin, end, offset)")
         exit(1)
@@ -293,7 +275,6 @@ def window_trace_set(trace_set, result, conf, params=None):
 
     Params: (window start, window end)
     """
-    logger.info("window %s" % (str(params) if not params is None else ""))
     windowing_method = conf.windowing_method  # Default windowing
     if params is None:  # If no parameters provided, window according to reference signal
         window = Window(begin=0, end=len(conf.reference_signal))
@@ -330,8 +311,6 @@ def filter_trace_set(trace_set, result, conf, params=None):
     """
     Apply a Butterworth filter to the traces.
     """
-    logger.info("filter %s" % (str(params) if params is not None else ""))
-
     butter_type = conf.butter_type
     butter_fs = conf.butter_fs
     butter_order = conf.butter_order
@@ -365,7 +344,6 @@ def rmoutliers_trace_set(trace_set, result, conf, params=None):
     """
     Remove outliers in terms of amplitude.
     """
-    logger.info("rmoutliers %s" % (str(params) if not params is None else ""))
     reference_mean = np.mean(conf.reference_signal)
     threshold = 0.001
 
@@ -381,7 +359,6 @@ def rmoutliers_trace_set(trace_set, result, conf, params=None):
 
 @op('roll')
 def roll_trace_set(trace_set, result, conf, params=None):
-    logger.info("roll %s" % (str(params) if not params is None else ""))
     if params is None:  # If no parameters provided, window according to reference signal
         roll_window = Window(begin=0, end=len(conf.reference_signal))
     else:
@@ -396,8 +373,6 @@ def save_trace_set(trace_set, result, conf, params=None):
     """
     Save the trace set to a file using the output format specified in the conf object.
     """
-    logger.info("save %s" % (str(params) if not params is None else ""))
-
     output_path = os.path.join(conf.datasets_path, conf.dataset_id + "-pre")
 
     logger.info("Saving trace set %s to: %s" % (trace_set.name, output_path))
@@ -416,8 +391,6 @@ def attack_trace_set(trace_set, result, conf=None, params=None):
     """
     Perform CPA attack on a trace set using correlation as a metric. Assumes the traces in trace_set are real signals.
     """
-    logger.info("attack %s" % (str(params) if not params is None else ""))
-
     # Init on first call. Use correlations as the score.
     if result.guess_sample_score_matrix is None:
         result.guess_sample_score_matrix = CorrelationList([256, trace_set.window.size])
@@ -439,8 +412,6 @@ def groupkeys_trace_set(trace_set, result, conf=None, params=None):
     :param params: 
     :return: 
     """
-    logger.info("groupkeys %s" % (str(params) if not params is None else ""))
-
     if not trace_set.windowed:
         logger.warning("Trace set not windowed. Skipping groupkeys.")
         return
@@ -470,8 +441,6 @@ def attack_trace_set_distance(trace_set, result, conf=None, params=None):
     """
     Perform CPA attack on a trace set using distance as a metric. Assumes the traces in trace_set are real time domain signals.
     """
-    logger.info("dattack %s" % (str(params) if not params is None else ""))
-
     # Init on first call. Use distances as the score.
     if result.guess_sample_score_matrix is None:
         result.guess_sample_score_matrix = DistanceList([256, trace_set.window.size])
@@ -485,8 +454,6 @@ def attack_trace_set_distance(trace_set, result, conf=None, params=None):
 
 @op('spattack')
 def spattack_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("spattack %s" % (str(params) if not params is None else ""))
-
     num_keys = conf.key_high - conf.key_low
     num_outputs_per_key = LeakageModel.get_num_outputs(conf) // num_keys
 
@@ -527,8 +494,6 @@ def spattack_trace_set(trace_set, result, conf=None, params=None):
 # TODO: Write unit test
 @op('pattack')
 def pattack_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("pattack %s" % (str(params) if not params is None else ""))
-
     num_keys = conf.key_high - conf.key_low
     num_outputs_per_key = LeakageModel.get_num_outputs(conf) // num_keys
 
@@ -573,7 +538,6 @@ def pattack_trace_set(trace_set, result, conf=None, params=None):
 
 @op('memattack')
 def memattack_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("memattack %s" % (str(params) if not params is None else ""))
     if result.correlations is None:
         result.correlations = CorrelationList([16, 256, trace_set.window.size])
 
@@ -611,7 +575,6 @@ def weight_trace_set(trace_set, result, conf=None, params=None):
     """
     Multiply trace signal element-wise with weights stored in a file.
     """
-    logger.info("weight %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if params is None:
             filename = "weights.p"
@@ -633,7 +596,6 @@ def select_trace_set(trace_set, result, conf=None, params=None):
     """
     Select elements from traces based on provided indices.
     """
-    logger.info("select %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if params is None:
             filename = "selection.p"
@@ -652,7 +614,6 @@ def select_trace_set(trace_set, result, conf=None, params=None):
 
 @op('sum')
 def sum_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("sum %s" % (str(params) if not params is None else ""))
     for trace in trace_set.traces:
         trace.signal = np.array([np.sum(trace.signal)])
 
@@ -662,8 +623,6 @@ def sum_trace_set(trace_set, result, conf=None, params=None):
 
 @op('pca')
 def pca_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("pca %s" % (str(params) if not params is None else ""))
-
     if result.pca is None:
         if params is None:
             params = ['manifest.emcap']
@@ -682,7 +641,6 @@ def pca_trace_set(trace_set, result, conf=None, params=None):
 
 @op('corrtest', id_override="")
 def corrtest_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("corrtest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         # Get params
         if params is None:
@@ -714,8 +672,6 @@ def corrtest_trace_set(trace_set, result, conf=None, params=None):
 
 @op('classify')
 def classify_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("classify %s" % (str(params) if not params is None else ""))
-
     if trace_set.windowed:
         leakage_model = LeakageModel(conf)
 
@@ -732,7 +688,6 @@ def classify_trace_set(trace_set, result, conf=None, params=None):
 
 @op('shacputest')
 def shacputest_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("shacputest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result.ai is None:
             result.ai = models.AI(conf, "aishacpu")
@@ -748,7 +703,6 @@ def shacputest_trace_set(trace_set, result, conf=None, params=None):
 
 @op('shacctest')
 def shacctest_trace_set(trace_set, result, conf=None, params=None):
-    logger.info("shacctest %s" % (str(params) if not params is None else ""))
     if trace_set.windowed:
         if result.ai is None:
             result.ai = models.AI(conf, "aishacc")

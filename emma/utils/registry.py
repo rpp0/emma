@@ -49,9 +49,21 @@ class PluginRegistry:
 def op(name, optargs=None, id_override=None):
     """
     Defines the @op decorator
+    :param name: Name of the operation
+    :param optargs: Optional arguments for the function
+    :param id_override: When training a model, the sequence of ops applied before training is the directory name where the model is stored. Use this to override the name of the op during this operation.
     """
     def decorator(func):
-        operations[name] = func
+        @wraps(func)  # Copy function metadata to wrapper()
+        def wrapper(*args, **kwargs):
+            params = None
+            if 'params' in kwargs:
+                params = kwargs['params']
+
+            logger.info("%s %s" % (name, str(params) if params is not None else ""))
+            return func(*args, **kwargs)
+
+        operations[name] = wrapper
 
         if optargs is not None:
             operations_optargs[name] = optargs
@@ -59,9 +71,6 @@ def op(name, optargs=None, id_override=None):
         if id_override is not None:
             operations_id_overrides[name] = id_override
 
-        @wraps(func)  # Copy function metadata to wrapper()
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
         return wrapper
     return decorator
 
