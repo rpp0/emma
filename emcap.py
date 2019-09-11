@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/env python3
 
 from gnuradio import blocks
 from gnuradio import gr
@@ -30,27 +30,31 @@ logger = logging.getLogger(__name__)
 hilbert3 = lambda x: hilbert(x, fftpack.next_fast_len(len(x)))[:len(x)]
 
 
+def handler(signum, frame):
+    print("Got CTRL+C")
+    exit(0)
+
+
+signal.signal(signal.SIGINT, handler)
+
+
 def reset_usrp():
     print("Resetting USRP")
     p = subprocess.Popen(["/usr/lib/uhd/utils/b2xx_fx3_utils", "--reset-device"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print(p.communicate())
 
 
-def handler(signum, frame):
-    print("Got CTRL+C")
-    exit(0)
-
-signal.signal(signal.SIGINT, handler)
-
 def binary_to_hex(binary):
     result = []
     for elem in binary:
-        result.append("{:0>2}".format(binascii.hexlify(elem)))
+        result.append("%02x" % elem)
     return ' '.join(result)
+
 
 class CtrlPacketType:
     SIGNAL_START = 0
     SIGNAL_END = 1
+
 
 class InformationElementType:
     PLAINTEXT = 0
@@ -157,6 +161,7 @@ class SDR(gr.top_block):
         self.gain = gain
         self.sdr_source.set_gain(self.gain, 0)
 
+
 class TTYWrapper(Thread):
     def __init__(self, port, cb_pkt):
         Thread.__init__(self)
@@ -186,10 +191,12 @@ class TTYWrapper(Thread):
     def run(self):
         self.recv()
 
+
 class CtrlType:
     DOMAIN = 0
     UDP = 1
     SERIAL = 2
+
 
 # EMCap class: wait for signal and start capturing using a SDR
 class EMCap():
@@ -304,9 +311,9 @@ class EMCap():
 
             # Determine what to do with IE
             if ie_type == InformationElementType.PLAINTEXT:
-                self.stored_plaintext = [ord(c) for c in ie]
+                self.stored_plaintext = [byte_value for byte_value in ie]
             elif ie_type == InformationElementType.KEY:
-                self.stored_key = [ord(c) for c in ie]
+                self.stored_key = [byte_value for byte_value in ie]
             else:
                 logger.warning("Unknown IE type: %d" % ie_type)
 
@@ -341,7 +348,7 @@ class EMCap():
         self.preprocessed_keys.append(keys[0])
 
     def save(self, trace_set, plaintexts, keys, ciphertexts=None):
-        filename = str(datetime.utcnow()).replace(" ", "_").replace(".", "_")
+        filename = str(datetime.utcnow()).replace(" ", "_").replace(".", "_").replace(":", "-")
         output_dir = self.kwargs['output_dir']
 
         if self.kwargs['preprocess']:
@@ -420,6 +427,8 @@ class EMCap():
                             #    test_sigmf.dump(f, pretty=True)
                             # elif chipwhisperer:
                             self.save(np_trace_set, np_plaintexts, np_keys)
+                        else:
+                            print("Dry run! Not saving.")
 
                         self.limit_counter += len(self.trace_set)
                         if self.limit_counter >= self.limit:
@@ -456,14 +465,13 @@ def main():
     parser.add_argument('--gain', type=float, default=50, help='RX gain')
     parser.add_argument('--traces-per-set', type=int, default=256, help='Number of traces per set')
     parser.add_argument('--limit', type=int, default=256*400, help='Limit number of traces')
-    parser.add_argument('--output-dir', dest="output_dir", type=str, default="/run/media/pieter/ext-drive/em-experiments", help='Output directory to store samples')
+    parser.add_argument('--output-dir', dest="output_dir", type=str, default="/tmp/", help='Output directory to store samples')
     parser.add_argument('--online', type=str, default=None, help='Stream samples to remote EMMA instance at <IP address> for online processing.')
     parser.add_argument('--dry', default=False, action='store_true', help='Do not save to disk.')
     parser.add_argument('--ds-mode', default=False, action='store_true', help='Direct sampling mode.')
     parser.add_argument('--agc', default=False, action='store_true', help='Automatic Gain Control.')
-    # parser.add_argument('--manifest', type=str, default=None, help='Capture manifest to use.')  # We now use --compress because no Tensorflow support in Python 2 and no GNU Radio support in Python 3.
     parser.add_argument('--compress', default=False, action='store_true', help='Compress using emcap-compress.')
-    parser.add_argument('--preprocess', default=False, action='store_true', help='Preprocess before storing')
+    parser.add_argument('--preprocess', default=False, action='store_true', help='Preprocess before storing')  # TODO integrate into emcap.py
     args, unknown = parser.parse_known_args()
 
     ctrl_type = None
