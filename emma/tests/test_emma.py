@@ -1,9 +1,4 @@
 #!/usr/bin/python3
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2017, Pieter Robyns
-# Test suites
-# ----------------------------------------------------
 
 import unittest
 from emma.processing import ops

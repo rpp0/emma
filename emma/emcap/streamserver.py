@@ -1,8 +1,3 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2018, Pieter Robyns
-# ----------------------------------------------------
-
 import configparser
 import socket
 import struct
@@ -14,6 +9,7 @@ from emma.utils.utils import get_ip_address
 from celery.utils.log import get_task_logger
 
 logger = get_task_logger(__name__)
+
 
 class StreamServer():
     def __init__(self, conf):

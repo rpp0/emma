@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Worker node using Celery
-# Copyright 2017, Pieter Robyns
-# ----------------------------------------------------
+
+"""
+Spawns Celery worker nodes for performing distributed operations on a set of traces.
+"""
 
 from __future__ import absolute_import
 from celery import Celery

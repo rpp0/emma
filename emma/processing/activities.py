@@ -1,8 +1,3 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2018, Pieter Robyns
-# ----------------------------------------------------
-
 import time
 from emma.utils import utils, visualizations
 from emma.processing import ops

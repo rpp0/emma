@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2017, Pieter Robyns
-# ----------------------------------------------------
+
+"""
+Main script for performing EM side-channel analysis. Sends processing tasks (ops) to the broker in order to complete
+a given activity.
+"""
 
 from emma_worker import app
 from celery.utils.log import get_task_logger

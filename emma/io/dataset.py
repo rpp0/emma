@@ -1,8 +1,3 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2018, Pieter Robyns
-# ----------------------------------------------------
-
 import configparser
 import emma.io.io
 from os import listdir

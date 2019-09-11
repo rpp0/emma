@@ -1,4 +1,5 @@
 #!/usr/bin/python
+
 from ascad.ASCAD_train_models import load_ascad
 import matplotlib.pyplot as plt
 import argparse

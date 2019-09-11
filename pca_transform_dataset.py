@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""
+Script to perform PCA on a given dataset.
+"""
+
 import os.path
 import numpy as np
 import argparse

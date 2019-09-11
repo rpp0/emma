@@ -1,8 +1,3 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2017-2018, Pieter Robyns
-# ----------------------------------------------------
-
 import numpy as np
 import socket
 import fcntl

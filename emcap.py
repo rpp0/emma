@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+"""
+Tool for automated capturing of EM traces. EMcap can send commands to the target device for starting and stopping
+operations using a simple communication protocol over either a serial connection or over TCP.
+"""
+
 import numpy as np
 import sys
 import socket

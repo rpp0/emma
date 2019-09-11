@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2018, Pieter Robyns
-# ----------------------------------------------------
+
+"""
+Experimental implementation of an EM leakage simulator for arbitrary binaries using GDMI.
+"""
 
 import argparse
 import numpy as np

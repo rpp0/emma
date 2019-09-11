@@ -1,10 +1,6 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2018, Pieter Robyns
-#
-# AI Iterators: classes that prepare the inputs and
-# labels for the models in models.py.
-# ----------------------------------------------------
+"""
+AI Iterators: classes that prepare the inputs and labels for the models in models.py.
+"""
 
 from emma.io.emresult import EMResult
 from emma.emcap.streamserver import StreamServer

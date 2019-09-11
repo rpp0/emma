@@ -1,8 +1,3 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2017, Pieter Robyns
-# ----------------------------------------------------
-
 import os
 import matplotlib
 if not 'DISPLAY' in os.environ:  # Do not attempt to show plot windows when headless

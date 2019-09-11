@@ -1,5 +1,8 @@
 #!/usr/bin/python3
-# get_dataset_statistics.py
+
+"""
+Script to get mean and standard deviation of a given dataset.
+"""
 
 import argparse
 from emma.io.io import get_trace_set, get_dataset

@@ -73,3 +73,12 @@ See `emma.py -h` for a full list of available commands.
 ## EMcap
 
 EMcap is a tool that allows for convenient capturing and storage of EM trace datasets using Software Defined Radios (SDRs).
+
+See `emcap.py -h` for a full list of available commands.
+
+
+## Citing
+
+If this project was helpful to you and you wish to credit the project, you could list the following citation in your work:
+
+Robyns, P., Quax, P. and Lamotte, W. 2018. Improving CEMA using Correlation Optimization. IACR Transactions on Cryptographic Hardware and Embedded Systems. 2019, 1 (Nov. 2018), 1-24. DOI:https://doi.org/10.13154/tches.v2019.i1.1-24.  

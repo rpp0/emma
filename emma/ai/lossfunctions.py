@@ -1,8 +1,3 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2018, Pieter Robyns
-# ----------------------------------------------------
-
 import keras.backend as K
 import tensorflow as tf
 from emma.utils.registry import lossfunctions, lossfunction

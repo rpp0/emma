@@ -1,12 +1,6 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Module to provide shared memory storage between
-# worker nodes
-# Copyright 2017, Pieter Robyns
-# ----------------------------------------------------
-
 import redis
 import redis_lock
+
 
 class MemStore():
     def __init__(self, redis_url):

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+
 """
 This program compresses datasets captured with emcap using either PCA or an autoencoder. It looks for a manifest.emcap
 inside the dataset directory and applies the compression to the trace set given as argument. The program is called from
@@ -9,7 +10,7 @@ After release of GNU Radio 3.8, the compress_dataset function can be directly ap
 import argparse
 import os
 import pickle
-from emma.io import emio
+import emma.io.io as emio
 from emma.processing import ops
 from emma.utils.utils import EMMAException, conf_delete_action
 from emma.io.emresult import EMResult

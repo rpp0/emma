@@ -1,5 +1,9 @@
 #!/usr/bin/python
 
+"""
+Script used to generate several plots from the paper "Improving CEMA using Correlation Optimization".
+"""
+
 import argparse
 import os
 import pickle

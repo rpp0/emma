@@ -1,8 +1,3 @@
-# ----------------------------------------------------
-# Electromagnetic Mining Array (EMMA)
-# Copyright 2017, Pieter Robyns
-# ----------------------------------------------------
-
 import numpy as np
 import matplotlib.pyplot as plt
 from emma.utils.debug import DEBUG
