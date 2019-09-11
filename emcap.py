@@ -200,26 +200,32 @@ class CtrlType:
 
 # EMCap class: wait for signal and start capturing using a SDR
 class EMCap():
-    def __init__(self, cap_kwargs={}, kwargs={}, ctrl_socket_type=None):
+    def __init__(self, args):
+        # Determine ctrl socket type
+        self.ctrl_socket_type = None
+        if args.ctrl == 'serial':
+            self.ctrl_socket_type = CtrlType.SERIAL
+        elif args.ctrl == 'udp':
+            self.ctrl_socket_type = CtrlType.UDP
+
         # Set up data socket
         self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3884), self.cb_data)
-        self.online = kwargs['online']
+        self.online = args.online
 
         # Set up sockets
-        self.ctrl_socket_type = ctrl_socket_type
-        if ctrl_socket_type == CtrlType.DOMAIN:
+        if self.ctrl_socket_type == CtrlType.DOMAIN:
             unix_domain_socket = '/tmp/emma.socket'
             self.clear_domain_socket(unix_domain_socket)
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM), unix_domain_socket, self.cb_ctrl)
-        elif ctrl_socket_type == CtrlType.UDP:
+        elif self.ctrl_socket_type == CtrlType.UDP:
             self.ctrl_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM), ('10.0.0.1', 3884), self.cb_ctrl)
-        elif ctrl_socket_type == CtrlType.SERIAL:
+        elif self.ctrl_socket_type == CtrlType.SERIAL:
             self.ctrl_socket = TTYWrapper("/dev/ttyUSB0", self.cb_ctrl)
         else:
             logger.error("Unknown ctrl_socket_type")
             exit(1)
 
-        if not self.online is None:
+        if self.online is not None:
             try:
                 self.emma_client = EMCapOnlineClient()
                 self.emma_client.connect(self.online, 3885)
@@ -227,9 +233,8 @@ class EMCap():
                 print(e)
                 exit(1)
 
-        self.sdr = SDR(**cap_kwargs)
-        self.cap_kwargs = cap_kwargs
-        self.kwargs = kwargs
+        self.sdr_args = {'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain, 'ds_mode': args.ds_mode, 'agc': args.agc}
+        self.sdr = SDR(**self.sdr_args)
         self.store = False
         self.stored_plaintext = []
         self.stored_key = []
@@ -241,9 +246,10 @@ class EMCap():
         self.preprocessed_keys = []
         self.preprocessed_plaintexts = []
         self.limit_counter = 0
-        self.limit = kwargs['limit']
-        #self.manifest = kwargs['manifest']
-        self.compress = kwargs['compress']
+        self.limit = args.limit
+        self.compress = args.compress
+        self.args = args
+
         if self.sdr.hw == 'usrp':
             self.wait_num_chunks = 0
         else:
@@ -349,11 +355,11 @@ class EMCap():
 
     def save(self, trace_set, plaintexts, keys, ciphertexts=None):
         filename = str(datetime.utcnow()).replace(" ", "_").replace(".", "_").replace(":", "-")
-        output_dir = self.kwargs['output_dir']
+        output_dir = self.args.output_dir
 
-        if self.kwargs['preprocess']:
+        if self.args.preprocess:
             self.preprocess(trace_set, plaintexts, keys)
-            if len(self.preprocessed) >= self.kwargs['traces_per_set']:
+            if len(self.preprocessed) >= self.args.traces_per_set:
                 logger.info("Dumping %d preprocessed traces to file" % len(self.preprocessed))
                 np.save(os.path.join(output_dir, "%s_traces.npy" % filename), np.array(self.preprocessed))
                 np.save(os.path.join(output_dir, "%s_textin.npy" % filename), np.array(self.preprocessed_plaintexts))
@@ -388,7 +394,7 @@ class EMCap():
                     self.data_socket.socket.close()
                     self.data_socket = SocketWrapper(socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM), ('127.0.0.1', 3884), self.cb_data)
                     self.data_socket.start()
-                    self.sdr = SDR(**self.cap_kwargs)
+                    self.sdr = SDR(**self.sdr_args)
                     self.process_ctrl_packet(pkt_type, payload)
         elif pkt_type == CtrlPacketType.SIGNAL_END:
             # self.sdr.sdr_source.stop()
@@ -396,8 +402,8 @@ class EMCap():
             self.sdr.wait()
 
             logger.debug("Stopped after receiving %d chunks" % len(self.stored_data))
-            #sleep(0.5)
-            #logger.debug("After sleep we have %d chunks" % len(self.stored_data))
+            # sleep(0.5)
+            # logger.debug("After sleep we have %d chunks" % len(self.stored_data))
 
             # Successful capture (no errors or timeouts)
             if len(self.stored_data) > 0:  # We have more than 1 chunk
@@ -407,7 +413,7 @@ class EMCap():
                 self.plaintexts.append(self.stored_plaintext)
                 self.keys.append(self.stored_key)
 
-                if len(self.trace_set) >= self.kwargs['traces_per_set']:
+                if len(self.trace_set) >= self.args.traces_per_set:
                     assert(len(self.trace_set) == len(self.plaintexts))
                     assert(len(self.trace_set) == len(self.keys))
 
@@ -418,7 +424,7 @@ class EMCap():
                     if self.online is not None:  # Stream online
                         self.emma_client.send(np_trace_set, np_plaintexts, None, np_keys, None)
                     else:  # Save to disk
-                        if not self.kwargs['dry']:
+                        if not self.args.dry:
                             # Write metadata to sigmf file
                             # if sigmf
                             #with open(test_meta_path, 'w') as f:
@@ -474,13 +480,7 @@ def main():
     parser.add_argument('--preprocess', default=False, action='store_true', help='Preprocess before storing')  # TODO integrate into emcap.py
     args, unknown = parser.parse_known_args()
 
-    ctrl_type = None
-    if args.ctrl == 'serial':
-        ctrl_type = CtrlType.SERIAL
-    elif args.ctrl == 'udp':
-        ctrl_type = CtrlType.UDP
-
-    e = EMCap(cap_kwargs={'hw': args.hw, 'samp_rate': args.sample_rate, 'freq': args.frequency, 'gain': args.gain, 'ds_mode': args.ds_mode, 'agc': args.agc}, kwargs=args.__dict__, ctrl_socket_type=ctrl_type)
+    e = EMCap(args)
     e.capture()
 
 
