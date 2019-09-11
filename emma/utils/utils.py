@@ -264,6 +264,18 @@ def random_bytes(n):
     return np.array(bytearray(result))
 
 
+def binary_to_hex(binary: bytearray):
+    """
+    Convert an array of bytes to offset hex string notation.
+    :param binary:
+    :return:
+    """
+    result = []
+    for elem in binary:
+        result.append("%02x" % elem)
+    return ' '.join(result)
+
+
 class Window(object):
     """
     Helper object for specifying a range between begin (inclusive) and end (exclusive).
