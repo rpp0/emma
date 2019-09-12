@@ -103,21 +103,22 @@ class AI:
         visualizations.plt_save_pdf("/tmp/correlations-plot-%s.pdf" % name)
 
     def train_generator(self, training_iterator, validation_iterator, epochs=2000, workers=1, save=True):
-        validation_batch = validation_iterator.next()  # Get one mini-batch from validation set to quickly test validation error
-
         # If we have a RankCallback set, pass our supplied validation set to it
         if 'rank' in self.callbacks:
-            all_validation_trace_set = validation_iterator.get_all_as_trace_set(limit=80)
+            print("Gathering validation traces for rank callback.")
+            all_validation_trace_set = validation_iterator.get_all_as_trace_set()
             self.callbacks['rank'].set_trace_set(all_validation_trace_set)
 
-        steps_per_epoch = int(training_iterator.num_total_examples / training_iterator.batch_size)
+        training_steps_per_epoch = int(training_iterator.num_total_examples / training_iterator.batch_size)
+        validation_steps_per_epoch = int(validation_iterator.num_total_examples / validation_iterator.batch_size)
 
         # Train model
         print("Starting training. Training set: %s" % training_iterator.trace_set_paths)
         self.model.fit_generator(training_iterator,
                                  epochs=epochs,
-                                 steps_per_epoch=steps_per_epoch,
-                                 validation_data=validation_batch,
+                                 steps_per_epoch=training_steps_per_epoch,
+                                 validation_data=validation_iterator,
+                                 validation_steps=validation_steps_per_epoch,
                                  workers=workers,
                                  callbacks=list(self.callbacks.values()) + [SavingHistory(self.base_path)],
                                  verbose=1,
