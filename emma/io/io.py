@@ -47,11 +47,11 @@ def _get_dataset(dataset_id, conf=None):
     datasets_conf.read('datasets.conf')
 
     # Does identifier exist?
-    dataset_name = dataset_id.rpartition(":")[0]
+    dataset_name = dataset_id.partition(":")[0]
     if dataset_name in datasets_conf.sections():
         return Dataset(dataset_id, dataset_conf=datasets_conf[dataset_name], emma_conf=conf)
     else:
-        raise Exception("Dataset %s does not exist in datasets.conf" % dataset_id)
+        raise Exception("Dataset %s does not exist in datasets.conf" % dataset_name)
 
 
 def _get_trace_set(trace_set_path, format, ignore_malformed=True):
@@ -150,10 +150,10 @@ def get_ascad_trace_set(uri):
     trace_set = None
 
     # Process URI
-    path, _, group_subset = uri.rpartition("#")
-    group, _, index = group_subset.rpartition("[")
+    path, _, group_subset = uri.partition("#")
+    group, _, index = group_subset.partition("[")
     index = index.rstrip("]")
-    min_index, _, max_index = index.rpartition(":")
+    min_index, _, max_index = index.partition(":")
     min_index = int(min_index)
     max_index = int(max_index)
 

@@ -65,7 +65,13 @@ celery -A emma_worker worker -l info -Q celery,priority.high
 Note that each slave should be able to access the datasets listen in `datasets.conf`. Now, the master can issue commands to process these datasets.
 
 ```
-emma.py plot ASCAD
+emma.py plot ASCAD:Profiling_traces
+```
+
+Most ops can be executed locally (without distributing tasks to worker nodes):
+
+```
+emma.py plot ASCAD:Profiling_traces --local
 ```
 
 See `emma.py -h` for a full list of available commands.
