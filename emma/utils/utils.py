@@ -121,8 +121,8 @@ def conf_to_id(conf):
             else:
                 result += "-"
             result += action.id_name
-    if 'dataset_id' in conf_dict:
-        result += "-" + conf_dict['dataset_id']
+    # if 'dataset_id' in conf_dict:
+    #     result += "-" + conf_dict['dataset_id']
 
     return result
 

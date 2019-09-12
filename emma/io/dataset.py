@@ -2,7 +2,7 @@ import configparser
 import emma.io.io
 from os import listdir
 from os.path import isfile, join
-from emma.utils.utils import conf_has_op
+from emma.utils.utils import conf_has_op, EMMAConfException
 
 
 class Dataset:
@@ -46,22 +46,20 @@ class Dataset:
             self.trace_set_paths = None
             raise NotImplementedError
         elif self.format == "ascad":  # ASCAD .h5
-            # Hack to force split between validation and training set in ASCAD
-            validation_set = join(self.root, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-val' % self.id)
-            training_set = join(self.root, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5-train' % self.id)
+            if ':' not in self.id:
+                raise EMMAConfException("No group specified. Specify the H5 group to use by using a colon, e.g. file:group")
+            file, _, group = self.id.rpartition(":")
+            path = join(self.root, 'ASCAD/ASCAD_data/ASCAD_databases/%s.h5' % file)
 
             # Make sure we never use training set when attacking or classifying
-            if emma_conf is not None and (conf_has_op(emma_conf, 'attack') or conf_has_op(emma_conf, 'classify') or conf_has_op(emma_conf, 'dattack') or conf_has_op(emma_conf, 'spattack') or conf_has_op(emma_conf, 'pattack')):
-                self.trace_set_paths = [validation_set]
-            else:
-                self.trace_set_paths = [validation_set, training_set]
+            self.trace_set_paths = emma.io.io.get_ascad_paths(path, group)
         else:
             raise Exception("Unknown input format '%s'" % self.format)
 
         assert(len(self.trace_set_paths) > 0)
 
         # Assign reference signal
-        reference_trace_set = emma.io.io.get_trace_set(join(self.root, self.trace_set_paths[0]), self.format, ignore_malformed=False, remote=False)
+        reference_trace_set = emma.io.io.get_trace_set(join(self.root, self.trace_set_paths[0]), self.format, ignore_malformed=False, remote=False)  # TODO add parameter to allow choosing reference trace set index. Fixed now to 0.
 
         self.traces_per_set = len(reference_trace_set.traces)
         self.reference_signal = reference_trace_set.traces[self.reference_index].signal

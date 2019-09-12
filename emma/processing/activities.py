@@ -124,17 +124,17 @@ def __attack_subkeys(emma, subkey_score_cb, final_score_cb):
     score = np.zeros([emma.conf.key_high, 256])
 
     # Determine dataset to attack
-    if emma.dataset_val is None:
-        emma.dataset_val = emma.dataset
+    if emma.dataset_val is not None:
+        raise EMMAConfException("Validation set should only be given when training a model.")
 
-    logger.info("Attacking traces: %s" % str(emma.dataset_val.trace_set_paths))
+    logger.info("Attacking traces: %s" % str(emma.dataset.trace_set_paths))
 
     # Attack each subkey separately
     for subkey in range(emma.conf.key_low, emma.conf.key_high):
         emma.conf.subkey = subkey  # Set in conf, so the workers know which subkey to attack
 
         # Execute task
-        async_result = parallel_work(emma.dataset_val.trace_set_paths, emma.conf, merge_results=True)
+        async_result = parallel_work(emma.dataset.trace_set_paths, emma.conf, merge_results=True)
         em_result = wait_until_completion(async_result, message="Attacking subkey %d" % emma.conf.subkey)
 
         # Parse results
@@ -187,21 +187,19 @@ def __perform_ml_attack(emma):
         raise EMMAException("No dataset provided")
 
     if emma.dataset_val is None:  # No validation dataset provided, so split training data in two parts
-        if emma.dataset.format == "ascad":  # ASCAD uses different formatting
-            validation_split = [x for x in emma.dataset.trace_set_paths if x.endswith('-val')]
-            training_split = [x for x in emma.dataset.trace_set_paths if x.endswith('-train')]
-        else:
-            validation_split = emma.dataset.trace_set_paths[0:emma.conf.num_valsets]
-            training_split = emma.dataset.trace_set_paths[emma.conf.num_valsets:]
+        validation_split = emma.dataset.trace_set_paths[0:emma.conf.num_valsets]
+        training_split = emma.dataset.trace_set_paths[emma.conf.num_valsets:]
     else:
-        validation_split = emma.dataset_val.trace_set_paths[0:emma.conf.num_valsets]
+        validation_split = emma.dataset_val.trace_set_paths[0:emma.conf.num_valsets]  # TODO: allow setting this per dataset?
         training_split = emma.dataset.trace_set_paths
 
     logger.info("Training set: %s" % str(training_split))
     logger.info("Validation set: %s" % str(validation_split))
 
     submit_task(ops.aitrain,
-                training_split, validation_split, emma.conf,
+                training_split,
+                validation_split,
+                emma.conf,
                 remote=emma.conf.remote,
                 message="Training neural network")
 

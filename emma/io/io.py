@@ -2,9 +2,10 @@ import numpy as np
 import emma.processing.ops as ops
 import configparser
 import pickle
+import h5py
 from emma.io.traceset import TraceSet
 from emma.io.dataset import Dataset
-from emma.utils.utils import Window
+from emma.utils.utils import Window, EMMAConfException
 from os.path import join
 
 
@@ -37,7 +38,7 @@ def get_trace_set(trace_set_path, format, ignore_malformed=True, remote=True):
         return _get_trace_set(trace_set_path, format, ignore_malformed)
 
 
-def _get_dataset(dataset, conf=None):
+def _get_dataset(dataset_id, conf=None):
     """
     Retrieve the dataset properties (trace sets, reference index to use, etc.) from the local
     node for a given dataset_id.
@@ -46,10 +47,11 @@ def _get_dataset(dataset, conf=None):
     datasets_conf.read('datasets.conf')
 
     # Does identifier exist?
-    if dataset in datasets_conf.sections():
-        return Dataset(dataset, dataset_conf=datasets_conf[dataset], emma_conf=conf)
+    dataset_name = dataset_id.rpartition(":")[0]
+    if dataset_name in datasets_conf.sections():
+        return Dataset(dataset_id, dataset_conf=datasets_conf[dataset_name], emma_conf=conf)
     else:
-        raise Exception("Dataset %s does not exist in datasets.conf" % dataset)
+        raise Exception("Dataset %s does not exist in datasets.conf" % dataset_id)
 
 
 def _get_trace_set(trace_set_path, format, ignore_malformed=True):
@@ -115,15 +117,7 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
     elif format == "gnuradio":  # .cfile
         raise NotImplementedError
     elif format == "ascad":
-        from ascad.ASCAD_train_models import load_ascad
-        h5_path = trace_set_path.rpartition('-')[0]
-        train_set, attack_set, metadata_set = load_ascad(h5_path, load_metadata=True)
-        metadata_train, metadata_attack = metadata_set
-
-        if trace_set_path.endswith('-train'):
-            return get_ascad_trace_set('train', train_set, metadata_train)
-        elif trace_set_path.endswith('-val'):
-            return get_ascad_trace_set('validation', attack_set, metadata_attack)
+        return get_ascad_trace_set(trace_set_path)
     else:
         print("Unknown trace input format '%s'" % format)
         exit(1)
@@ -131,31 +125,54 @@ def _get_trace_set(trace_set_path, format, ignore_malformed=True):
     return None
 
 
-def get_ascad_trace_set(name, data, meta, limit=None):
+def get_ascad_paths(path, group, split=256):
+    with h5py.File(path, "r") as h5file:
+        h5group = h5file[group]
+        h5datasets = h5group.keys()
+
+        # Some sanity checks
+        if 'labels' not in h5datasets or 'metadata' not in h5datasets or 'traces' not in h5datasets:
+            raise EMMAConfException("H5 dataset %s does not contain labels, metadata and traces" % path)
+
+        if len(h5group['labels']) != len(h5group['traces']) or len(h5group['metadata']) != len(h5group['traces']):
+            raise EMMAException("Labels, traces and metadata in %s are not the same size" % path)
+
+        dataset_size = len(h5group['traces'])
+
+        # Make list of segmented trace paths
+        return ["%s#%s[%d:%d]" % (path, group, i, min(i+split, dataset_size)) for i in range(0, dataset_size, split)]
+
+
+def get_ascad_trace_set(uri):
     """
-    Convert ASCAD data to a TraceSet object.
+    Given a URI, convert ASCAD data to a TraceSet object.
     """
-    data_x, data_y = data
-    traces = []
-    plaintexts = []
-    keys = []
-    masks = []
-    limit = len(data_x) if limit is None else min(len(data_x), limit)
+    trace_set = None
 
-    for i in range(0, limit):
-        traces.append(data_x[i])
-        plaintexts.append(meta[i]['plaintext'])
-        keys.append(meta[i]['key'])
-        masks.append(meta[i]['masks'])
+    # Process URI
+    path, _, group_subset = uri.rpartition("#")
+    group, _, index = group_subset.rpartition("[")
+    index = index.rstrip("]")
+    min_index, _, max_index = index.rpartition(":")
+    min_index = int(min_index)
+    max_index = int(max_index)
 
-    traces = np.array(traces)
-    plaintexts = np.array(plaintexts)
-    keys = np.array(keys)
-    masks = np.array(masks)
+    with h5py.File(path, "r") as h5file:
+        h5group = h5file[group]
 
-    trace_set = TraceSet(name='ascad-%s' % name, traces=traces, plaintexts=plaintexts, ciphertexts=None, keys=keys, masks=masks)
-    trace_set.window = Window(begin=0, end=len(trace_set.traces[0].signal))
-    trace_set.windowed = True
+        traces = h5group["traces"][min_index:max_index]
+        plaintexts = h5group["metadata"][min_index:max_index]["plaintext"]
+        keys = h5group["metadata"][min_index:max_index]["key"]
+        masks = h5group["metadata"][min_index:max_index]["masks"]
+
+        traces = np.array(traces)
+        plaintexts = np.array(plaintexts)
+        keys = np.array(keys)
+        masks = np.array(masks)
+
+        trace_set = TraceSet(name=uri, traces=traces, plaintexts=plaintexts, ciphertexts=None, keys=keys, masks=masks)
+        trace_set.window = Window(begin=0, end=len(trace_set.traces[0].signal))
+        trace_set.windowed = True
 
     return trace_set
 

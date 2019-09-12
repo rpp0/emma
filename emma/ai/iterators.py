@@ -10,7 +10,7 @@ from emma.io.traceset import TraceSet
 from emma.io.dataset import get_dataset_normalization_mean_std
 from emma.attacks.leakagemodels import LeakageModel
 from emma.ai.inputs import AIInput
-from emma.utils.utils import shuffle_random_multiple
+from emma.utils.utils import shuffle_random_multiple, EMMAException
 
 import numpy as np
 from emma.processing import ops
@@ -40,15 +40,7 @@ class AISignalIteratorBase():
             self.num_total_examples = batch_size
         else:
             self.num_total_examples = len(self.trace_set_paths) * self.traces_per_set
-
-            # TODO fixme, hack for getting ASCAD to report correct number of samples
-            # TODO total examples should be determined in the dataset class rather than here
-            if 'ASCAD' in conf.dataset_id:
-                if self.trace_set_paths:
-                    if '-val' in self.trace_set_paths[0]:
-                        self.num_total_examples = 10000
-                    else:
-                        self.num_total_examples = 50000
+        logger.info("Iterator contains %d examples" % self.num_total_examples)
 
     def __iter__(self):
         return self
@@ -81,9 +73,9 @@ class AISignalIteratorBase():
         return signals, values
 
     def fetch_features(self, trace_set_path):
-        '''
+        """
         Fethes the features (raw trace and y-values) for a single trace path.
-        '''
+        """
         # Memoize
         if trace_set_path in self.cache:
             return self.cache[trace_set_path]
@@ -145,8 +137,7 @@ class AISignalIteratorBase():
     def next(self):
         # Bound checking
         if self.index < 0 or self.index >= len(self.trace_set_paths):
-            print("ERROR: index is %d but length is %d" % (self.index, len(self.trace_set_paths)))
-            return None
+            raise EMMAException("ERROR: index is %d but length is %d" % (self.index, len(self.trace_set_paths)))
 
         while True:
             # Do we have enough samples in buffer already?
@@ -246,9 +237,9 @@ class AISHACPUSignalIterator(AISignalIteratorBase):
         return np.array(batch)
 
     def _preprocess_trace_set(self, trace_set):
-        '''
+        """
         Preprocessing specifically for AISHACPU
-        '''
+        """
 
         # Get training data
         if self.subtype == 'vgg16':
@@ -271,38 +262,6 @@ class AISHACPUSignalIterator(AISignalIteratorBase):
                 values[i, key_byte ^ 0x36] = 1.0
 
         return signals, values
-
-
-class ASCADSignalIterator:
-    def __init__(self, set, meta=None, batch_size=200):
-        self.trace_set_paths = "ASCAD"
-        self.set = set
-        self.set_inputs, self.set_labels = set
-        self.meta = meta
-        self.batch_size = batch_size
-        self.index = 0
-        self.values_batch = []
-        self.signals_batch = []
-        self.num_total_examples = len(self.set_inputs)
-
-    def __iter__(self):
-        return self
-
-    def get_all_as_trace_set(self, limit=None):
-        return emio.get_ascad_trace_set('all_traces', self.set, self.meta, limit=limit)
-
-    def next(self):
-        batch_inputs = np.expand_dims(self.set_inputs[self.index:self.index+self.batch_size], axis=-1)
-        batch_labels = to_categorical(self.set_labels[self.index:self.index+self.batch_size], num_classes=256)
-
-        self.index += self.batch_size
-        if self.index >= len(self.set_inputs):
-            self.index = 0
-
-        return batch_inputs, batch_labels
-
-    def __next__(self):
-        return self.next()
 
 
 def get_iterators_for_model(model_type, training_trace_set_paths, validation_trace_set_paths, conf, batch_size=512, hamming=False, subtype='custom', request_id=None):
@@ -328,11 +287,6 @@ def get_iterators_for_model(model_type, training_trace_set_paths, validation_tra
     elif model_type == 'autoenc':
         training_iterator = AutoEncoderSignalIterator(training_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
         validation_iterator = AutoEncoderSignalIterator(validation_trace_set_paths, conf, batch_size=batch_size, request_id=request_id, stream_server=stream_server)
-        #elif model_type == 'aiascad':  # TODO Remove me
-        #    train_set, attack_set, metadata_set = load_ascad(join(conf.datasets_path, "ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"), load_metadata=True)
-        #    metadata_train, metadata_attack = metadata_set
-        #    training_iterator = ASCADSignalIterator(train_set, meta=metadata_train)
-        #    validation_iterator = ASCADSignalIterator(attack_set, meta=metadata_attack)
     else:
         logger.error("Unknown training procedure %s specified." % model_type)
         exit(1)

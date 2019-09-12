@@ -753,10 +753,14 @@ class TestIterator(unittest.TestCase):
             norank=False,
         )
 
-        ascad_path = "./datasets/ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"
+        ascad_root = "./datasets/ASCAD/ASCAD_data/ASCAD_databases/ASCAD.h5"
+        ascad_paths = [
+            "%s#Profiling_traces[0:256]" % ascad_root,
+            "%s#Profiling_traces[256:512]" % ascad_root
+        ]
 
         iterator = AICorrSignalIterator(
-            [ascad_path + "-train"],
+            ascad_paths,
             conf,
             batch_size=256
         )
@@ -770,7 +774,7 @@ class TestIterator(unittest.TestCase):
         x[256:512] = inputs
         y[256:512] = labels
 
-        (X_profiling, Y_profiling), (X_attack, Y_attack), (meta_profiling, meta_attack) = load_ascad(ascad_path, True)
+        (X_profiling, Y_profiling), (X_attack, Y_attack), (meta_profiling, meta_attack) = load_ascad(ascad_root, True)
         x_ascad = X_profiling
         y_ascad = to_categorical(Y_profiling, num_classes=256)
 
