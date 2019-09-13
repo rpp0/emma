@@ -56,6 +56,8 @@ class Dataset:
         else:
             raise Exception("Unknown input format '%s'" % self.format)
 
+        # Limit trace set paths
+        self.trace_set_paths = self.trace_set_paths[0:emma_conf.max_num_tracesets]
         assert(len(self.trace_set_paths) > 0)
 
         # Assign reference signal
