@@ -9,7 +9,7 @@ google-pasta==0.1.7
 grpcio==1.23.0
 h5py==2.10.0
 importlib-metadata==0.21
-joblib==0.13.2
+joblib==1.2.0
 Keras==2.2.5
 Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.0
